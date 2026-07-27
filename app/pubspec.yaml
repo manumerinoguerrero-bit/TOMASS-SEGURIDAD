@@ -78,8 +78,13 @@ dependencies:
   connectivity_plus: ^6.1.0
 
   # ---- Vibración ----------------------------------------------------------
-  # Para que el celular vibre distinto según si el acceso fue aprobado o no
-  vibration: ^2.0.0
+  # Para que el celular vibre distinto según si el acceso fue aprobado o no.
+  #
+  # ⚠️ TIENE QUE SER LA VERSIÓN 3 O SUPERIOR. La 2.x se compila contra Android 33,
+  #    y sus propias dependencias exigen 34 o más. Con la 2.x el APK NO compila:
+  #    falla con "Execution failed for task ':vibration:checkDebugAarMetadata'".
+  #    (Lo descubrimos compilando en GitHub el 27/07/2026.)
+  vibration: ^3.2.0
 
   # ---- Utilidades ---------------------------------------------------------
   # Fechas y números en formato chileno

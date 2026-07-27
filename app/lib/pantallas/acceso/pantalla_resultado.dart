@@ -64,8 +64,10 @@ class _EstadoResultado extends ConsumerState<PantallaResultado> {
     if (resultado == null) return;
 
     try {
+      // En la versión 3 de la librería esto devuelve un sí o no directo,
+      // sin el "no sé" que devolvía la versión anterior.
       final puede = await Vibration.hasVibrator();
-      if (puede != true) {
+      if (!puede) {
         // Sin motor de vibración se usa el golpecito del sistema
         await HapticFeedback.heavyImpact();
         return;
