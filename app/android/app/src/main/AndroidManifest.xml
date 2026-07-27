@@ -1,0 +1,81 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- ======================================================================
+         PERMISOS DE TOMASS SEGURIDAD
+         ======================================================================
+         Android le muestra al residente para qué se usa cada uno. Solo se piden
+         los que la app realmente necesita: pedir permisos de más hace que la
+         gente desconfíe y que Google Play haga preguntas al publicar.
+         ====================================================================== -->
+
+    <!-- Para hablar con el servidor -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Para avisar cuando no hay conexión y activar el modo sin internet -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- Para leer el código QR pegado en el muro, y para las fotos de los
+         vehículos y las patentes -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- Para el ingreso con huella digital y Face ID -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <!-- El de abajo es para teléfonos anteriores a Android 9 -->
+    <uses-permission android:name="android.permission.USE_FINGERPRINT" />
+
+    <!-- Para que el celular vibre al aprobar o denegar un acceso -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+
+    <!-- Para los avisos al guardia y al residente (Android 13 o superior) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- La cámara NO se declara obligatoria a propósito: así la app se puede
+         instalar igual en una tablet sin cámara, que solo muestre el código. -->
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.camera.autofocus"
+        android:required="false" />
+
+    <application
+        android:label="Tomass Seguridad"
+        android:name="${applicationName}"
+        android:icon="@mipmap/ic_launcher"
+        android:enableOnBackInvokedCallback="true">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:taskAffinity=""
+            android:theme="@style/LaunchTheme"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize">
+
+            <!-- Pantalla que se ve mientras la app arranca -->
+            <meta-data
+              android:name="io.flutter.embedding.android.NormalTheme"
+              android:resource="@style/NormalTheme"
+              />
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity>
+
+        <!-- No borrar: lo usa Flutter para conectar las librerías -->
+        <meta-data
+            android:name="flutterEmbedding"
+            android:value="2" />
+    </application>
+
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.PROCESS_TEXT"/>
+            <data android:mimeType="text/plain"/>
+        </intent>
+    </queries>
+</manifest>

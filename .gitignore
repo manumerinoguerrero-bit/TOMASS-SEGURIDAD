@@ -1,0 +1,51 @@
+# ============================================================================
+# Tomass Seguridad — Archivos que NO se suben
+# ============================================================================
+# Este archivo le dice a git qué cosas ignorar: archivos que se generan solos al
+# compilar, y sobre todo, cosas que NUNCA deben salir del computador.
+# ============================================================================
+
+# ---- SECRETOS. Esto es lo más importante de este archivo --------------------
+# Si alguno de estos llega a subirse, cualquiera con acceso al repositorio
+# tendría las llaves del sistema.
+*.jks
+*.keystore
+key.properties
+google-services.json
+GoogleService-Info.plist
+service-account*.json
+firebase-adminsdk*.json
+.env
+.env.*
+*.pem
+*.p12
+*.p8
+
+# ---- Lo que se genera solo al compilar --------------------------------------
+app/build/
+app/.dart_tool/
+app/.flutter-plugins
+app/.flutter-plugins-dependencies
+app/android/.gradle/
+app/android/app/build/
+app/android/local.properties
+app/android/.cxx/
+app/ios/Pods/
+app/ios/.symlinks/
+app/ios/Flutter/Flutter.framework
+app/ios/Flutter/Flutter.podspec
+app/ios/Flutter/ephemeral/
+app/build/
+build/
+
+# ---- Configuración de cada programador --------------------------------------
+.idea/
+.vscode/
+*.iml
+*.iws
+.DS_Store
+Thumbs.db
+
+# ---- Archivos temporales de Windows y OneDrive ------------------------------
+desktop.ini
+~$*

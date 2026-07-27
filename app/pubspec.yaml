@@ -1,0 +1,88 @@
+# ============================================================================
+# Tomass Seguridad — App móvil
+# ============================================================================
+# Este archivo es la lista de compras del proyecto: le dice a Flutter qué
+# herramientas de otras personas necesita descargar para funcionar.
+#
+# Para instalarlas, tu desarrollador corre:  flutter pub get
+# ============================================================================
+
+name: tomass_seguridad
+description: Control de acceso para condominios residenciales.
+
+# Evita que este proyecto se publique por error en internet
+publish_to: "none"
+
+# Número de versión. El número después del + es el que usan Google Play y la
+# App Store para saber qué versión es más nueva.
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.2
+  flutter: ">=3.44.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Los textos del sistema en español: los botones "Cancelar" y "Listo" de los
+  # selectores de fecha y hora, los nombres de los meses, etc.
+  # Sin esto, el selector de fecha en español se cae al abrirse.
+  flutter_localizations:
+    sdk: flutter
+
+  # ---- Conexión con el servidor -------------------------------------------
+  # Base de datos, login y avisos en vivo, todo en uno
+  supabase_flutter: ^2.10.0
+
+  # ---- Manejo del estado de la app ----------------------------------------
+  # Coordina qué pantalla muestra qué datos. Es lo mismo que usa la app de
+  # Merlyn Seguridad, así que tu desarrollador ya lo conoce.
+  flutter_riverpod: ^2.6.1
+
+  # ---- Navegación entre pantallas -----------------------------------------
+  go_router: ^14.6.2
+
+  # ---- Seguridad ----------------------------------------------------------
+  # Guarda la sesión en la zona blindada del teléfono (Keychain en iPhone,
+  # Keystore en Android), NO en el almacenamiento común.
+  flutter_secure_storage: ^9.2.2
+
+  # Huella digital y Face ID
+  local_auth: ^2.3.0
+
+  # ---- Códigos QR ---------------------------------------------------------
+  # Dibuja el código en la pantalla del residente
+  qr_flutter: ^4.1.0
+  # Lee el código pegado en el muro con la cámara
+  mobile_scanner: ^6.0.2
+
+  # ---- Cámara y fotos -----------------------------------------------------
+  image_picker: ^1.1.2
+  # Lee la patente automáticamente de la foto
+  google_mlkit_text_recognition: ^0.15.0
+
+  # ---- Compartir por WhatsApp ---------------------------------------------
+  share_plus: ^10.1.2
+
+  # ---- Vibración ----------------------------------------------------------
+  # Para que el celular vibre distinto según si el acceso fue aprobado o no
+  vibration: ^2.0.0
+
+  # ---- Utilidades ---------------------------------------------------------
+  # Fechas y números en formato chileno
+  intl: ^0.20.1
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  # Revisa el código y avisa de errores antes de compilar
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+
+  # Carpeta donde va el logo y las imágenes
+  assets:
+    - assets/imagenes/

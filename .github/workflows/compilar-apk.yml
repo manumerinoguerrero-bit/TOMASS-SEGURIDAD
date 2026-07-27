@@ -1,0 +1,84 @@
+# ============================================================================
+# Tomass Seguridad — Compilar el APK en la nube
+# ============================================================================
+# QUÉ ES ESTO
+#   Una receta que le dice a un computador de GitHub cómo compilar la app.
+#   Cada vez que subas cambios, GitHub compila el APK solo, gratis, y te lo deja
+#   listo para descargar e instalar en un celular.
+#
+# POR QUÉ SIRVE EN ESTE CASO
+#   El computador de Manuel tiene rota una parte de la red de Windows que Java
+#   necesita para compilar. Esto lo esquiva por completo: la compilación pasa en
+#   un computador de GitHub que está sano, no en el tuyo.
+#
+# CUÁNTO CUESTA
+#   Nada. GitHub da 2.000 minutos de compilación gratis por mes en repositorios
+#   privados, y compilaciones ilimitadas si el repositorio es público. Esta app
+#   tarda unos 6 minutos, así que alcanza de sobra.
+#
+# CÓMO USARLO
+#   Está explicado paso a paso en el LEEME.md, sección
+#   "Compilar el APK sin usar tu computador".
+# ============================================================================
+
+name: Compilar APK
+
+# Cuándo compilar
+on:
+  # Cada vez que se suben cambios a la rama principal
+  push:
+    branches: [main, master]
+  # Y también cuando aprietes el botón "Run workflow" a mano
+  workflow_dispatch:
+
+jobs:
+  compilar:
+    name: Compilar el APK de Android
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1 · Traer el código del proyecto
+      - name: Traer el código
+        uses: actions/checkout@v4
+
+      # 2 · Instalar Java (Android lo necesita para compilar)
+      - name: Instalar Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      # 3 · Instalar Flutter, la misma versión que se usó para escribir la app
+      - name: Instalar Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.4"
+          channel: stable
+          cache: true
+
+      # 4 · Descargar las librerías que usa la app
+      - name: Descargar dependencias
+        working-directory: app
+        run: flutter pub get
+
+      # 5 · Revisar que el código no tenga errores.
+      #     Si falla acá, la compilación se detiene: es a propósito, para que
+      #     nunca se genere un APK a partir de código con problemas.
+      - name: Revisar el código
+        working-directory: app
+        run: flutter analyze
+
+      # 6 · Compilar el APK de prueba (el que se instala a mano en un celular)
+      - name: Compilar el APK
+        working-directory: app
+        run: flutter build apk --debug
+
+      # 7 · Dejar el APK disponible para descargar
+      - name: Publicar el APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: tomass-seguridad-apk
+          path: app/build/app/outputs/flutter-apk/app-debug.apk
+          # Se guarda 30 días. Después se borra solo para no ocupar espacio.
+          retention-days: 30
+          if-no-files-found: error
