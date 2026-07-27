@@ -1,0 +1,421 @@
+// ============================================================================
+// Tomass Seguridad — Pantalla 10 · Inicio de turno del guardia
+// ============================================================================
+// LA PANTALLA MÁS IMPORTANTE QUE NADIE NOTA
+//
+//   Es la que hace que los avisos lleguen al guardia correcto. Si Carlos marca
+//   "Entrada Vehicular", los autos que llegan a la barrera le suenan a ÉL y no al
+//   de la garita peatonal.
+//
+//   Sin turno abierto, el guardia no recibe ningún aviso. Por eso esta pantalla
+//   aparece sola al entrar y no se puede saltear.
+//
+// TAMBIÉN DEJA EL REGISTRO DE QUIÉN ESTABA A CARGO
+//   Si el día de mañana hay que revisar quién dejó pasar a alguien, el turno dice
+//   qué guardia estaba en qué puerta y a qué hora.
+// ============================================================================
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../config/tema.dart';
+import '../../estado/proveedores.dart';
+import '../../estado/proveedores_guardia.dart';
+import '../../modelos/modelos.dart';
+import '../../nucleo/errores.dart';
+import '../../nucleo/formato.dart';
+import '../comunes/componentes.dart';
+
+class PantallaTurno extends ConsumerStatefulWidget {
+  const PantallaTurno({super.key});
+
+  @override
+  ConsumerState<PantallaTurno> createState() => _EstadoTurno();
+}
+
+class _EstadoTurno extends ConsumerState<PantallaTurno> {
+  String? _puestoElegido;
+  bool _trabajando = false;
+  ErrorAmigable? _problema;
+
+  Future<void> _empezar() async {
+    if (_puestoElegido == null) return;
+
+    final perfil = ref.read(perfilProvider).valueOrNull;
+    if (perfil == null) {
+      setState(() => _problema = const ErrorAmigable(
+            'Todavía se están cargando tus datos.',
+            detalle: 'Esperá un segundo y volvé a intentar.',
+          ));
+      return;
+    }
+
+    setState(() {
+      _trabajando = true;
+      _problema = null;
+    });
+
+    try {
+      await ref.read(servicioGuardiaProvider).abrirTurno(
+            condominioId: perfil.condominioId,
+            puntoAccesoId: _puestoElegido!,
+          );
+      ref.invalidate(miTurnoProvider);
+      // La navegación la maneja sola la app al detectar que hay turno abierto
+    } catch (falla) {
+      if (!mounted) return;
+      setState(() {
+        _trabajando = false;
+        _problema = Traductor.traducir(falla);
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final puestos = ref.watch(puestosDisponiblesProvider);
+    final perfil = ref.watch(perfilProvider).valueOrNull;
+    final anchoGrande = MediaQuery.sizeOf(context).width > 700;
+
+    return Scaffold(
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Colores.grafito, Colores.grafitoClaro],
+          ),
+        ),
+        child: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(26),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 720),
+                child: anchoGrande
+                    ? Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: _Bienvenida(perfil: perfil)),
+                          const SizedBox(width: 34),
+                          Expanded(
+                            child: _Eleccion(
+                              puestos: puestos,
+                              elegido: _puestoElegido,
+                              trabajando: _trabajando,
+                              problema: _problema,
+                              alElegir: (id) =>
+                                  setState(() => _puestoElegido = id),
+                              alEmpezar: _empezar,
+                              alReintentar: () =>
+                                  ref.invalidate(puestosDisponiblesProvider),
+                            ),
+                          ),
+                        ],
+                      )
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _Bienvenida(perfil: perfil),
+                          const SizedBox(height: 26),
+                          _Eleccion(
+                            puestos: puestos,
+                            elegido: _puestoElegido,
+                            trabajando: _trabajando,
+                            problema: _problema,
+                            alElegir: (id) =>
+                                setState(() => _puestoElegido = id),
+                            alEmpezar: _empezar,
+                            alReintentar: () =>
+                                ref.invalidate(puestosDisponiblesProvider),
+                          ),
+                        ],
+                      ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Bienvenida extends StatelessWidget {
+  const _Bienvenida({required this.perfil});
+
+  final Perfil? perfil;
+
+  @override
+  Widget build(BuildContext context) {
+    final ahora = DateTime.now();
+    final saludo = ahora.hour < 12
+        ? 'Buenos días'
+        : ahora.hour < 20
+            ? 'Buenas tardes'
+            : 'Buenas noches';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const LogoTomass(tamano: 72),
+        const SizedBox(height: 18),
+        Text(
+          'Inicio de turno',
+          style: TextStyle(
+            fontSize: 26,
+            fontWeight: FontWeight.w800,
+            color: Colors.white,
+            letterSpacing: -0.5,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          '$saludo, ${perfil == null ? '' : Formato.nombreCorto(perfil!.nombreCompleto)}',
+          style: TextStyle(
+            fontSize: 15,
+            color: Colors.white.withValues(alpha: 0.85),
+          ),
+        ),
+        const SizedBox(height: 14),
+        Text(
+          'Elegí el puesto donde vas a estar. Es lo que hace que los avisos de '
+          'autos y visitas te lleguen a vos y no a otro guardia.',
+          style: TextStyle(
+            fontSize: 13.5,
+            height: 1.5,
+            color: Colors.white.withValues(alpha: 0.6),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text(
+            Formato.diaCompleto(ahora).toUpperCase(),
+            style: TextStyle(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.8,
+              color: Colors.white.withValues(alpha: 0.8),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _Eleccion extends StatelessWidget {
+  const _Eleccion({
+    required this.puestos,
+    required this.elegido,
+    required this.trabajando,
+    required this.problema,
+    required this.alElegir,
+    required this.alEmpezar,
+    required this.alReintentar,
+  });
+
+  final AsyncValue<List<PuntoAcceso>> puestos;
+  final String? elegido;
+  final bool trabajando;
+  final ErrorAmigable? problema;
+  final void Function(String) alElegir;
+  final VoidCallback alEmpezar;
+  final VoidCallback alReintentar;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'MI PUESTO DE HOY',
+          style: TextStyle(
+            fontSize: 10.5,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 1.1,
+            color: Colors.white.withValues(alpha: 0.55),
+          ),
+        ),
+        const SizedBox(height: 11),
+
+        if (problema != null) ...[
+          AvisoDeError(problema: problema!),
+          const SizedBox(height: 14),
+        ],
+
+        puestos.when(
+          loading: () => const Padding(
+            padding: EdgeInsets.symmetric(vertical: 40),
+            child: Center(child: CircularProgressIndicator(color: Colors.white)),
+          ),
+          error: (falla, _) => AvisoDeError(
+            problema: Traductor.traducir(falla),
+            alReintentar: alReintentar,
+          ),
+          data: (lista) {
+            if (lista.isEmpty) {
+              return Container(
+                padding: const EdgeInsets.all(Medidas.margen),
+                decoration: BoxDecoration(
+                  color: Colores.superficie,
+                  borderRadius: BorderRadius.circular(Medidas.redondeo),
+                ),
+                child: const Text(
+                  'Este condominio todavía no tiene puestos de acceso '
+                  'configurados. Avisale a la administración.',
+                  style: TextStyle(fontSize: 13.5, height: 1.5),
+                ),
+              );
+            }
+
+            return Column(
+              children: [
+                for (final puesto in lista)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: _TarjetaPuesto(
+                      puesto: puesto,
+                      elegido: puesto.id == elegido,
+                      alTocar: trabajando ? null : () => alElegir(puesto.id),
+                    ),
+                  ),
+              ],
+            );
+          },
+        ),
+
+        const SizedBox(height: 8),
+
+        ElevatedButton(
+          onPressed: (elegido == null || trabajando) ? null : alEmpezar,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colores.verde,
+            foregroundColor: Colors.white,
+            disabledBackgroundColor: Colors.white.withValues(alpha: 0.22),
+            disabledForegroundColor: Colors.white.withValues(alpha: 0.5),
+            minimumSize: const Size.fromHeight(Medidas.altoBotonGigante),
+            textStyle: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.3,
+            ),
+          ),
+          child: trabajando
+              ? const SizedBox(
+                  width: 26,
+                  height: 26,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.6,
+                    color: Colors.white,
+                  ),
+                )
+              : const Text('Comenzar turno'),
+        ),
+
+        if (elegido == null) ...[
+          const SizedBox(height: 10),
+          Text(
+            'Elegí un puesto para poder empezar',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 12.5,
+              color: Colors.white.withValues(alpha: 0.5),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _TarjetaPuesto extends StatelessWidget {
+  const _TarjetaPuesto({
+    required this.puesto,
+    required this.elegido,
+    required this.alTocar,
+  });
+
+  final PuntoAcceso puesto;
+  final bool elegido;
+  final VoidCallback? alTocar;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: alTocar,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 140),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: elegido
+              ? Colores.superficie
+              : Colores.superficie.withValues(alpha: 0.9),
+          borderRadius: BorderRadius.circular(Medidas.redondeo),
+          border: Border.all(
+            color: elegido ? Colores.verde : Colors.transparent,
+            width: 2.5,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: Colores.grafito.withValues(alpha: 0.07),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                puesto.esVehicular
+                    ? Icons.directions_car_rounded
+                    : Icons.directions_walk_rounded,
+                size: 23,
+                color: Colores.grafito,
+              ),
+            ),
+            const SizedBox(width: 13),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    puesto.nombre,
+                    style: const TextStyle(
+                      fontSize: 15.5,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.1,
+                    ),
+                  ),
+                  if (puesto.ubicacion != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      puesto.ubicacion!,
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        color: Colores.textoSuave,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            AnimatedOpacity(
+              duration: const Duration(milliseconds: 140),
+              opacity: elegido ? 1 : 0,
+              child: const Icon(
+                Icons.check_circle_rounded,
+                color: Colores.verde,
+                size: 26,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
