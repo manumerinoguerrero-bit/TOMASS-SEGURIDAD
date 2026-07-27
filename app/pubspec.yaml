@@ -65,6 +65,18 @@ dependencies:
   # ---- Compartir por WhatsApp ---------------------------------------------
   share_plus: ^10.1.2
 
+  # ---- Firma digital ------------------------------------------------------
+  # El residente firma con el dedo en la tablet del guardia al retirar un paquete
+  signature: ^5.5.0
+
+  # ---- Modo sin internet --------------------------------------------------
+  # Guarda en el teléfono lo que no se pudo enviar y lo manda cuando vuelve la
+  # señal. Es lo que hace que la garita siga funcionando sin conexión.
+  sqflite: ^2.4.1
+  path: ^1.9.0
+  # Avisa cuando se cae o vuelve el internet
+  connectivity_plus: ^6.1.0
+
   # ---- Vibración ----------------------------------------------------------
   # Para que el celular vibre distinto según si el acceso fue aprobado o no
   vibration: ^2.0.0

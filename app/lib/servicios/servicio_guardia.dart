@@ -1,0 +1,548 @@
+// ============================================================================
+// Tomass Seguridad — Lo que hace el guardia
+// ============================================================================
+// Turnos, la cola de autos esperando la barrera, paquetes e incidentes.
+//
+// LA PIEZA MÁS IMPORTANTE ES LA COLA DE AUTOS EN VIVO
+//
+//   La pantalla del guardia NO le pregunta al servidor cada dos segundos si
+//   llegó un auto. El servidor le AVISA en el momento en que llega. Eso es lo
+//   que hace que la tarjeta aparezca en menos de un segundo sin gastar batería
+//   ni datos preguntando al vacío.
+//
+//   Técnicamente: la base de datos publica los cambios de la tabla de
+//   solicitudes, y la app está suscrita a esa publicación.
+// ============================================================================
+
+import 'dart:async';
+import 'dart:io';
+
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../config/entorno.dart';
+import '../modelos/modelos.dart';
+import '../nucleo/errores.dart';
+import 'servicio_fotos.dart';
+
+class ServicioGuardia {
+  ServicioGuardia(this._supabase, this._fotos);
+
+  final SupabaseClient _supabase;
+  final ServicioFotos _fotos;
+
+  String get _miId {
+    final usuario = _supabase.auth.currentUser;
+    if (usuario == null) {
+      throw const ErrorAmigable(
+        'Se cerró tu sesión.',
+        hayQueIniciarSesion: true,
+        sePuedeReintentar: false,
+      );
+    }
+    return usuario.id;
+  }
+
+  // ==========================================================================
+  // TURNOS
+  // ==========================================================================
+
+  /// Los puestos donde el guardia puede abrir turno.
+  Future<List<PuntoAcceso>> puestosDisponibles() async {
+    try {
+      final filas = await _supabase
+          .from('puntos_acceso')
+          .select('id, nombre, tipo, ubicacion, activo')
+          .eq('activo', true)
+          .order('tipo')
+          .timeout(Entorno.esperaMaxima);
+
+      return filas
+          .map((f) => PuntoAcceso.desdeMapa(Map<String, dynamic>.from(f)))
+          .toList();
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+
+  /// El turno abierto del guardia, o null si no empezó.
+  Future<Turno?> miTurnoAbierto() async {
+    try {
+      final fila = await _supabase
+          .from('turnos')
+          .select('''
+            id, punto_acceso_id, inicio, fin_programado, cerrado_en,
+            notas_entrega,
+            puntos_acceso ( nombre, tipo )
+          ''')
+          .eq('guardia_id', _miId)
+          .isFilter('cerrado_en', null)
+          .order('inicio', ascending: false)
+          .limit(1)
+          .maybeSingle()
+          .timeout(Entorno.esperaMaxima);
+
+      if (fila == null) return null;
+      return Turno.desdeMapa(Map<String, dynamic>.from(fila));
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+
+  /// Abre el turno en un puesto. Es lo que dirige los avisos a este guardia.
+  Future<Turno> abrirTurno({
+    required String condominioId,
+    required String puntoAccesoId,
+    DateTime? finProgramado,
+  }) async {
+    try {
+      final fila = await _supabase
+          .from('turnos')
+          .insert({
+            'condominio_id': condominioId,
+            'guardia_id': _miId,
+            'punto_acceso_id': puntoAccesoId,
+            if (finProgramado != null)
+              'fin_programado': finProgramado.toUtc().toIso8601String(),
+          })
+          .select('''
+            id, punto_acceso_id, inicio, fin_programado, cerrado_en,
+            notas_entrega,
+            puntos_acceso ( nombre, tipo )
+          ''')
+          .single()
+          .timeout(Entorno.esperaMaxima);
+
+      return Turno.desdeMapa(Map<String, dynamic>.from(fila));
+    } on PostgrestException catch (falla) {
+      // La base de datos impide dos turnos abiertos a la vez para el mismo
+      // guardia. Si pasa, es que quedó uno sin cerrar de la vez anterior.
+      if (falla.code == '23505') {
+        throw const ErrorAmigable(
+          'Ya tenés un turno abierto.',
+          detalle: 'Cerralo antes de empezar uno nuevo.',
+          sePuedeReintentar: false,
+        );
+      }
+      throw Traductor.traducir(falla);
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+
+  /// Cierra el turno. El guardia deja de recibir avisos de ese puesto.
+  Future<void> cerrarTurno({String? notasParaElSiguiente}) async {
+    try {
+      await _supabase
+          .rpc('cerrar_turno', params: {'p_notas': notasParaElSiguiente})
+          .timeout(Entorno.esperaMaxima);
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+
+  // ==========================================================================
+  // LA COLA DE AUTOS — EN VIVO
+  // ==========================================================================
+
+  /// Los autos esperando la barrera en ESTE puesto, ahora mismo.
+  Future<List<AutoEsperando>> autosEsperando(String puntoAccesoId) async {
+    try {
+      final filas = await _supabase
+          .from('v_solicitudes_vehiculares_pendientes')
+          .select()
+          .eq('punto_acceso_id', puntoAccesoId)
+          .order('solicitado_en')
+          .timeout(Entorno.esperaMaxima);
+
+      return filas
+          .map((f) => AutoEsperando.desdeMapa(Map<String, dynamic>.from(f)))
+          .toList();
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+
+  /// Avisa cada vez que la cola de autos cambia.
+  ///
+  /// No se suscribe directo a la vista (las vistas no publican cambios): se
+  /// suscribe a la tabla de solicitudes y, cuando algo cambia, vuelve a pedir la
+  /// lista completa. Es una consulta chica y así los datos llegan siempre
+  /// completos, con la foto y los datos del auto ya cruzados.
+  Stream<List<AutoEsperando>> colaDeAutosEnVivo(String puntoAccesoId) {
+    final control = StreamController<List<AutoEsperando>>.broadcast();
+    RealtimeChannel? canal;
+    Timer? respaldo;
+
+    Future<void> refrescar() async {
+      try {
+        final lista = await autosEsperando(puntoAccesoId);
+        if (!control.isClosed) control.add(lista);
+      } catch (_) {
+        // Un error puntual no debe cortar el flujo: el próximo aviso reintenta.
+      }
+    }
+
+    control.onListen = () {
+      refrescar();
+
+      canal = _supabase
+          .channel('cola_autos_$puntoAccesoId')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'solicitudes_vehiculares',
+            callback: (_) => refrescar(),
+          )
+          .subscribe();
+
+      // Red de seguridad: si la conexión en vivo se cae sin avisar, esto
+      // refresca igual cada 20 segundos. Un auto esperando sin que nadie se
+      // entere es el peor escenario posible de esta pantalla.
+      respaldo = Timer.periodic(const Duration(seconds: 20), (_) => refrescar());
+    };
+
+    control.onCancel = () async {
+      respaldo?.cancel();
+      if (canal != null) await _supabase.removeChannel(canal!);
+      await control.close();
+    };
+
+    return control.stream;
+  }
+
+  /// El guardia aprieta ABRIR ACCESO (o DENEGAR).
+  ///
+  /// Todo lo que pasa —registrar la entrada, dejar anotado qué guardia autorizó,
+  /// sacar la tarjeta de la cola— ocurre en una sola operación del servidor. Si
+  /// algo fallara a mitad de camino, no queda nada a medias.
+  Future<void> resolverAuto({
+    required String solicitudId,
+    required bool abrir,
+    String? motivoSiDeniega,
+  }) async {
+    try {
+      await _supabase.rpc('resolver_solicitud_vehicular', params: {
+        'p_solicitud_id': solicitudId,
+        'p_aprobar': abrir,
+        'p_motivo': motivoSiDeniega,
+      }).timeout(Entorno.esperaMaxima);
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+
+  // ==========================================================================
+  // PANEL
+  // ==========================================================================
+
+  Future<ResumenCondominio> resumen() async {
+    try {
+      final fila = await _supabase
+          .from('v_resumen_condominio')
+          .select()
+          .maybeSingle()
+          .timeout(Entorno.esperaMaxima);
+
+      if (fila == null) return ResumenCondominio.vacio;
+      return ResumenCondominio.desdeMapa(Map<String, dynamic>.from(fila));
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+
+  /// Los últimos movimientos del condominio, para la lista del panel.
+  Future<List<Movimiento>> ultimosAccesos({int cuantos = 25}) async {
+    try {
+      final filas = await _supabase
+          .from('movimientos_acceso')
+          .select('''
+            id, sentido, tipo_acceso, estado, ocurrido_en, patente_snapshot,
+            motivo_denegacion, sincronizado_offline, nombre_snapshot,
+            unidad_snapshot,
+            puntos_acceso ( nombre )
+          ''')
+          .order('ocurrido_en', ascending: false)
+          .limit(cuantos)
+          .timeout(Entorno.esperaMaxima);
+
+      return filas
+          .map((f) => Movimiento.desdeMapa(Map<String, dynamic>.from(f)))
+          .toList();
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+
+  /// Quiénes están dentro del condominio ahora.
+  /// Es el dato que hay que dar si vienen los bomberos.
+  Future<List<Map<String, dynamic>>> personasDentro() async {
+    try {
+      final filas = await _supabase
+          .from('v_personas_dentro')
+          .select()
+          .order('entro_en', ascending: false)
+          .timeout(Entorno.esperaMaxima);
+
+      return filas.map((f) => Map<String, dynamic>.from(f)).toList();
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+
+  // ==========================================================================
+  // PAQUETES
+  // ==========================================================================
+
+  /// Recibe un paquete. La foto es obligatoria: es el respaldo si después
+  /// alguien reclama que llegó dañado.
+  Future<void> recibirPaquete({
+    required String condominioId,
+    required String residenteId,
+    required String? unidadId,
+    required File foto,
+    required String idLocal,
+    String? numeroSeguimiento,
+    String? empresaCourier,
+    String? descripcion,
+    String? turnoId,
+  }) async {
+    String? rutaFoto;
+    try {
+      rutaFoto = await _fotos.subir(
+        archivo: foto,
+        cajon: CajonDeFotos.paquetes,
+        condominioId: condominioId,
+        nombreDescriptivo: 'paquete',
+      );
+
+      await _supabase.from('paquetes').insert({
+        'condominio_id': condominioId,
+        'id_local': idLocal,
+        'residente_id': residenteId,
+        if (unidadId != null) 'unidad_id': unidadId,
+        'foto_url': rutaFoto,
+        if (numeroSeguimiento != null && numeroSeguimiento.trim().isNotEmpty)
+          'numero_seguimiento': numeroSeguimiento.trim(),
+        if (empresaCourier != null && empresaCourier.trim().isNotEmpty)
+          'empresa_courier': empresaCourier.trim(),
+        if (descripcion != null && descripcion.trim().isNotEmpty)
+          'descripcion': descripcion.trim(),
+        'estado': 'en_porteria',
+        'guardia_receptor_id': _miId,
+        if (turnoId != null) 'turno_recepcion_id': turnoId,
+      }).timeout(Entorno.esperaMaxima);
+    } catch (falla) {
+      await _fotos.borrar(rutaFoto, CajonDeFotos.paquetes);
+      throw Traductor.traducir(falla);
+    }
+  }
+
+  /// El inventario de portería, ordenado por antigüedad.
+  Future<List<Map<String, dynamic>>> inventarioDePaquetes() async {
+    try {
+      final filas = await _supabase
+          .from('v_paquetes_porteria')
+          .select()
+          .order('recibido_en')
+          .timeout(Entorno.esperaMaxima);
+
+      return filas.map((f) => Map<String, dynamic>.from(f)).toList();
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+
+  /// Entrega un paquete con la firma del residente.
+  Future<void> entregarPaquete({
+    required String paqueteId,
+    required String condominioId,
+    required File firma,
+    required bool identidadValidada,
+    File? fotoDeLaEntrega,
+    String? retiradoPor,
+    String? turnoId,
+  }) async {
+    String? rutaFirma;
+    String? rutaFoto;
+    try {
+      rutaFirma = await _fotos.subir(
+        archivo: firma,
+        cajon: CajonDeFotos.firmas,
+        condominioId: condominioId,
+        nombreDescriptivo: 'firma',
+      );
+
+      if (fotoDeLaEntrega != null) {
+        rutaFoto = await _fotos.subir(
+          archivo: fotoDeLaEntrega,
+          cajon: CajonDeFotos.paquetes,
+          condominioId: condominioId,
+          nombreDescriptivo: 'entrega',
+        );
+      }
+
+      await _supabase
+          .from('paquetes')
+          .update({
+            'estado': 'entregado',
+            'entregado_en': DateTime.now().toUtc().toIso8601String(),
+            'guardia_entrega_id': _miId,
+            if (turnoId != null) 'turno_entrega_id': turnoId,
+            'firma_url': rutaFirma,
+            if (rutaFoto != null) 'foto_entrega_url': rutaFoto,
+            'identidad_validada': identidadValidada,
+            if (retiradoPor != null && retiradoPor.trim().isNotEmpty)
+              'retirado_por': retiradoPor.trim(),
+          })
+          .eq('id', paqueteId)
+          .timeout(Entorno.esperaMaxima);
+    } catch (falla) {
+      await _fotos.borrar(rutaFirma, CajonDeFotos.firmas);
+      await _fotos.borrar(rutaFoto, CajonDeFotos.paquetes);
+      throw Traductor.traducir(falla);
+    }
+  }
+
+  /// Busca residentes por nombre o número de unidad, para asignarles un paquete.
+  Future<List<Map<String, dynamic>>> buscarResidentes(String texto) async {
+    final busqueda = texto.trim();
+    if (busqueda.length < 2) return const [];
+
+    try {
+      final filas = await _supabase
+          .from('usuarios')
+          .select('''
+            id, nombre_completo, telefono, foto_url, unidad_id,
+            unidades!usuarios_unidad_id_fkey ( numero, torre )
+          ''')
+          .eq('rol', 'residente')
+          .eq('estado', 'activo')
+          .or('nombre_completo.ilike.%$busqueda%,cedula.ilike.%$busqueda%')
+          .limit(20)
+          .timeout(Entorno.esperaMaxima);
+
+      return filas.map((f) => Map<String, dynamic>.from(f)).toList();
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+
+  // ==========================================================================
+  // INCIDENTES
+  // ==========================================================================
+
+  Future<List<Incidente>> incidentes({bool soloAbiertos = false}) async {
+    try {
+      var consulta = _supabase.from('incidentes').select('''
+            id, tipo, gravedad, titulo, descripcion, fotos, patente,
+            ocurrido_en, estado, nota_resolucion, sincronizado_offline,
+            unidades ( numero, torre ),
+            reportante:usuarios!incidentes_reportado_por_fkey ( nombre_completo )
+          ''');
+
+      if (soloAbiertos) consulta = consulta.neq('estado', 'cerrado');
+
+      final filas = await consulta
+          .order('ocurrido_en', ascending: false)
+          .limit(60)
+          .timeout(Entorno.esperaMaxima);
+
+      return filas
+          .map((f) => Incidente.desdeMapa(Map<String, dynamic>.from(f)))
+          .toList();
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+
+  /// Anota una novedad. Es lo más simple del sistema y lo que más se usa.
+  Future<void> reportarIncidente({
+    required String condominioId,
+    required String idLocal,
+    required TipoIncidente tipo,
+    required GravedadIncidente gravedad,
+    required String titulo,
+    String? descripcion,
+    List<File> fotos = const [],
+    String? unidadId,
+    String? patente,
+    String? turnoId,
+    String? puntoAccesoId,
+  }) async {
+    final rutas = <String>[];
+    try {
+      for (final foto in fotos) {
+        rutas.add(await _fotos.subir(
+          archivo: foto,
+          cajon: CajonDeFotos.paquetes,
+          condominioId: condominioId,
+          nombreDescriptivo: 'incidente',
+        ));
+      }
+
+      await _supabase.from('incidentes').insert({
+        'condominio_id': condominioId,
+        'id_local': idLocal,
+        'tipo': tipo.comoTexto,
+        'gravedad': gravedad.name,
+        'titulo': titulo.trim(),
+        if (descripcion != null && descripcion.trim().isNotEmpty)
+          'descripcion': descripcion.trim(),
+        'fotos': rutas,
+        if (unidadId != null) 'unidad_id': unidadId,
+        if (patente != null && patente.trim().isNotEmpty)
+          'patente': FormatoPatente.normalizar(patente),
+        if (puntoAccesoId != null) 'punto_acceso_id': puntoAccesoId,
+        'reportado_por': _miId,
+        if (turnoId != null) 'turno_id': turnoId,
+        'estado': 'abierto',
+      }).timeout(Entorno.esperaMaxima);
+    } catch (falla) {
+      for (final ruta in rutas) {
+        await _fotos.borrar(ruta, CajonDeFotos.paquetes);
+      }
+      throw Traductor.traducir(falla);
+    }
+  }
+
+  // ==========================================================================
+  // VALIDAR CREDENCIALES (visitantes y personal de servicio)
+  // ==========================================================================
+
+  /// El guardia escanea un código. El servidor descubre solo si es una visita,
+  /// una credencial de personal de servicio o un residente.
+  Future<Map<String, dynamic>> validarCredencial({
+    required String codigo,
+    String? codigoDelMuro,
+    String? idLocal,
+  }) async {
+    try {
+      final respuesta = await _supabase.functions
+          .invoke(
+            Entorno.funcionValidarCredencial,
+            body: {
+              'codigo': codigo,
+              if (codigoDelMuro != null) 'codigo_estatico': codigoDelMuro,
+              if (idLocal != null) 'id_local': idLocal,
+            },
+          )
+          .timeout(Entorno.esperaMaxima);
+
+      final datos = respuesta.data;
+      if (datos is! Map) {
+        throw const ErrorAmigable('El servidor devolvió algo que no entendemos.');
+      }
+      return Map<String, dynamic>.from(datos);
+    } on FunctionException catch (falla) {
+      // Un acceso denegado es una respuesta válida, no un error del programa:
+      // el guardia tiene que verla en pantalla con su motivo.
+      final cuerpo = falla.details;
+      if (cuerpo is Map && cuerpo['mensaje'] is String) {
+        return Map<String, dynamic>.from(cuerpo);
+      }
+      throw Traductor.traducir(falla);
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+}

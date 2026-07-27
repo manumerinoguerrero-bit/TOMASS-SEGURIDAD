@@ -16,6 +16,7 @@ import 'formato_patente.dart';
 // Los demás modelos viven en sus propios archivos, pero se re-exportan desde acá
 // para que las pantallas solo tengan que importar "modelos.dart" y ya tengan todo.
 export 'formato_patente.dart';
+export 'guardia.dart';
 export 'movimiento.dart';
 export 'paquete.dart';
 export 'visita.dart';
