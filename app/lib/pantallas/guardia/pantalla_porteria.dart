@@ -1,0 +1,1000 @@
+// ============================================================================
+// Tomass Seguridad — Pantallas 14, 15 y 16 · Portería
+// ============================================================================
+// Las tres cosas que el guardia hace con los paquetes, en una sola pantalla con
+// tres pestañas: recibir, ver el inventario, y entregar.
+//
+// POR QUÉ LAS TRES JUNTAS Y NO EN TRES PANTALLAS SEPARADAS
+//   Porque son el mismo trabajo visto en tres momentos. El guardia pasa de una a
+//   otra todo el día, y tenerlas en pestañas le ahorra volver a un menú cada vez.
+//
+// LA FOTO DEL PAQUETE ES OBLIGATORIA
+//   No es burocracia: es el respaldo del condominio si el residente después dice
+//   que llegó dañado o que nunca llegó. Sin foto no se puede guardar.
+// ============================================================================
+
+import 'dart:io';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:signature/signature.dart';
+
+import '../../config/tema.dart';
+import '../../estado/proveedores.dart';
+import '../../estado/proveedores_guardia.dart';
+import '../../nucleo/errores.dart';
+import '../../nucleo/formato.dart';
+import '../../servicios/servicio_fotos.dart';
+import '../comunes/componentes.dart';
+
+class PantallaPorteria extends ConsumerWidget {
+  const PantallaPorteria({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final inventario = ref.watch(inventarioPaquetesProvider);
+    final cuantos = inventario.valueOrNull?.length ?? 0;
+
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Portería'),
+          bottom: TabBar(
+            indicatorColor: Colors.white,
+            indicatorWeight: 3,
+            labelColor: Colors.white,
+            unselectedLabelColor: Colors.white.withValues(alpha: 0.6),
+            labelStyle: const TextStyle(
+              fontSize: 13.5,
+              fontWeight: FontWeight.w700,
+            ),
+            tabs: [
+              const Tab(text: 'Recibir'),
+              Tab(text: cuantos == 0 ? 'Inventario' : 'Inventario ($cuantos)'),
+            ],
+          ),
+        ),
+        body: const TabBarView(
+          children: [
+            _PestanaRecibir(),
+            _PestanaInventario(),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// PESTAÑA 1 · RECIBIR UN PAQUETE
+// ============================================================================
+// Tres pasos en una sola pantalla, sin cambiar de página. Toma menos de 30
+// segundos con el repartidor esperando adelante.
+// ============================================================================
+
+class _PestanaRecibir extends ConsumerStatefulWidget {
+  const _PestanaRecibir();
+
+  @override
+  ConsumerState<_PestanaRecibir> createState() => _EstadoRecibir();
+}
+
+class _EstadoRecibir extends ConsumerState<_PestanaRecibir> {
+  final _seguimiento = TextEditingController();
+  final _courier = TextEditingController();
+  final _descripcion = TextEditingController();
+  final _busqueda = TextEditingController();
+
+  File? _foto;
+  Map<String, dynamic>? _residente;
+  List<Map<String, dynamic>> _encontrados = const [];
+  bool _buscando = false;
+  bool _guardando = false;
+  ErrorAmigable? _problema;
+
+  @override
+  void dispose() {
+    _seguimiento.dispose();
+    _courier.dispose();
+    _descripcion.dispose();
+    _busqueda.dispose();
+    super.dispose();
+  }
+
+  Future<void> _fotografiar() async {
+    try {
+      final foto = await ref.read(servicioFotosProvider).sacarFoto();
+      if (foto != null && mounted) setState(() => _foto = foto);
+    } catch (falla) {
+      if (mounted) setState(() => _problema = Traductor.traducir(falla));
+    }
+  }
+
+  Future<void> _buscar(String texto) async {
+    if (texto.trim().length < 2) {
+      setState(() => _encontrados = const []);
+      return;
+    }
+    setState(() => _buscando = true);
+    try {
+      final r = await ref.read(servicioGuardiaProvider).buscarResidentes(texto);
+      if (mounted) setState(() => _encontrados = r);
+    } catch (_) {
+      // Una búsqueda que falla no vale un cartel de error: se reintenta al
+      // escribir la próxima letra.
+    } finally {
+      if (mounted) setState(() => _buscando = false);
+    }
+  }
+
+  Future<void> _guardar() async {
+    if (_foto == null) {
+      setState(() => _problema = const ErrorAmigable(
+            'Falta la foto del paquete.',
+            detalle: 'Es obligatoria: es tu respaldo si después reclaman que '
+                'llegó dañado.',
+            sePuedeReintentar: false,
+          ));
+      return;
+    }
+    if (_residente == null) {
+      setState(() => _problema = const ErrorAmigable(
+            'Falta elegir a quién va el paquete.',
+            detalle: 'Buscalo por nombre o por número de unidad.',
+            sePuedeReintentar: false,
+          ));
+      return;
+    }
+
+    final perfil = ref.read(perfilProvider).valueOrNull;
+    final turno = ref.read(miTurnoProvider).valueOrNull;
+    if (perfil == null) return;
+
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _guardando = true;
+      _problema = null;
+    });
+
+    try {
+      await ref.read(servicioGuardiaProvider).recibirPaquete(
+            condominioId: perfil.condominioId,
+            residenteId: _residente!['id'] as String,
+            unidadId: _residente!['unidad_id'] as String?,
+            foto: _foto!,
+            idLocal: UniqueKey().toString().hashCode.toRadixString(16) +
+                DateTime.now().microsecondsSinceEpoch.toRadixString(16),
+            numeroSeguimiento: _seguimiento.text,
+            empresaCourier: _courier.text,
+            descripcion: _descripcion.text,
+            turnoId: turno?.id,
+          );
+
+      ref.invalidate(inventarioPaquetesProvider);
+      ref.invalidate(resumenProvider);
+
+      if (!mounted) return;
+      final nombre = _residente!['nombre_completo'];
+      setState(() {
+        _foto = null;
+        _residente = null;
+        _encontrados = const [];
+        _seguimiento.clear();
+        _courier.clear();
+        _descripcion.clear();
+        _busqueda.clear();
+        _guardando = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Paquete guardado. Ya le avisamos a $nombre.'),
+          backgroundColor: Colores.verde,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    } catch (falla) {
+      if (!mounted) return;
+      setState(() {
+        _guardando = false;
+        _problema = Traductor.traducir(falla);
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(Medidas.margen),
+      children: [
+        if (_problema != null) ...[
+          AvisoDeError(problema: _problema!),
+          const SizedBox(height: 14),
+        ],
+
+        // ---- Paso 1: la foto ----
+        Row(
+          children: [
+            Text('1 · FOTO DEL PAQUETE',
+                style: Theme.of(context).textTheme.labelSmall),
+            const SizedBox(width: 7),
+            const Text(
+              'OBLIGATORIA',
+              style: TextStyle(
+                fontSize: 9.5,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.6,
+                color: Colores.rojo,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 9),
+        GestureDetector(
+          onTap: _guardando ? null : _fotografiar,
+          child: Container(
+            height: 150,
+            decoration: BoxDecoration(
+              color: Colores.grafito.withValues(alpha: 0.04),
+              borderRadius: BorderRadius.circular(Medidas.redondeo),
+              border: Border.all(
+                color: _foto == null ? Colores.rojo : Colores.verde,
+                width: 1.6,
+              ),
+            ),
+            child: _foto == null
+                ? const Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.photo_camera_rounded,
+                          size: 30, color: Colores.textoSuave),
+                      SizedBox(height: 9),
+                      Text(
+                        'Tocá para fotografiar el paquete',
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w600,
+                          color: Colores.textoSuave,
+                        ),
+                      ),
+                    ],
+                  )
+                : ClipRRect(
+                    borderRadius: BorderRadius.circular(Medidas.redondeo - 1),
+                    child: Image.file(_foto!, fit: BoxFit.cover,
+                        width: double.infinity),
+                  ),
+          ),
+        ),
+
+        const SizedBox(height: 20),
+
+        // ---- Paso 2: los datos ----
+        Text('2 · DATOS DEL PAQUETE',
+            style: Theme.of(context).textTheme.labelSmall),
+        const SizedBox(height: 9),
+        Row(
+          children: [
+            Expanded(
+              flex: 3,
+              child: TextField(
+                controller: _seguimiento,
+                enabled: !_guardando,
+                decoration: const InputDecoration(
+                  labelText: 'Nº de seguimiento',
+                  hintText: '998877665',
+                  prefixIcon: Icon(Icons.numbers_rounded),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              flex: 2,
+              child: TextField(
+                controller: _courier,
+                enabled: !_guardando,
+                textCapitalization: TextCapitalization.words,
+                decoration: const InputDecoration(
+                  labelText: 'Courier',
+                  hintText: 'Starken',
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        TextField(
+          controller: _descripcion,
+          enabled: !_guardando,
+          textCapitalization: TextCapitalization.sentences,
+          decoration: const InputDecoration(
+            labelText: 'Descripción (opcional)',
+            hintText: 'Caja grande, sobre, bolsa…',
+            helperText: 'Ayuda al residente a reconocerlo',
+          ),
+        ),
+
+        const SizedBox(height: 20),
+
+        // ---- Paso 3: para quién ----
+        Text('3 · ¿PARA QUIÉN ES?',
+            style: Theme.of(context).textTheme.labelSmall),
+        const SizedBox(height: 9),
+
+        if (_residente != null)
+          Card(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(Medidas.redondeo),
+              side: const BorderSide(color: Colores.verde, width: 1.8),
+            ),
+            child: ListTile(
+              leading: Avatar(
+                iniciales: _iniciales(
+                    _residente!['nombre_completo']?.toString() ?? '?'),
+                tamano: 42,
+              ),
+              title: Text(
+                _residente!['nombre_completo']?.toString() ?? '',
+                style: const TextStyle(
+                    fontSize: 14.5, fontWeight: FontWeight.w700),
+              ),
+              subtitle: Text(_unidadDe(_residente!) ?? 'Sin unidad asignada'),
+              trailing: IconButton(
+                icon: const Icon(Icons.close_rounded),
+                tooltip: 'Elegir otro',
+                onPressed: _guardando
+                    ? null
+                    : () => setState(() {
+                          _residente = null;
+                          _busqueda.clear();
+                          _encontrados = const [];
+                        }),
+              ),
+            ),
+          )
+        else ...[
+          TextField(
+            controller: _busqueda,
+            enabled: !_guardando,
+            textCapitalization: TextCapitalization.words,
+            onChanged: _buscar,
+            decoration: InputDecoration(
+              labelText: 'Buscar residente',
+              hintText: 'Nombre o cédula',
+              prefixIcon: const Icon(Icons.search_rounded),
+              suffixIcon: _buscando
+                  ? const Padding(
+                      padding: EdgeInsets.all(13),
+                      child: SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    )
+                  : null,
+            ),
+          ),
+          if (_encontrados.isNotEmpty) ...[
+            const SizedBox(height: 9),
+            Card(
+              child: Column(
+                children: [
+                  for (var i = 0; i < _encontrados.length; i++) ...[
+                    if (i > 0) const Divider(height: 1),
+                    ListTile(
+                      dense: true,
+                      leading: Avatar(
+                        iniciales: _iniciales(
+                          _encontrados[i]['nombre_completo']?.toString() ?? '?',
+                        ),
+                        tamano: 34,
+                      ),
+                      title: Text(
+                        _encontrados[i]['nombre_completo']?.toString() ?? '',
+                        style: const TextStyle(
+                            fontSize: 13.5, fontWeight: FontWeight.w600),
+                      ),
+                      subtitle: Text(
+                        _unidadDe(_encontrados[i]) ?? 'Sin unidad',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      onTap: () => setState(() {
+                        _residente = _encontrados[i];
+                        _encontrados = const [];
+                      }),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ],
+
+        const SizedBox(height: 20),
+
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colores.grafito.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(Medidas.redondeoChico),
+          ),
+          child: const Row(
+            children: [
+              Icon(Icons.notifications_rounded,
+                  size: 17, color: Colores.grafito),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Al guardar, el residente recibe el aviso en su celular con la '
+                  'foto del paquete.',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    height: 1.4,
+                    color: Colores.textoSuave,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        ElevatedButton.icon(
+          onPressed: _guardando ? null : _guardar,
+          icon: _guardando
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2.4, color: Colors.white),
+                )
+              : const Icon(Icons.save_rounded, size: 21),
+          label: Text(_guardando ? 'Guardando…' : 'Guardar paquete'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colores.verde,
+            minimumSize: const Size.fromHeight(Medidas.altoBotonGigante),
+            textStyle: const TextStyle(
+                fontSize: 17, fontWeight: FontWeight.w800),
+          ),
+        ),
+        const SizedBox(height: 26),
+      ],
+    );
+  }
+}
+
+// ============================================================================
+// PESTAÑA 2 · INVENTARIO Y ENTREGA
+// ============================================================================
+
+class _PestanaInventario extends ConsumerStatefulWidget {
+  const _PestanaInventario();
+
+  @override
+  ConsumerState<_PestanaInventario> createState() => _EstadoInventario();
+}
+
+class _EstadoInventario extends ConsumerState<_PestanaInventario> {
+  String _filtro = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final inventario = ref.watch(inventarioPaquetesProvider);
+
+    return inventario.when(
+      loading: () => const Center(
+        child: CircularProgressIndicator(color: Colores.grafito),
+      ),
+      error: (falla, _) => Padding(
+        padding: const EdgeInsets.all(Medidas.margen),
+        child: AvisoDeError(
+          problema: Traductor.traducir(falla),
+          alReintentar: () => ref.invalidate(inventarioPaquetesProvider),
+        ),
+      ),
+      data: (todos) {
+        final texto = _filtro.trim().toLowerCase();
+        final lista = texto.isEmpty
+            ? todos
+            : todos.where((p) {
+                final campos = [
+                  p['residente'],
+                  p['unidad'],
+                  p['numero_seguimiento'],
+                  p['empresa_courier'],
+                ].map((c) => c?.toString().toLowerCase() ?? '');
+                return campos.any((c) => c.contains(texto));
+              }).toList();
+
+        final atrasados =
+            todos.where((p) => p['alerta_antiguedad'] == true).length;
+
+        return Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                  Medidas.margen, Medidas.margen, Medidas.margen, 8),
+              child: TextField(
+                onChanged: (t) => setState(() => _filtro = t),
+                decoration: const InputDecoration(
+                  hintText: 'Buscar por nombre, unidad o número…',
+                  prefixIcon: Icon(Icons.search_rounded),
+                  isDense: true,
+                ),
+              ),
+            ),
+
+            if (atrasados > 0)
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: Medidas.margen, vertical: 4),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(11),
+                  decoration: BoxDecoration(
+                    color: Colores.rojo.withValues(alpha: 0.09),
+                    borderRadius: BorderRadius.circular(Medidas.redondeoChico),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.schedule_rounded,
+                          size: 17, color: Colores.rojoOscuro),
+                      const SizedBox(width: 9),
+                      Expanded(
+                        child: Text(
+                          atrasados == 1
+                              ? '1 paquete lleva más de una semana en portería.'
+                              : '$atrasados paquetes llevan más de una semana en portería.',
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            color: Colores.rojoOscuro,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+            Expanded(
+              child: lista.isEmpty
+                  ? ListaVacia(
+                      icono: Icons.inventory_2_outlined,
+                      titulo: texto.isEmpty
+                          ? 'No hay paquetes en portería'
+                          : 'Ningún paquete coincide',
+                      explicacion: texto.isEmpty
+                          ? 'Cuando recibas uno, va a aparecer acá con su foto.'
+                          : 'Probá con otro nombre, unidad o número.',
+                    )
+                  : RefreshIndicator(
+                      onRefresh: () async =>
+                          ref.invalidate(inventarioPaquetesProvider),
+                      child: ListView.separated(
+                        padding: const EdgeInsets.all(Medidas.margen),
+                        itemCount: lista.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 11),
+                        itemBuilder: (context, i) =>
+                            _TarjetaInventario(paquete: lista[i]),
+                      ),
+                    ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _TarjetaInventario extends ConsumerWidget {
+  const _TarjetaInventario({required this.paquete});
+
+  final Map<String, dynamic> paquete;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final atrasado = paquete['alerta_antiguedad'] == true;
+    final dias = (paquete['dias_en_porteria'] as num?)?.toInt() ?? 0;
+    final recibido = DateTime.tryParse(paquete['recibido_en']?.toString() ?? '');
+
+    return Card(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(Medidas.redondeo),
+        side: BorderSide(
+          color: atrasado ? Colores.rojo : Colores.linea,
+          width: atrasado ? 1.5 : 1,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            FotoDelServidor(
+              ruta: paquete['foto_url']?.toString(),
+              cajon: CajonDeFotos.paquetes,
+              ancho: 58,
+              alto: 58,
+              iconoSiFalta: Icons.inventory_2_outlined,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    paquete['residente']?.toString() ?? '—',
+                    style: const TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.w700),
+                  ),
+                  Text(
+                    [
+                      if (paquete['unidad'] != null)
+                        'Unidad ${paquete['unidad']}',
+                      if (paquete['numero_seguimiento'] != null)
+                        'Nº ${paquete['numero_seguimiento']}',
+                    ].join(' · '),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 12, color: Colores.textoSuave),
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Etiqueta(
+                        texto: Formato.cantidadDeDias(dias),
+                        tono: atrasado
+                            ? TonoEtiqueta.malo
+                            : dias >= 3
+                                ? TonoEtiqueta.espera
+                                : TonoEtiqueta.neutro,
+                      ),
+                      if (recibido != null) ...[
+                        const SizedBox(width: 7),
+                        Text(
+                          Formato.cuandoRelativo(recibido),
+                          style: const TextStyle(
+                              fontSize: 11, color: Colores.textoTenue),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            ElevatedButton(
+              onPressed: () => _abrirEntrega(context, ref, paquete),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colores.verde,
+                minimumSize: const Size(0, 44),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                textStyle: const TextStyle(
+                    fontSize: 13.5, fontWeight: FontWeight.w800),
+              ),
+              child: const Text('Entregar'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// ENTREGAR: la firma del residente
+// ============================================================================
+// El residente firma con el dedo. Eso, con la hora exacta y quién lo entregó,
+// es el respaldo completo de que el paquete salió de portería.
+// ============================================================================
+
+Future<void> _abrirEntrega(
+  BuildContext context,
+  WidgetRef ref,
+  Map<String, dynamic> paquete,
+) {
+  return showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colores.superficie,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    builder: (_) => _HojaDeEntrega(paquete: paquete),
+  );
+}
+
+class _HojaDeEntrega extends ConsumerStatefulWidget {
+  const _HojaDeEntrega({required this.paquete});
+
+  final Map<String, dynamic> paquete;
+
+  @override
+  ConsumerState<_HojaDeEntrega> createState() => _EstadoEntrega();
+}
+
+class _EstadoEntrega extends ConsumerState<_HojaDeEntrega> {
+  late final SignatureController _firma = SignatureController(
+    penStrokeWidth: 3.2,
+    penColor: Colores.texto,
+    exportBackgroundColor: Colors.white,
+  );
+
+  final _retiradoPor = TextEditingController();
+  bool _loRetiraOtro = false;
+  bool _guardando = false;
+  ErrorAmigable? _problema;
+
+  @override
+  void dispose() {
+    _firma.dispose();
+    _retiradoPor.dispose();
+    super.dispose();
+  }
+
+  Future<void> _confirmar() async {
+    if (_firma.isEmpty) {
+      setState(() => _problema = const ErrorAmigable(
+            'Falta la firma.',
+            detalle: 'Pedile al residente que firme con el dedo en el recuadro.',
+            sePuedeReintentar: false,
+          ));
+      return;
+    }
+
+    final perfil = ref.read(perfilProvider).valueOrNull;
+    final turno = ref.read(miTurnoProvider).valueOrNull;
+    if (perfil == null) return;
+
+    setState(() {
+      _guardando = true;
+      _problema = null;
+    });
+
+    try {
+      final imagen = await _firma.toPngBytes();
+      if (imagen == null) throw const ErrorAmigable('No se pudo guardar la firma.');
+
+      // Se escribe a un archivo temporal para poder subirla
+      final temporal = File(
+        '${Directory.systemTemp.path}/firma_${DateTime.now().millisecondsSinceEpoch}.png',
+      );
+      await temporal.writeAsBytes(imagen);
+
+      await ref.read(servicioGuardiaProvider).entregarPaquete(
+            paqueteId: widget.paquete['id'] as String,
+            condominioId: perfil.condominioId,
+            firma: temporal,
+            identidadValidada: !_loRetiraOtro,
+            retiradoPor: _loRetiraOtro ? _retiradoPor.text : null,
+            turnoId: turno?.id,
+          );
+
+      ref.invalidate(inventarioPaquetesProvider);
+      ref.invalidate(resumenProvider);
+
+      if (!mounted) return;
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Paquete entregado a ${widget.paquete['residente']}.',
+          ),
+          backgroundColor: Colores.verde,
+        ),
+      );
+    } catch (falla) {
+      if (!mounted) return;
+      setState(() {
+        _guardando = false;
+        _problema = Traductor.traducir(falla);
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = widget.paquete;
+
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.viewInsetsOf(context).bottom,
+      ),
+      child: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 18),
+                  decoration: BoxDecoration(
+                    color: Colores.linea,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+
+              Text('Entregar paquete',
+                  style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 3),
+              Text(
+                '${p['residente']} · ${p['unidad'] != null ? 'unidad ${p['unidad']}' : 'sin unidad'}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+
+              const SizedBox(height: 16),
+
+              if (_problema != null) ...[
+                AvisoDeError(problema: _problema!),
+                const SizedBox(height: 14),
+              ],
+
+              // ---- ¿Lo retira el residente u otra persona? ----
+              SwitchListTile.adaptive(
+                value: _loRetiraOtro,
+                onChanged: _guardando
+                    ? null
+                    : (v) => setState(() => _loRetiraOtro = v),
+                activeThumbColor: Colores.naranja,
+                contentPadding: EdgeInsets.zero,
+                title: const Text(
+                  'Lo retira otra persona',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                ),
+                subtitle: const Text(
+                  'Un familiar, la nana, el conserje',
+                  style: TextStyle(fontSize: 12, color: Colores.textoSuave),
+                ),
+              ),
+
+              if (_loRetiraOtro) ...[
+                const SizedBox(height: 4),
+                TextField(
+                  controller: _retiradoPor,
+                  enabled: !_guardando,
+                  textCapitalization: TextCapitalization.words,
+                  decoration: const InputDecoration(
+                    labelText: '¿Quién lo retira?',
+                    hintText: 'Nombre y cédula si podés',
+                    prefixIcon: Icon(Icons.person_outline_rounded),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colores.naranja.withValues(alpha: 0.09),
+                    borderRadius: BorderRadius.circular(Medidas.redondeoChico),
+                  ),
+                  child: const Text(
+                    'Queda registrado que no lo retiró el residente. Conviene '
+                    'que él lo sepa: le llega el aviso igual.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      height: 1.4,
+                      color: Colores.naranjaOscuro,
+                    ),
+                  ),
+                ),
+              ],
+
+              const SizedBox(height: 16),
+
+              // ---- La firma ----
+              Text('FIRMA DE QUIEN RETIRA',
+                  style: Theme.of(context).textTheme.labelSmall),
+              const SizedBox(height: 8),
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(Medidas.redondeo),
+                  border: Border.all(color: Colores.grafito, width: 1.5),
+                ),
+                child: Column(
+                  children: [
+                    ClipRRect(
+                      borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(Medidas.redondeo - 1)),
+                      child: Signature(
+                        controller: _firma,
+                        height: 165,
+                        backgroundColor: Colors.white,
+                      ),
+                    ),
+                    Container(
+                      decoration: const BoxDecoration(
+                        border: Border(
+                            top: BorderSide(color: Colores.linea)),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 7),
+                      child: Row(
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              'Firmá con el dedo sobre el recuadro',
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                color: Colores.textoSuave,
+                              ),
+                            ),
+                          ),
+                          TextButton.icon(
+                            onPressed: _guardando
+                                ? null
+                                : () => setState(() => _firma.clear()),
+                            icon: const Icon(Icons.refresh_rounded, size: 16),
+                            label: const Text('Borrar'),
+                            style: TextButton.styleFrom(
+                              foregroundColor: Colores.textoSuave,
+                              textStyle: const TextStyle(fontSize: 12.5),
+                              minimumSize: const Size(0, 32),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 18),
+
+              ElevatedButton.icon(
+                onPressed: _guardando ? null : _confirmar,
+                icon: _guardando
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2.4, color: Colors.white),
+                      )
+                    : const Icon(Icons.check_rounded, size: 22),
+                label: Text(_guardando ? 'Guardando…' : 'CONFIRMAR ENTREGA'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colores.verde,
+                  minimumSize: const Size.fromHeight(Medidas.altoBotonGigante),
+                  textStyle: const TextStyle(
+                      fontSize: 17, fontWeight: FontWeight.w800),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// Ayudas
+// ============================================================================
+
+String _iniciales(String nombre) {
+  final partes = nombre.trim().split(RegExp(r'\s+'));
+  if (partes.isEmpty) return '?';
+  if (partes.length == 1) {
+    return partes.first
+        .substring(0, partes.first.length >= 2 ? 2 : 1)
+        .toUpperCase();
+  }
+  return '${partes[0][0]}${partes[1][0]}'.toUpperCase();
+}
+
+String? _unidadDe(Map<String, dynamic> residente) {
+  final u = residente['unidades'];
+  if (u is Map) {
+    final texto = [u['numero'], u['torre']]
+        .where((p) => p != null && p.toString().isNotEmpty)
+        .join(' ');
+    return texto.isEmpty ? null : 'Unidad $texto';
+  }
+  return null;
+}

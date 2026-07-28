@@ -36,6 +36,7 @@ import '../pantallas/guardia/contenedor_guardia.dart';
 import '../pantallas/guardia/pantalla_autos_esperando.dart';
 import '../pantallas/guardia/pantalla_escaner_guardia.dart';
 import '../pantallas/guardia/pantalla_panel.dart';
+import '../pantallas/guardia/pantalla_porteria.dart';
 import '../pantallas/guardia/pantalla_turno.dart';
 import '../pantallas/inicio/contenedor_principal.dart';
 import '../pantallas/login/pantalla_login.dart';
@@ -200,14 +201,7 @@ final rutasProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: Rutas.paquetesGuardia,
-            builder: (context, estado) => const PantallaEnConstruccion(
-              titulo: 'Portería',
-              icono: Icons.inventory_2_rounded,
-              queVaAHacer:
-                  'Vas a recibir paquetes con una foto, ver el inventario '
-                  'ordenado por antigüedad, y entregarlos con la firma del '
-                  'residente en la pantalla.',
-            ),
+            builder: (context, estado) => const PantallaPorteria(),
           ),
           GoRoute(
             path: Rutas.incidentes,
