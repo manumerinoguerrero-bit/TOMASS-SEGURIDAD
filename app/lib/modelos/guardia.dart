@@ -46,6 +46,7 @@ class Turno {
     required this.puntoAccesoNombre,
     required this.esVehicular,
     required this.inicio,
+    this.codigoDelMuro,
     this.finProgramado,
     this.cerradoEn,
     this.notasEntrega,
@@ -56,6 +57,14 @@ class Turno {
   final String puntoAccesoNombre;
   final bool esVehicular;
   final DateTime inicio;
+
+  /// El código que va impreso en el cartel del muro de este puesto.
+  ///
+  /// El guardia lo necesita para validar el código de un residente sin tener
+  /// que ir a escanear el cartel: la app ya sabe en qué puerta está parado,
+  /// porque el guardia lo eligió al abrir el turno.
+  final String? codigoDelMuro;
+
   final DateTime? finProgramado;
   final DateTime? cerradoEn;
   final String? notasEntrega;
@@ -73,6 +82,8 @@ class Turno {
       puntoAccesoNombre:
           punto is Map ? (punto['nombre'] ?? '') as String : 'Puesto',
       esVehicular: punto is Map && punto['tipo'] == 'vehicular',
+      codigoDelMuro:
+          punto is Map ? punto['codigo_qr_estatico'] as String? : null,
       inicio: DateTime.parse(m['inicio'] as String),
       finProgramado: m['fin_programado'] == null
           ? null

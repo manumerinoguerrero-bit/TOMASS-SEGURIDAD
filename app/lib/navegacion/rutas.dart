@@ -34,6 +34,7 @@ import '../pantallas/acceso/pantalla_resultado.dart';
 import '../pantallas/comunes/pantalla_en_construccion.dart';
 import '../pantallas/guardia/contenedor_guardia.dart';
 import '../pantallas/guardia/pantalla_autos_esperando.dart';
+import '../pantallas/guardia/pantalla_escaner_guardia.dart';
 import '../pantallas/guardia/pantalla_panel.dart';
 import '../pantallas/guardia/pantalla_turno.dart';
 import '../pantallas/inicio/contenedor_principal.dart';
@@ -195,14 +196,7 @@ final rutasProvider = Provider<GoRouter>((ref) {
           // muertas, que parecerían un error de la app.
           GoRoute(
             path: Rutas.escanerGuardia,
-            builder: (context, estado) => const PantallaEnConstruccion(
-              titulo: 'Escanear código',
-              icono: Icons.qr_code_scanner_rounded,
-              queVaAHacer:
-                  'Vas a apuntar la cámara al código de un residente, un '
-                  'visitante o la credencial de la nana, y la app te va a decir '
-                  'al instante si puede pasar, con su foto y sus datos.',
-            ),
+            builder: (context, estado) => const PantallaEscanerGuardia(),
           ),
           GoRoute(
             path: Rutas.paquetesGuardia,

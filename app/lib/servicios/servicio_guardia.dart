@@ -72,7 +72,7 @@ class ServicioGuardia {
           .select('''
             id, punto_acceso_id, inicio, fin_programado, cerrado_en,
             notas_entrega,
-            puntos_acceso ( nombre, tipo )
+            puntos_acceso ( nombre, tipo, codigo_qr_estatico )
           ''')
           .eq('guardia_id', _miId)
           .isFilter('cerrado_en', null)
@@ -107,7 +107,7 @@ class ServicioGuardia {
           .select('''
             id, punto_acceso_id, inicio, fin_programado, cerrado_en,
             notas_entrega,
-            puntos_acceso ( nombre, tipo )
+            puntos_acceso ( nombre, tipo, codigo_qr_estatico )
           ''')
           .single()
           .timeout(Entorno.esperaMaxima);
