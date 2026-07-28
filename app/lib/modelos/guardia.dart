@@ -42,10 +42,10 @@ class PuntoAcceso {
 class Turno {
   const Turno({
     required this.id,
-    required this.puntoAccesoId,
     required this.puntoAccesoNombre,
-    required this.esVehicular,
     required this.inicio,
+    this.puntoAccesoId,
+    this.esVehicular = false,
     this.codigoDelMuro,
     this.finProgramado,
     this.cerradoEn,
@@ -53,10 +53,21 @@ class Turno {
   });
 
   final String id;
-  final String puntoAccesoId;
+
+  /// El puesto donde está parado el guardia.
+  ///
+  /// Si está VACÍO, el guardia **cubre todo el condominio** y le llegan los
+  /// avisos de todas las entradas. Ese es el caso normal cuando hay un solo
+  /// guardia, que es lo que pasa en la mayoría de los condominios: tiene que
+  /// atender la entrada peatonal y la vehicular al mismo tiempo.
+  final String? puntoAccesoId;
+
   final String puntoAccesoNombre;
   final bool esVehicular;
   final DateTime inicio;
+
+  /// true = el guardia atiende todas las entradas del condominio.
+  bool get cubreTodo => puntoAccesoId == null;
 
   /// El código que va impreso en el cartel del muro de este puesto.
   ///
@@ -76,11 +87,14 @@ class Turno {
 
   factory Turno.desdeMapa(Map<String, dynamic> m) {
     final punto = m['puntos_acceso'];
+    final puntoId = m['punto_acceso_id'] as String?;
+
     return Turno(
       id: m['id'] as String,
-      puntoAccesoId: m['punto_acceso_id'] as String,
-      puntoAccesoNombre:
-          punto is Map ? (punto['nombre'] ?? '') as String : 'Puesto',
+      puntoAccesoId: puntoId,
+      puntoAccesoNombre: puntoId == null
+          ? 'Todo el condominio'
+          : (punto is Map ? (punto['nombre'] ?? 'Puesto') as String : 'Puesto'),
       esVehicular: punto is Map && punto['tipo'] == 'vehicular',
       codigoDelMuro:
           punto is Map ? punto['codigo_qr_estatico'] as String? : null,

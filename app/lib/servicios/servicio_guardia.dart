@@ -88,10 +88,15 @@ class ServicioGuardia {
     }
   }
 
-  /// Abre el turno en un puesto. Es lo que dirige los avisos a este guardia.
+  /// Abre el turno del guardia.
+  ///
+  /// Si [puntoAccesoId] va vacío, el guardia **cubre todo el condominio** y le
+  /// llegan los avisos de todas las entradas. Ese es el caso normal: en la
+  /// mayoría de los condominios hay un solo guardia y tiene que atender la
+  /// entrada peatonal y la vehicular al mismo tiempo.
   Future<Turno> abrirTurno({
     required String condominioId,
-    required String puntoAccesoId,
+    String? puntoAccesoId,
     DateTime? finProgramado,
   }) async {
     try {
@@ -100,6 +105,7 @@ class ServicioGuardia {
           .insert({
             'condominio_id': condominioId,
             'guardia_id': _miId,
+            // Vacío = cubre todo el condominio
             'punto_acceso_id': puntoAccesoId,
             if (finProgramado != null)
               'fin_programado': finProgramado.toUtc().toIso8601String(),
@@ -144,13 +150,20 @@ class ServicioGuardia {
   // LA COLA DE AUTOS — EN VIVO
   // ==========================================================================
 
-  /// Los autos esperando la barrera en ESTE puesto, ahora mismo.
-  Future<List<AutoEsperando>> autosEsperando(String puntoAccesoId) async {
+  /// Los autos esperando la barrera ahora mismo.
+  ///
+  /// Si [puntoAccesoId] va vacío, trae los de TODAS las entradas del
+  /// condominio: es lo que corresponde cuando el guardia cubre todo.
+  Future<List<AutoEsperando>> autosEsperando([String? puntoAccesoId]) async {
     try {
-      final filas = await _supabase
-          .from('v_solicitudes_vehiculares_pendientes')
-          .select()
-          .eq('punto_acceso_id', puntoAccesoId)
+      var consulta =
+          _supabase.from('v_solicitudes_vehiculares_pendientes').select();
+
+      if (puntoAccesoId != null) {
+        consulta = consulta.eq('punto_acceso_id', puntoAccesoId);
+      }
+
+      final filas = await consulta
           .order('solicitado_en')
           .timeout(Entorno.esperaMaxima);
 
@@ -168,7 +181,8 @@ class ServicioGuardia {
   /// suscribe a la tabla de solicitudes y, cuando algo cambia, vuelve a pedir la
   /// lista completa. Es una consulta chica y así los datos llegan siempre
   /// completos, con la foto y los datos del auto ya cruzados.
-  Stream<List<AutoEsperando>> colaDeAutosEnVivo(String puntoAccesoId) {
+  /// Si [puntoAccesoId] va vacío, escucha los autos de TODAS las entradas.
+  Stream<List<AutoEsperando>> colaDeAutosEnVivo([String? puntoAccesoId]) {
     final control = StreamController<List<AutoEsperando>>.broadcast();
     RealtimeChannel? canal;
     Timer? respaldo;
@@ -186,7 +200,7 @@ class ServicioGuardia {
       refrescar();
 
       canal = _supabase
-          .channel('cola_autos_$puntoAccesoId')
+          .channel('cola_autos_${puntoAccesoId ?? 'todo'}')
           .onPostgresChanges(
             event: PostgresChangeEvent.all,
             schema: 'public',

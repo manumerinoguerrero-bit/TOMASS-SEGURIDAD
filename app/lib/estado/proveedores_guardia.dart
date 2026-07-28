@@ -34,9 +34,17 @@ final miTurnoProvider = FutureProvider<Turno?>((ref) {
   return ref.watch(servicioGuardiaProvider).miTurnoAbierto();
 });
 
-/// El puesto donde está parado el guardia ahora, o null si no abrió turno.
+/// El puesto donde está parado el guardia, o null si cubre todo el condominio
+/// (o si todavía no abrió turno).
 final miPuestoProvider = Provider<String?>((ref) {
   return ref.watch(miTurnoProvider).valueOrNull?.puntoAccesoId;
+});
+
+/// ¿El guardia atiende TODAS las entradas del condominio?
+/// Es el caso normal: la mayoría de los condominios tiene un solo guardia y
+/// tiene que cubrir la entrada peatonal y la vehicular al mismo tiempo.
+final cubroTodoProvider = Provider<bool>((ref) {
+  return ref.watch(miTurnoProvider).valueOrNull?.cubreTodo ?? false;
 });
 
 // ============================================================================
@@ -50,12 +58,16 @@ final miPuestoProvider = Provider<String?>((ref) {
 // ============================================================================
 
 final colaDeAutosProvider = StreamProvider<List<AutoEsperando>>((ref) {
-  final puesto = ref.watch(miPuestoProvider);
+  final turno = ref.watch(miTurnoProvider).valueOrNull;
 
   // Sin turno abierto no hay cola que mostrar
-  if (puesto == null) return Stream.value(const <AutoEsperando>[]);
+  if (turno == null) return Stream.value(const <AutoEsperando>[]);
 
-  return ref.watch(servicioGuardiaProvider).colaDeAutosEnVivo(puesto);
+  // Si cubre todo el condominio, escucha los autos de TODAS las entradas.
+  // Si está asignado a un puesto, solo los de ese puesto.
+  return ref
+      .watch(servicioGuardiaProvider)
+      .colaDeAutosEnVivo(turno.puntoAccesoId);
 });
 
 /// Cuántos autos están esperando. Es el globito rojo del menú.

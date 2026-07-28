@@ -34,12 +34,17 @@ class PantallaTurno extends ConsumerStatefulWidget {
 }
 
 class _EstadoTurno extends ConsumerState<PantallaTurno> {
-  String? _puestoElegido;
+  /// null = todavía no eligió. Cadena vacía = eligió "cubro todo".
+  /// Cualquier otra cosa = el id del puesto puntual.
+  String? _eleccion = _cubroTodo;
+
+  static const _cubroTodo = '';
+
   bool _trabajando = false;
   ErrorAmigable? _problema;
 
   Future<void> _empezar() async {
-    if (_puestoElegido == null) return;
+    if (_eleccion == null) return;
 
     final perfil = ref.read(perfilProvider).valueOrNull;
     if (perfil == null) {
@@ -58,7 +63,8 @@ class _EstadoTurno extends ConsumerState<PantallaTurno> {
     try {
       await ref.read(servicioGuardiaProvider).abrirTurno(
             condominioId: perfil.condominioId,
-            puntoAccesoId: _puestoElegido!,
+            // Vacío significa "cubro todo el condominio"
+            puntoAccesoId: _eleccion == _cubroTodo ? null : _eleccion,
           );
       ref.invalidate(miTurnoProvider);
       // La navegación la maneja sola la app al detectar que hay turno abierto
@@ -101,11 +107,11 @@ class _EstadoTurno extends ConsumerState<PantallaTurno> {
                           Expanded(
                             child: _Eleccion(
                               puestos: puestos,
-                              elegido: _puestoElegido,
+                              elegido: _eleccion,
                               trabajando: _trabajando,
                               problema: _problema,
                               alElegir: (id) =>
-                                  setState(() => _puestoElegido = id),
+                                  setState(() => _eleccion = id),
                               alEmpezar: _empezar,
                               alReintentar: () =>
                                   ref.invalidate(puestosDisponiblesProvider),
@@ -120,11 +126,11 @@ class _EstadoTurno extends ConsumerState<PantallaTurno> {
                           const SizedBox(height: 26),
                           _Eleccion(
                             puestos: puestos,
-                            elegido: _puestoElegido,
+                            elegido: _eleccion,
                             trabajando: _trabajando,
                             problema: _problema,
                             alElegir: (id) =>
-                                setState(() => _puestoElegido = id),
+                                setState(() => _eleccion = id),
                             alEmpezar: _empezar,
                             alReintentar: () =>
                                 ref.invalidate(puestosDisponiblesProvider),
@@ -178,8 +184,9 @@ class _Bienvenida extends StatelessWidget {
         ),
         const SizedBox(height: 14),
         Text(
-          'Elegí el puesto donde vas a estar. Es lo que hace que los avisos de '
-          'autos y visitas te lleguen a vos y no a otro guardia.',
+          'Si sos el único guardia, dejá la primera opción: vas a recibir los '
+          'avisos de todas las entradas. Elegí un puesto solo si hay otro '
+          'guardia cubriendo la otra puerta.',
           style: TextStyle(
             fontSize: 13.5,
             height: 1.5,
@@ -275,6 +282,48 @@ class _Eleccion extends StatelessWidget {
 
             return Column(
               children: [
+                // La opción normal va primera y destacada: en la mayoría de los
+                // condominios hay UN SOLO guardia y tiene que cubrir las dos
+                // entradas al mismo tiempo.
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: _TarjetaCubroTodo(
+                    elegido: elegido == '',
+                    cuantasEntradas: lista.length,
+                    alTocar: trabajando ? null : () => alElegir(''),
+                  ),
+                ),
+
+                if (lista.isNotEmpty) ...[
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Divider(
+                            color: Colors.white.withValues(alpha: 0.2),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          child: Text(
+                            'o solo una entrada',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.white.withValues(alpha: 0.5),
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: Divider(
+                            color: Colors.white.withValues(alpha: 0.2),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+
                 for (final puesto in lista)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 10),
@@ -329,6 +378,121 @@ class _Eleccion extends StatelessWidget {
           ),
         ],
       ],
+    );
+  }
+}
+
+// ============================================================================
+// "Cubro todo el condominio" — la opción normal
+// ============================================================================
+// Va primera y destacada porque es lo que pasa en la mayoría de los
+// condominios: hay UN SOLO guardia y tiene que atender la entrada peatonal y la
+// vehicular al mismo tiempo.
+//
+// Con la opción de un puesto puntual, ese guardia quedaría ciego a la mitad: si
+// elige la vehicular no se entera de los peatones, y si elige la peatonal no ve
+// los autos esperando en la barrera.
+// ============================================================================
+
+class _TarjetaCubroTodo extends StatelessWidget {
+  const _TarjetaCubroTodo({
+    required this.elegido,
+    required this.cuantasEntradas,
+    required this.alTocar,
+  });
+
+  final bool elegido;
+  final int cuantasEntradas;
+  final VoidCallback? alTocar;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: alTocar,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 140),
+        padding: const EdgeInsets.all(15),
+        decoration: BoxDecoration(
+          color: Colores.superficie,
+          borderRadius: BorderRadius.circular(Medidas.redondeo),
+          border: Border.all(
+            color: elegido ? Colores.verde : Colors.transparent,
+            width: 2.5,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: Colores.verde.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(11),
+              ),
+              child: const Icon(Icons.shield_rounded,
+                  size: 25, color: Colores.verdeOscuro),
+            ),
+            const SizedBox(width: 13),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Flexible(
+                        child: Text(
+                          'Todo el condominio',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.2,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 7),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 7, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colores.verde.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Text(
+                          'LO NORMAL',
+                          style: TextStyle(
+                            fontSize: 8.5,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.6,
+                            color: Colores.verdeOscuro,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    cuantasEntradas <= 1
+                        ? 'Recibís los avisos de todas las entradas'
+                        : 'Recibís los avisos de las $cuantasEntradas entradas: '
+                            'peatones y autos al mismo tiempo',
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      height: 1.4,
+                      color: Colores.textoSuave,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            AnimatedOpacity(
+              duration: const Duration(milliseconds: 140),
+              opacity: elegido ? 1 : 0,
+              child: const Icon(Icons.check_circle_rounded,
+                  color: Colores.verde, size: 26),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

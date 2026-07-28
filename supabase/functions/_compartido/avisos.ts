@@ -288,21 +288,34 @@ export async function avisar(cliente: SupabaseClient, aviso: Aviso): Promise<voi
 }
 
 /**
- * Busca a los guardias que están de turno AHORA en un punto de acceso.
- * Es lo que hace que el aviso del auto le llegue al de la caseta vehicular y no
- * al de la garita peatonal.
+ * Busca a qué guardias hay que avisarles por algo que pasó en una entrada.
+ *
+ * Incluye DOS grupos:
+ *   · los que están parados justo en esa entrada, y
+ *   · los que cubren TODO el condominio.
+ *
+ * El segundo grupo es el caso normal de este condominio: hay un solo guardia y
+ * tiene que atender la entrada peatonal y la vehicular al mismo tiempo. Si solo
+ * se avisara al del puesto exacto, ese guardia quedaría ciego a la mitad de lo
+ * que pasa.
+ *
+ * La regla vive en la base de datos (función guardias_a_avisar) y no acá, para
+ * que sea una sola y no haya que acordarse de repetirla en cada función que
+ * manda avisos.
  */
 export async function guardiasEnEsePuesto(
   cliente: SupabaseClient,
   punto_acceso_id: string,
 ): Promise<string[]> {
-  const { data } = await cliente
-    .from("turnos")
-    .select("guardia_id")
-    .eq("punto_acceso_id", punto_acceso_id)
-    .is("cerrado_en", null);
+  const { data, error } = await cliente
+    .rpc("guardias_a_avisar", { p_punto_acceso_id: punto_acceso_id });
 
-  return (data ?? []).map((t: { guardia_id: string }) => t.guardia_id);
+  if (error) {
+    registrar("no_se_pudo_saber_a_quien_avisar", { detalle: error.message });
+    return [];
+  }
+
+  return (data as { guardia_id: string }[] ?? []).map((t) => t.guardia_id);
 }
 
 /**
