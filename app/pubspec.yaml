@@ -104,8 +104,14 @@ dev_dependencies:
   #   image                 → recorta y centra el escudo (herramientas/generar_icono.dart)
   #   flutter_launcher_icons → reparte el ícono en los 20 tamaños que pide cada
   #                            teléfono, para no tener que hacerlo a mano
+  #   qr                    → dibuja los códigos QR de los carteles del muro
+  #                            (herramientas/generar_carteles.dart). Ya venía
+  #                            incluida dentro de qr_flutter; acá solo se pide
+  #                            en forma directa para poder usarla desde afuera
+  #                            de la app.
   image: ^4.3.0
   flutter_launcher_icons: ^0.14.3
+  qr: ^3.0.2
 
 # ============================================================================
 # EL ÍCONO DE LA APP — el cuadradito que se ve en la pantalla del celular

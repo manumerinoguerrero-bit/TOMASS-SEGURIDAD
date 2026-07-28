@@ -1,0 +1,112 @@
+{
+  "_leeme": [
+    "Esta es la lista de entradas que se convierten en carteles.",
+    "Sale de la base de datos. Para actualizarla, mirá LEEME.txt en esta misma carpeta.",
+    "El 'codigo' es lo que va adentro del QR. NO se inventa ni se cambia a mano:",
+    "tiene que ser igual, letra por letra, al que está guardado en la base de datos,",
+    "o el cartel no lo va a reconocer nadie."
+  ],
+  "generado_el": "2026-07-27",
+  "entradas": [
+    {
+      "instalacion": "Condominio Cerro Grande",
+      "nombre_corto": "Cerro Grande",
+      "tipo": "condominio",
+      "ciudad": "Coquimbo",
+      "entrada": "Entrada Peatonal",
+      "tipo_entrada": "peatonal",
+      "ubicacion": "Portón peatonal principal",
+      "codigo": "ef5ccb421dea8e6498f23312dc51601b"
+    },
+    {
+      "instalacion": "Condominio Cerro Grande",
+      "nombre_corto": "Cerro Grande",
+      "tipo": "condominio",
+      "ciudad": "Coquimbo",
+      "entrada": "Entrada Vehicular",
+      "tipo_entrada": "vehicular",
+      "ubicacion": "Barrera del estacionamiento",
+      "codigo": "2562a8cbda2e3cf57b160318bca69a2e"
+    },
+    {
+      "instalacion": "Condominio Milagros de Cerro Grande",
+      "nombre_corto": "Los Milagros",
+      "tipo": "condominio",
+      "ciudad": "Coquimbo",
+      "entrada": "Entrada Peatonal",
+      "tipo_entrada": "peatonal",
+      "ubicacion": "Portón peatonal principal",
+      "codigo": "8e0b56da55ef133b368e5441456e5d20"
+    },
+    {
+      "instalacion": "Condominio Milagros de Cerro Grande",
+      "nombre_corto": "Los Milagros",
+      "tipo": "condominio",
+      "ciudad": "Coquimbo",
+      "entrada": "Entrada Vehicular",
+      "tipo_entrada": "vehicular",
+      "ubicacion": "Barrera del estacionamiento",
+      "codigo": "659a59fe979338e1f255d5eb63ef02d0"
+    },
+    {
+      "instalacion": "Condominio Encomenderos",
+      "nombre_corto": "Encomenderos",
+      "tipo": "condominio",
+      "ciudad": "Coquimbo",
+      "entrada": "Entrada Peatonal",
+      "tipo_entrada": "peatonal",
+      "ubicacion": "Portón peatonal principal",
+      "codigo": "df459b0f548cdbd150786076240ea70d"
+    },
+    {
+      "instalacion": "Condominio Encomenderos",
+      "nombre_corto": "Encomenderos",
+      "tipo": "condominio",
+      "ciudad": "Coquimbo",
+      "entrada": "Entrada Vehicular",
+      "tipo_entrada": "vehicular",
+      "ubicacion": "Barrera del estacionamiento",
+      "codigo": "09b885fce73514fc476b576dc02a8a74"
+    },
+    {
+      "instalacion": "Colegio Alemán",
+      "nombre_corto": "Colegio Alemán",
+      "tipo": "colegio",
+      "ciudad": "La Serena",
+      "entrada": "Entrada Peatonal",
+      "tipo_entrada": "peatonal",
+      "ubicacion": "Portón peatonal principal",
+      "codigo": "0c7613e2755e00682dbf32fa71809f74"
+    },
+    {
+      "instalacion": "Colegio Alemán",
+      "nombre_corto": "Colegio Alemán",
+      "tipo": "colegio",
+      "ciudad": "La Serena",
+      "entrada": "Entrada Vehicular",
+      "tipo_entrada": "vehicular",
+      "ubicacion": "Barrera del estacionamiento",
+      "codigo": "f093450982301679131ea8765c39d228"
+    },
+    {
+      "instalacion": "Colegio International",
+      "nombre_corto": "International",
+      "tipo": "colegio",
+      "ciudad": "La Serena",
+      "entrada": "Entrada Peatonal",
+      "tipo_entrada": "peatonal",
+      "ubicacion": "Portón peatonal principal",
+      "codigo": "426245e2d144e7118116951f7f7a2e10"
+    },
+    {
+      "instalacion": "Colegio International",
+      "nombre_corto": "International",
+      "tipo": "colegio",
+      "ciudad": "La Serena",
+      "entrada": "Entrada Vehicular",
+      "tipo_entrada": "vehicular",
+      "ubicacion": "Barrera del estacionamiento",
+      "codigo": "cde6e90b248bcb77a01887c0862a9179"
+    }
+  ]
+}
