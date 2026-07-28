@@ -17,16 +17,24 @@ import '../../servicios/servicio_fotos.dart';
 // ============================================================================
 // EL LOGO
 // ============================================================================
-// ⚠️ FALTA PONER EL ARCHIVO DEL LOGO.
+// El escudo de Tomass Seguridad Privada, tal como se ve en la pantalla de
+// inicio y en la de turno del guardia.
 //
-//    Guardá el logo original en:   assets/imagenes/logo.png
-//    (con fondo transparente, de al menos 512 píxeles de alto)
+// El archivo sale de  assets/imagenes/logo.png  y NO se edita a mano: se
+// fabrica a partir del logo original de la empresa. Si algún día cambia el
+// logo, los pasos están en  marca/LEEME.txt.
 //
-//    En cuanto el archivo esté ahí, la app lo usa sola. No hay que tocar código.
+// ⚠️ EL NOMBRE DEL ARCHIVO VA EN MINÚSCULAS, SIEMPRE.
 //
-// MIENTRAS TANTO se dibuja un escudo de respaldo, parecido pero simplificado.
-// El logo real tiene metal cepillado y degradados que no se pueden reproducir
-// bien con código: por eso conviene usar el archivo de verdad.
+//    Windows trata igual a "LOGO.png" y "logo.png", pero Android y el servidor
+//    de GitHub que compila la app NO. Con el nombre en mayúsculas la app
+//    compila igual, se instala igual, y recién en el teléfono aparece sin
+//    logo. Ya nos pasó una vez.
+//
+// SI EL ARCHIVO FALTARA, más abajo hay un escudo dibujado con código que entra
+// en su lugar. Es parecido pero simplificado: sirve para que la pantalla no
+// muestre el ícono roto de imagen faltante, no para reemplazar al logo. El
+// original tiene metal cepillado y degradados que no se reproducen dibujando.
 // ============================================================================
 
 class LogoTomass extends StatelessWidget {
