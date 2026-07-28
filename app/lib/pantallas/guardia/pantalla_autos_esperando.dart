@@ -34,6 +34,7 @@ import '../../modelos/modelos.dart';
 import '../../nucleo/errores.dart';
 import '../../servicios/servicio_fotos.dart';
 import '../comunes/componentes.dart';
+import 'acciones_de_turno.dart';
 
 class PantallaAutosEsperando extends ConsumerStatefulWidget {
   const PantallaAutosEsperando({super.key});
@@ -210,25 +211,23 @@ class _EstadoAutos extends ConsumerState<PantallaAutosEsperando> {
         backgroundColor: hayApurado ? Colores.naranjaOscuro : Colores.grafito,
         actions: [
           if (turno != null)
-            Padding(
-              padding: const EdgeInsets.only(right: 14),
-              child: Center(
-                child: Row(
-                  children: [
-                    const _PuntoEnVivo(),
-                    const SizedBox(width: 7),
-                    Text(
-                      turno.puntoAccesoNombre,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
+            Center(
+              child: Row(
+                children: [
+                  const _PuntoEnVivo(),
+                  const SizedBox(width: 7),
+                  Text(
+                    turno.puntoAccesoNombre,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
+          const MenuDelGuardia(),
         ],
       ),
       body: cola.when(

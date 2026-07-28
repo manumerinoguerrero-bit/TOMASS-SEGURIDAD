@@ -25,6 +25,7 @@ import '../../modelos/modelos.dart';
 import '../../nucleo/errores.dart';
 import '../../nucleo/formato.dart';
 import '../comunes/componentes.dart';
+import 'acciones_de_turno.dart';
 
 class PantallaTurno extends ConsumerStatefulWidget {
   const PantallaTurno({super.key});
@@ -98,7 +99,10 @@ class _EstadoTurno extends ConsumerState<PantallaTurno> {
               padding: const EdgeInsets.all(26),
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 720),
-                child: anchoGrande
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                anchoGrande
                     ? Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -137,6 +141,16 @@ class _EstadoTurno extends ConsumerState<PantallaTurno> {
                           ),
                         ],
                       ),
+
+                    // La salida. Va acá abajo y no arriba a propósito: arriba
+                    // le competiría la atención al botón de empezar el turno,
+                    // que es lo que el guardia viene a hacer el 95% de las
+                    // veces. Pero tiene que estar, porque el guardia que llega
+                    // se encuentra con la sesión del que se fue.
+                    const SizedBox(height: 28),
+                    const SalirDeLaCuenta(),
+                  ],
+                ),
               ),
             ),
           ),

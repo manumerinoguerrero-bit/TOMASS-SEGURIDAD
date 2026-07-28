@@ -25,6 +25,7 @@ import '../../navegacion/rutas.dart';
 import '../../nucleo/errores.dart';
 import '../../nucleo/formato.dart';
 import '../comunes/componentes.dart';
+import 'acciones_de_turno.dart';
 
 class PantallaPanel extends ConsumerWidget {
   const PantallaPanel({super.key});
@@ -64,6 +65,7 @@ class PantallaPanel extends ConsumerWidget {
               ref.invalidate(personasDentroProvider);
             },
           ),
+          const MenuDelGuardia(),
         ],
       ),
       body: RefreshIndicator(

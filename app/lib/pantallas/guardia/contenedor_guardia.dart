@@ -23,9 +23,9 @@ import 'package:go_router/go_router.dart';
 import '../../config/tema.dart';
 import '../../estado/proveedores.dart';
 import '../../estado/proveedores_guardia.dart';
-import '../../nucleo/errores.dart';
 import '../../nucleo/formato.dart';
 import '../../navegacion/rutas.dart';
+import 'acciones_de_turno.dart';
 
 class ContenedorGuardia extends ConsumerStatefulWidget {
   const ContenedorGuardia({super.key, required this.hijo});
@@ -70,98 +70,10 @@ class _EstadoContenedorGuardia extends ConsumerState<ContenedorGuardia> {
     }
   }
 
-  Future<void> _cerrarTurno() async {
-    final notas = TextEditingController();
-
-    final confirmado = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('¿Cerrar tu turno?'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Vas a dejar de recibir los avisos de este puesto. Si querés, '
-              'dejale una nota al guardia que entra.',
-              style: TextStyle(fontSize: 13.5, height: 1.45),
-            ),
-            const SizedBox(height: 14),
-            TextField(
-              controller: notas,
-              maxLines: 3,
-              maxLength: 200,
-              textCapitalization: TextCapitalization.sentences,
-              decoration: const InputDecoration(
-                labelText: 'Nota para el siguiente turno (opcional)',
-                hintText: 'Ej: la barrera está lenta, revisar el 302',
-                alignLabelWithHint: true,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: FilledButton.styleFrom(backgroundColor: Colores.grafito),
-            child: const Text('Cerrar turno'),
-          ),
-        ],
-      ),
-    );
-
-    final texto = notas.text.trim();
-    notas.dispose();
-
-    if (confirmado != true || !mounted) return;
-
-    try {
-      await ref.read(servicioGuardiaProvider).cerrarTurno(
-            notasParaElSiguiente: texto.isEmpty ? null : texto,
-          );
-      ref.invalidate(miTurnoProvider);
-      // La navegación a la pantalla de turno la hace sola el vigilante de rutas
-    } catch (falla) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(Traductor.traducir(falla).mensaje),
-          backgroundColor: Colores.rojo,
-        ),
-      );
-    }
-  }
-
-  Future<void> _salirDeLaApp() async {
-    final seguro = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('¿Cerrar sesión?'),
-        content: const Text(
-          'Tu turno queda abierto. Si terminaste, cerralo primero para que el '
-          'siguiente guardia reciba los avisos.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: FilledButton.styleFrom(backgroundColor: Colores.rojo),
-            child: const Text('Cerrar sesión'),
-          ),
-        ],
-      ),
-    );
-
-    if (seguro != true) return;
-    await ref.read(servicioSesionProvider).salir();
-  }
+  // Las dos acciones viven en acciones_de_turno.dart y no acá, porque tienen
+  // que estar disponibles también desde las pantallas sueltas del guardia.
+  Future<void> _cerrarTurno() => AccionesDeTurno.cerrarTurno(context, ref);
+  Future<void> _salirDeLaApp() => AccionesDeTurno.cerrarSesion(context, ref);
 
   @override
   Widget build(BuildContext context) {

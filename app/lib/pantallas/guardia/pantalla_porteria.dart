@@ -26,6 +26,7 @@ import '../../nucleo/errores.dart';
 import '../../nucleo/formato.dart';
 import '../../servicios/servicio_fotos.dart';
 import '../comunes/componentes.dart';
+import 'acciones_de_turno.dart';
 
 class PantallaPorteria extends ConsumerWidget {
   const PantallaPorteria({super.key});
@@ -40,6 +41,7 @@ class PantallaPorteria extends ConsumerWidget {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Portería'),
+          actions: const [MenuDelGuardia()],
           bottom: TabBar(
             indicatorColor: Colors.white,
             indicatorWeight: 3,

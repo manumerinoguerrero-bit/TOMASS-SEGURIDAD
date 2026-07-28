@@ -27,6 +27,7 @@ import '../../nucleo/errores.dart';
 import '../../nucleo/formato.dart';
 import '../../servicios/servicio_fotos.dart';
 import '../comunes/componentes.dart';
+import 'acciones_de_turno.dart';
 
 class PantallaNovedades extends ConsumerWidget {
   const PantallaNovedades({super.key});
@@ -36,7 +37,10 @@ class PantallaNovedades extends ConsumerWidget {
     final incidentes = ref.watch(incidentesProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Novedades')),
+      appBar: AppBar(
+        title: const Text('Novedades'),
+        actions: const [MenuDelGuardia()],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _abrirFormulario(context),
         backgroundColor: Colores.grafito,
