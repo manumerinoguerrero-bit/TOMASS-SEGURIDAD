@@ -8,7 +8,7 @@
 # ============================================================================
 
 name: tomass_seguridad
-description: Control de acceso para condominios residenciales.
+description: Control de acceso para condominios, colegios y edificios.
 
 # Evita que este proyecto se publique por error en internet
 publish_to: "none"
@@ -96,6 +96,60 @@ dev_dependencies:
     sdk: flutter
   # Revisa el código y avisa de errores antes de compilar
   flutter_lints: ^5.0.0
+
+  # ---- Solo para preparar el ícono de la app ------------------------------
+  # Estas dos NO viajan dentro de la app instalada: son herramientas que se
+  # usan una sola vez, acá en el computador, para armar los íconos.
+  #
+  #   image                 → recorta y centra el escudo (herramientas/generar_icono.dart)
+  #   flutter_launcher_icons → reparte el ícono en los 20 tamaños que pide cada
+  #                            teléfono, para no tener que hacerlo a mano
+  image: ^4.3.0
+  flutter_launcher_icons: ^0.14.3
+
+# ============================================================================
+# EL ÍCONO DE LA APP — el cuadradito que se ve en la pantalla del celular
+# ============================================================================
+# Para volver a generarlo (solo si cambia el logo de la empresa):
+#
+#   1. dart run herramientas/generar_icono.dart
+#   2. dart run flutter_launcher_icons
+#
+# El primer paso arma las imágenes; el segundo las reparte en todos los tamaños.
+#
+# ⚠️ REVISAR DESPUÉS DEL PASO 2: la herramienta tiene un defecto conocido.
+#    Al tocar el proyecto de iPhone se equivoca de renglón y le escribe
+#    "AppIcon" a un ajuste que solo acepta YES o NO, en el archivo
+#    ios/Runner.xcodeproj/project.pbxproj:
+#
+#        ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = AppIcon;
+#
+#    Ese cambio hay que descartarlo: el ajuste que la herramienta quería tocar
+#    (ASSETCATALOG_COMPILER_APPICON_NAME) ya está bien puesto desde siempre.
+#    Se descarta con:  git restore app/ios/Runner.xcodeproj/project.pbxproj
+# ============================================================================
+flutter_launcher_icons:
+  android: "ic_launcher"
+  ios: true
+
+  # El escudo sobre fondo grafito. Lo usan el iPhone y los Android antiguos.
+  image_path: "marca/icono-app.png"
+
+  # Android moderno arma el ícono con dos capas: un fondo de color y el dibujo
+  # encima. Así el teléfono le puede dar la forma que el usuario prefiera.
+  adaptive_icon_background: "#1C1E24"
+  adaptive_icon_foreground: "marca/icono-adaptativo.png"
+
+  # Sin margen extra. Esta herramienta, por su cuenta, le agrega un 16% de aire
+  # alrededor. Pero el escudo YA viene con su margen puesto desde
+  # herramientas/generar_icono.dart, y los dos márgenes se suman: el escudo
+  # terminaba ocupando el 39% del cuadrito y se veía diminuto.
+  adaptive_icon_foreground_inset: 0
+
+  # El iPhone NO acepta íconos con transparencia: si la tiene, la App Store
+  # rechaza la app. Esto le rellena el fondo con el mismo grafito.
+  remove_alpha_ios: true
+  background_color_ios: "#1C1E24"
 
 flutter:
   uses-material-design: true

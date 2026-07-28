@@ -14,8 +14,12 @@
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
+	<!-- El nombre corto que usa el sistema en avisos, ajustes y compartir.
+	     Antes decía "tomass_seguridad", que es el nombre técnico de la carpeta
+	     del proyecto: al usuario le aparecía así, con guion bajo y en
+	     minúsculas. Va el nombre de verdad. -->
 	<key>CFBundleName</key>
-	<string>tomass_seguridad</string>
+	<string>Tomass Seguridad</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>

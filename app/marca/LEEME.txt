@@ -1,0 +1,65 @@
+============================================================================
+LA MARCA — el logo y el ícono de Tomass Seguridad
+============================================================================
+
+QUÉ HAY ACÁ
+
+  logo-original.png        El logo de la empresa tal como llegó: el escudo
+                           rojo con el monograma T, sobre fondo blanco.
+                           ESTE ES EL IMPORTANTE. Es el único que hay que
+                           guardar y respaldar.
+
+  icono-app.png            Fabricado. El escudo sobre fondo grafito.
+  icono-adaptativo.png     Fabricado. El escudo solo, transparente.
+
+  Los dos "fabricados" se generan solos a partir del original. Si se borran,
+  se vuelven a hacer con el paso 2 de más abajo.
+
+ESTA CARPETA NO VIAJA DENTRO DE LA APP
+
+  Nada de acá se instala en el teléfono del usuario. Son las piezas que se
+  usan una sola vez, en el computador, para fabricar los íconos. Si estuvieran
+  en assets/, la app pesaría 1,2 MB más sin motivo.
+
+============================================================================
+SI ALGÚN DÍA CAMBIA EL LOGO DE LA EMPRESA
+============================================================================
+
+PASO 1 — Guardá el logo nuevo acá, con este nombre exacto, en minúsculas:
+
+              logo-original.png
+
+         Puede tener fondo blanco: el programa se lo saca solo. También le
+         borra la sombra que el logo trae dibujada abajo.
+
+         Que sea PNG y de al menos 512 puntos de alto. Más grande, mejor:
+         achicar se puede, agrandar no, queda borroso.
+
+         Que sea SOLO EL ESCUDO, sin las palabras "TOMASS" ni "SEGURIDAD
+         PRIVADA" debajo. Esos textos los escribe la app aparte, así se leen
+         nítidos en cualquier pantalla.
+
+PASO 2 — Abrí una consola en la carpeta  app/  y corré estas dos líneas,
+         una después de la otra:
+
+              dart run herramientas/generar_icono.dart
+              dart run flutter_launcher_icons
+
+         La primera recorta el escudo y arma las tres imágenes.
+         La segunda las reparte en los 26 tamaños que pide cada teléfono.
+
+PASO 3 — Subí los cambios a GitHub. El APK nuevo ya sale con el logo nuevo.
+
+============================================================================
+SI EL RECORTE SALE MAL
+============================================================================
+
+El programa que recorta está en  app/herramientas/generar_icono.dart  y tiene
+tres números al principio que se pueden ajustar. Están explicados ahí mismo,
+con los valores que medimos del logo actual y por qué quedaron así.
+
+El más delicado es el primero (_umbralDeFondo, en 200). Si se baja, el borrado
+se le mete al escudo por el filo plateado de la punta de arriba y lo deja
+mordido. Ya nos pasó.
+
+============================================================================

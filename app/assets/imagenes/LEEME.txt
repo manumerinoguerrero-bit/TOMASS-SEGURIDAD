@@ -2,33 +2,20 @@
 QUÉ VA EN ESTA CARPETA
 ============================================================================
 
-FALTA UN ARCHIVO:  logo.png
+Acá van las imágenes que se instalan DENTRO de la app, en el teléfono del
+usuario. Por eso hay una sola: cada archivo que se agregue acá le suma peso
+a la descarga.
 
-Guardá acá el logo de Tomass Seguridad Privada (el escudo rojo con el
-monograma T) con este nombre exacto, todo en minúsculas:
+    logo.png    El escudo de Tomass, sin fondo. Lo muestra la app en la
+                pantalla de inicio y en la de turno del guardia.
 
-    logo.png
+NO EDITES logo.png A MANO
 
-Requisitos del archivo:
+Este archivo se fabrica solo. Sale del logo original de la empresa, que está
+guardado en la carpeta  app/marca/  junto con las instrucciones.
 
-  · Formato PNG.
-
-  · FONDO TRANSPARENTE, no blanco. Si tiene fondo blanco, se va a ver un
-    cuadrado blanco encima del fondo oscuro de la pantalla de inicio.
-
-  · Al menos 512 píxeles de alto. Más grande es mejor: la app lo achica sola,
-    pero no lo puede agrandar sin que se vea borroso.
-
-  · Solo el ESCUDO, sin las palabras "TOMASS" ni "SEGURIDAD PRIVADA" debajo.
-    Esos textos los escribe la app por separado, así se leen nítidos en
-    cualquier tamaño de pantalla y se pueden acomodar según el espacio.
-
-En cuanto pongas el archivo, la app lo usa sola. No hay que tocar código.
-
-MIENTRAS TANTO
-La app dibuja un escudo de respaldo, parecido pero simplificado. No se rompe
-ni muestra el ícono de imagen faltante. Igual conviene poner el archivo real:
-el logo tiene metal cepillado y degradados que no se pueden reproducir bien
-dibujándolos con código.
+Si algún día cambia el logo de la empresa, andá a  app/marca/LEEME.txt  y
+seguí los dos pasos que dice ahí. Se regenera este archivo y también el
+ícono de la app.
 
 ============================================================================
