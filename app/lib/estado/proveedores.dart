@@ -18,6 +18,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../config/entorno.dart';
+import '../config/palabras.dart';
 import '../modelos/modelos.dart';
 import '../nucleo/errores.dart';
 import '../servicios/lector_de_patentes.dart';
@@ -331,3 +332,22 @@ final controladorCodigoProvider =
 // ============================================================================
 
 final ultimoResultadoProvider = StateProvider<ResultadoAcceso?>((ref) => null);
+
+// ============================================================================
+// LAS PALABRAS DE ESTA INSTALACIÓN
+// ============================================================================
+// De acá salen las palabras que cambian según dónde esté instalado el sistema:
+// en un condominio "residente" y "unidad", en un colegio "apoderado" y "curso".
+//
+// Las pantallas piden la palabra en vez de tenerla escrita a mano. Así el mismo
+// código sirve para el Condominio Cerro Grande y para el Colegio Alemán, sin
+// tener dos versiones de la app.
+//
+// Mientras el perfil se está cargando devuelve las de condominio, que son las
+// más comunes: es preferible a dejar la pantalla en blanco esperando.
+// ============================================================================
+
+final palabrasProvider = Provider<Palabras>((ref) {
+  final perfil = ref.watch(perfilProvider).valueOrNull;
+  return Palabras.deTipo(perfil?.tipoInstalacion);
+});

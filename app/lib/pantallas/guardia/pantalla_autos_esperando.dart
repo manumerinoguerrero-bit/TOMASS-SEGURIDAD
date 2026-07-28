@@ -29,6 +29,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../config/tema.dart';
+import '../../estado/proveedores.dart';
 import '../../estado/proveedores_guardia.dart';
 import '../../modelos/modelos.dart';
 import '../../nucleo/errores.dart';
@@ -135,8 +136,8 @@ class _EstadoAutos extends ConsumerState<PantallaAutosEsperando> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'El motivo queda registrado y el residente lo va a ver.',
+            Text(
+              'El motivo queda registrado y el ${ref.read(palabrasProvider).elHabitante} lo va a ver.',
               style: TextStyle(fontSize: 13, color: Colores.textoSuave),
             ),
             const SizedBox(height: 14),

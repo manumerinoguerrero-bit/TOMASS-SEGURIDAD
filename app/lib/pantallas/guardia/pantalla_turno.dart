@@ -229,7 +229,7 @@ class _Bienvenida extends StatelessWidget {
   }
 }
 
-class _Eleccion extends StatelessWidget {
+class _Eleccion extends ConsumerWidget {
   const _Eleccion({
     required this.puestos,
     required this.elegido,
@@ -249,7 +249,9 @@ class _Eleccion extends StatelessWidget {
   final VoidCallback alReintentar;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palabras = ref.watch(palabrasProvider);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -286,8 +288,8 @@ class _Eleccion extends StatelessWidget {
                   color: Colores.superficie,
                   borderRadius: BorderRadius.circular(Medidas.redondeo),
                 ),
-                child: const Text(
-                  'Este condominio todavía no tiene puestos de acceso '
+                child: Text(
+                  '${palabras.instalacionConMayuscula} todavía no tiene puestos de acceso '
                   'configurados. Avisale a la administración.',
                   style: TextStyle(fontSize: 13.5, height: 1.5),
                 ),
@@ -408,7 +410,7 @@ class _Eleccion extends StatelessWidget {
 // los autos esperando en la barrera.
 // ============================================================================
 
-class _TarjetaCubroTodo extends StatelessWidget {
+class _TarjetaCubroTodo extends ConsumerWidget {
   const _TarjetaCubroTodo({
     required this.elegido,
     required this.cuantasEntradas,
@@ -420,7 +422,9 @@ class _TarjetaCubroTodo extends StatelessWidget {
   final VoidCallback? alTocar;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palabras = ref.watch(palabrasProvider);
+
     return GestureDetector(
       onTap: alTocar,
       child: AnimatedContainer(
@@ -453,10 +457,10 @@ class _TarjetaCubroTodo extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      const Flexible(
+                      Flexible(
                         child: Text(
-                          'Todo el condominio',
-                          style: TextStyle(
+                          'Todo ${palabras.laInstalacion}',
+                          style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w800,
                             letterSpacing: -0.2,

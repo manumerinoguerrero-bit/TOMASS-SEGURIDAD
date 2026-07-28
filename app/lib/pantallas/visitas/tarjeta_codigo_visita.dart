@@ -57,7 +57,7 @@ class _EstadoHoja extends ConsumerState<_HojaDelCodigo> {
   Future<void> _compartir() async {
     final perfil = ref.read(perfilProvider).valueOrNull;
     final mensaje = widget.visita.mensajeParaCompartir(
-      perfil?.nombreCondominio ?? 'nuestro condominio',
+      perfil?.nombreCondominio ?? ref.read(palabrasProvider).instalacionSinArticulo,
       perfil?.unidad,
     );
 

@@ -271,7 +271,7 @@ class _EstadoPerfil extends ConsumerState<PantallaPerfil> {
 // La ficha con los datos
 // ============================================================================
 
-class _Ficha extends StatelessWidget {
+class _Ficha extends ConsumerWidget {
   const _Ficha({
     required this.perfil,
     required this.cambiandoFoto,
@@ -283,7 +283,11 @@ class _Ficha extends StatelessWidget {
   final VoidCallback alCambiarFoto;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Las palabras cambian segun donde este instalado: en un colegio esto dice
+    // "Curso 4B" y "Apoderado activo" en vez de "Unidad" y "Residente".
+    final palabras = ref.watch(palabrasProvider);
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(Medidas.margen),
@@ -339,7 +343,8 @@ class _Ficha extends StatelessWidget {
             const SizedBox(height: 3),
             Text(
               [
-                if (perfil.unidad != null) 'Unidad ${perfil.unidad}',
+                if (perfil.unidad != null)
+                  '${palabras.elEspacioConMayuscula} ${perfil.unidad}',
                 if (perfil.relacionUnidad != null)
                   Formato.nombrePropio(perfil.relacionUnidad!),
               ].join(' · '),
@@ -347,7 +352,9 @@ class _Ficha extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             Etiqueta(
-              texto: perfil.estaActivo ? 'Residente activo' : 'Inactivo',
+              texto: perfil.estaActivo
+                  ? '${palabras.elHabitanteConMayuscula} activo'
+                  : 'Inactivo',
               tono: perfil.estaActivo ? TonoEtiqueta.bueno : TonoEtiqueta.malo,
             ),
 
@@ -373,7 +380,7 @@ class _Ficha extends StatelessWidget {
             if (perfil.nombreCondominio != null)
               _Fila(
                 icono: Icons.apartment_rounded,
-                etiqueta: 'Condominio',
+                etiqueta: palabras.instalacionConMayuscula,
                 valor: perfil.nombreCondominio!,
               ),
 
@@ -385,9 +392,9 @@ class _Ficha extends StatelessWidget {
                 color: Colores.grafito.withValues(alpha: 0.04),
                 borderRadius: BorderRadius.circular(Medidas.redondeoChico),
               ),
-              child: const Text(
-                'Tu nombre, cédula y unidad los cambia la administración. Si hay '
-                'algo mal, avisales.',
+              child: Text(
+                'Tu nombre, cédula y ${palabras.elEspacio} los cambia la '
+                'administración. Si hay algo mal, avisales.',
                 style: TextStyle(
                   fontSize: 12,
                   height: 1.45,

@@ -352,7 +352,7 @@ class _EstadoLogin extends ConsumerState<PantallaLogin> {
                       const SizedBox(height: 16),
                       Text(
                         'Si todavía no tenés cuenta, pedísela a la\n'
-                        'administración de tu condominio.',
+                        'administración de tu instalación.',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 12,

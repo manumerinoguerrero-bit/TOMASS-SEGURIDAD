@@ -165,7 +165,7 @@ class _Encabezado extends ConsumerWidget {
                     ),
                     Text(
                       datos?.unidad != null
-                          ? 'Unidad ${datos!.unidad}'
+                          ? '${ref.watch(palabrasProvider).elEspacioConMayuscula} ${datos!.unidad}'
                           : (datos?.nombreCondominio ?? ''),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,

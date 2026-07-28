@@ -58,6 +58,7 @@ class Perfil {
     this.unidad,
     this.relacionUnidad,
     this.nombreCondominio,
+    this.tipoInstalacion,
   });
 
   final String id;
@@ -75,6 +76,11 @@ class Perfil {
   final String? unidad;
   final String? relacionUnidad;
   final String? nombreCondominio;
+
+  /// Qué clase de instalación es: 'condominio', 'colegio', 'empresa'…
+  /// De acá salen las palabras que usa la app: en un condominio dice
+  /// "residente" y "unidad"; en un colegio, "apoderado" y "curso".
+  final String? tipoInstalacion;
 
   bool get estaActivo => estado == 'activo';
 
@@ -103,8 +109,16 @@ class Perfil {
 
     final condominioCrudo = m['condominios'];
     String? nombreCondo;
+    String? tipoCondo;
     if (condominioCrudo is Map) {
-      nombreCondo = condominioCrudo['nombre']?.toString();
+      // Se prefiere el nombre corto: los nombres oficiales no entran en la
+      // pantalla angosta de un celular. "Condominio Milagros de Cerro Grande"
+      // se corta; "Los Milagros" entra entero.
+      final corto = condominioCrudo['nombre_corto']?.toString();
+      nombreCondo = (corto != null && corto.isNotEmpty)
+          ? corto
+          : condominioCrudo['nombre']?.toString();
+      tipoCondo = condominioCrudo['tipo']?.toString();
     }
 
     return Perfil(
@@ -121,6 +135,7 @@ class Perfil {
       unidad: unidadArmada,
       relacionUnidad: m['relacion_unidad'] as String?,
       nombreCondominio: nombreCondo,
+      tipoInstalacion: tipoCondo,
     );
   }
 }

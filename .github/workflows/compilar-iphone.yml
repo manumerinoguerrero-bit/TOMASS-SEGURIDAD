@@ -1,0 +1,86 @@
+# ============================================================================
+# Tomass Seguridad — Comprobar que la app arma para iPhone
+# ============================================================================
+# QUÉ ES ESTO
+#
+#   Una receta que arma la app para iPhone en un computador Mac de GitHub, para
+#   comprobar que no tiene errores.
+#
+# POR QUÉ HACE FALTA
+#
+#   Una app de iPhone SOLO se puede armar en un computador Mac. No es una traba
+#   de Flutter: es una regla de Apple. En Windows no hay forma, ni con trucos.
+#   Esta receta pide prestado un Mac de GitHub por unos minutos.
+#
+# LO QUE ESTO SÍ HACE Y LO QUE NO
+#
+#   SÍ: comprueba que la app COMPILA para iPhone, que las piezas encajan y que
+#       no hay errores. Es la única forma de saberlo sin comprar un Mac.
+#
+#   NO: no genera algo instalable en un iPhone de verdad. Para eso Apple exige
+#       una firma digital, y esa firma sale de una cuenta de desarrollador que
+#       cuesta 99 dólares por año. Por eso se compila con --no-codesign.
+#
+# ⚠️ POR QUÉ NO SE EJECUTA SOLA EN CADA CAMBIO
+#
+#   Los minutos de Mac se cobran DIEZ VECES más caro que los normales. Con los
+#   2.000 minutos gratis que da GitHub por mes, esta receta se puede correr unas
+#   quince veces; la de Android, cientos.
+#
+#   Por eso arranca solo cuando vos apretás el botón. Si se ejecutara en cada
+#   cambio, en dos semanas te quedarías sin minutos y se te caerían TAMBIÉN las
+#   compilaciones de Android, que son las que usás todos los días.
+#
+# CÓMO USARLA
+#
+#   En GitHub: pestaña "Comportamiento" (Actions) → en la lista de la izquierda
+#   elegí "Comprobar iPhone" → botón "Run workflow".
+# ============================================================================
+
+name: Comprobar iPhone
+
+on:
+  # Solo a mano, a propósito. Ver la advertencia de arriba.
+  workflow_dispatch:
+
+jobs:
+  comprobar:
+    name: Armar la app para iPhone
+    runs-on: macos-latest
+
+    steps:
+      - name: Traer el código
+        uses: actions/checkout@v4
+
+      - name: Instalar Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.4"
+          channel: stable
+          cache: true
+
+      - name: Descargar dependencias
+        working-directory: app
+        run: flutter pub get
+
+      - name: Revisar el código
+        working-directory: app
+        run: flutter analyze
+
+      # Acá es donde aparecen los problemas propios de iPhone: piezas que piden
+      # una versión de iOS más nueva que la declarada, o que directamente no
+      # existen para iPhone.
+      - name: Instalar las piezas de iPhone
+        working-directory: app/ios
+        run: pod install --repo-update
+
+      - name: Armar la app para iPhone
+        working-directory: app
+        run: flutter build ios --debug --no-codesign
+
+      - name: Contar cómo fue
+        if: always()
+        run: |
+          echo "Si este paso dice que todo salió bien, la app arma para iPhone."
+          echo "Para instalarla en un iPhone de verdad hace falta la cuenta de"
+          echo "desarrollador de Apple (99 dolares al ano). Ver LEEME-IPHONE.md"

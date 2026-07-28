@@ -19,6 +19,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:signature/signature.dart';
 
+import '../../config/palabras.dart';
 import '../../config/tema.dart';
 import '../../estado/proveedores.dart';
 import '../../estado/proveedores_guardia.dart';
@@ -141,9 +142,9 @@ class _EstadoRecibir extends ConsumerState<_PestanaRecibir> {
       return;
     }
     if (_residente == null) {
-      setState(() => _problema = const ErrorAmigable(
+      setState(() => _problema = ErrorAmigable(
             'Falta elegir a quién va el paquete.',
-            detalle: 'Buscalo por nombre o por número de unidad.',
+            detalle: 'Buscalo por nombre o por número de ${ref.read(palabrasProvider).elEspacio}.',
             sePuedeReintentar: false,
           ));
       return;
@@ -310,10 +311,10 @@ class _EstadoRecibir extends ConsumerState<_PestanaRecibir> {
           controller: _descripcion,
           enabled: !_guardando,
           textCapitalization: TextCapitalization.sentences,
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             labelText: 'Descripción (opcional)',
             hintText: 'Caja grande, sobre, bolsa…',
-            helperText: 'Ayuda al residente a reconocerlo',
+            helperText: 'Ayuda al ${ref.read(palabrasProvider).elHabitante} a reconocerlo',
           ),
         ),
 
@@ -341,7 +342,8 @@ class _EstadoRecibir extends ConsumerState<_PestanaRecibir> {
                 style: const TextStyle(
                     fontSize: 14.5, fontWeight: FontWeight.w700),
               ),
-              subtitle: Text(_unidadDe(_residente!) ?? 'Sin unidad asignada'),
+              subtitle: Text(_unidadDe(_residente!, ref.read(palabrasProvider)) ??
+                  'Sin ${ref.read(palabrasProvider).elEspacio} asignada'),
               trailing: IconButton(
                 icon: const Icon(Icons.close_rounded),
                 tooltip: 'Elegir otro',
@@ -362,7 +364,7 @@ class _EstadoRecibir extends ConsumerState<_PestanaRecibir> {
             textCapitalization: TextCapitalization.words,
             onChanged: _buscar,
             decoration: InputDecoration(
-              labelText: 'Buscar residente',
+              labelText: 'Buscar ${ref.read(palabrasProvider).elHabitante}',
               hintText: 'Nombre o cédula',
               prefixIcon: const Icon(Icons.search_rounded),
               suffixIcon: _buscando
@@ -398,7 +400,8 @@ class _EstadoRecibir extends ConsumerState<_PestanaRecibir> {
                             fontSize: 13.5, fontWeight: FontWeight.w600),
                       ),
                       subtitle: Text(
-                        _unidadDe(_encontrados[i]) ?? 'Sin unidad',
+                        _unidadDe(_encontrados[i], ref.read(palabrasProvider)) ??
+                            'Sin ${ref.read(palabrasProvider).elEspacio}',
                         style: const TextStyle(fontSize: 12),
                       ),
                       onTap: () => setState(() {
@@ -421,14 +424,14 @@ class _EstadoRecibir extends ConsumerState<_PestanaRecibir> {
             color: Colores.grafito.withValues(alpha: 0.05),
             borderRadius: BorderRadius.circular(Medidas.redondeoChico),
           ),
-          child: const Row(
+          child: Row(
             children: [
               Icon(Icons.notifications_rounded,
                   size: 17, color: Colores.grafito),
               SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  'Al guardar, el residente recibe el aviso en su celular con la '
+                  'Al guardar, el ${ref.read(palabrasProvider).elHabitante} recibe el aviso en su celular con la '
                   'foto del paquete.',
                   style: TextStyle(
                     fontSize: 12.5,
@@ -520,8 +523,8 @@ class _EstadoInventario extends ConsumerState<_PestanaInventario> {
                   Medidas.margen, Medidas.margen, Medidas.margen, 8),
               child: TextField(
                 onChanged: (t) => setState(() => _filtro = t),
-                decoration: const InputDecoration(
-                  hintText: 'Buscar por nombre, unidad o número…',
+                decoration: InputDecoration(
+                  hintText: 'Buscar por nombre, ${ref.read(palabrasProvider).elEspacio} o número…',
                   prefixIcon: Icon(Icons.search_rounded),
                   isDense: true,
                 ),
@@ -569,7 +572,7 @@ class _EstadoInventario extends ConsumerState<_PestanaInventario> {
                           : 'Ningún paquete coincide',
                       explicacion: texto.isEmpty
                           ? 'Cuando recibas uno, va a aparecer acá con su foto.'
-                          : 'Probá con otro nombre, unidad o número.',
+                          : 'Probá con otro nombre, ${ref.read(palabrasProvider).elEspacio} o número.',
                     )
                   : RefreshIndicator(
                       onRefresh: () async =>
@@ -633,7 +636,8 @@ class _TarjetaInventario extends ConsumerWidget {
                   Text(
                     [
                       if (paquete['unidad'] != null)
-                        'Unidad ${paquete['unidad']}',
+                        '${ref.read(palabrasProvider).elEspacioConMayuscula} '
+                        '${paquete['unidad']}',
                       if (paquete['numero_seguimiento'] != null)
                         'Nº ${paquete['numero_seguimiento']}',
                     ].join(' · '),
@@ -738,9 +742,9 @@ class _EstadoEntrega extends ConsumerState<_HojaDeEntrega> {
 
   Future<void> _confirmar() async {
     if (_firma.isEmpty) {
-      setState(() => _problema = const ErrorAmigable(
+      setState(() => _problema = ErrorAmigable(
             'Falta la firma.',
-            detalle: 'Pedile al residente que firme con el dedo en el recuadro.',
+            detalle: 'Pedile al ${ref.read(palabrasProvider).elHabitante} que firme con el dedo en el recuadro.',
             sePuedeReintentar: false,
           ));
       return;
@@ -827,7 +831,8 @@ class _EstadoEntrega extends ConsumerState<_HojaDeEntrega> {
                   style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: 3),
               Text(
-                '${p['residente']} · ${p['unidad'] != null ? 'unidad ${p['unidad']}' : 'sin unidad'}',
+                '${p['residente']} · '
+                '${p['unidad'] != null ? '${ref.read(palabrasProvider).elEspacio} ${p['unidad']}' : 'sin ${ref.read(palabrasProvider).elEspacio}'}',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
 
@@ -875,8 +880,8 @@ class _EstadoEntrega extends ConsumerState<_HojaDeEntrega> {
                     color: Colores.naranja.withValues(alpha: 0.09),
                     borderRadius: BorderRadius.circular(Medidas.redondeoChico),
                   ),
-                  child: const Text(
-                    'Queda registrado que no lo retiró el residente. Conviene '
+                  child: Text(
+                    'Queda registrado que no lo retiró el ${ref.read(palabrasProvider).elHabitante}. Conviene '
                     'que él lo sepa: le llega el aviso igual.',
                     style: TextStyle(
                       fontSize: 12,
@@ -990,13 +995,18 @@ String _iniciales(String nombre) {
   return '${partes[0][0]}${partes[1][0]}'.toUpperCase();
 }
 
-String? _unidadDe(Map<String, dynamic> residente) {
+/// Arma el texto del espacio de una persona: "Unidad 302" o "Curso 4B".
+///
+/// La palabra llega de afuera porque esta funcion esta suelta, fuera de
+/// cualquier pantalla, y desde aca no se puede preguntar de que tipo es la
+/// instalacion.
+String? _unidadDe(Map<String, dynamic> residente, Palabras palabras) {
   final u = residente['unidades'];
   if (u is Map) {
     final texto = [u['numero'], u['torre']]
         .where((p) => p != null && p.toString().isNotEmpty)
         .join(' ');
-    return texto.isEmpty ? null : 'Unidad $texto';
+    return texto.isEmpty ? null : '${palabras.elEspacioConMayuscula} $texto';
   }
   return null;
 }

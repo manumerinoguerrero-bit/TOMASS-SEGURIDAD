@@ -19,6 +19,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../config/tema.dart';
+import '../../estado/proveedores.dart';
 import '../../estado/proveedores_guardia.dart';
 import '../../modelos/modelos.dart';
 import '../../navegacion/rutas.dart';
@@ -379,11 +380,11 @@ class _QuienEstaAdentro extends ConsumerWidget {
           ),
           data: (lista) {
             if (lista.isEmpty) {
-              return const Card(
+              return Card(
                 child: Padding(
                   padding: EdgeInsets.all(Medidas.margen),
                   child: Text(
-                    'No hay nadie registrado dentro del condominio ahora mismo.',
+                    'No hay nadie registrado dentro de ${ref.watch(palabrasProvider).laInstalacion} ahora mismo.',
                     style: TextStyle(fontSize: 13, color: Colores.textoSuave),
                   ),
                 ),
