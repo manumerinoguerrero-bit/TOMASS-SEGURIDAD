@@ -17,18 +17,48 @@ android {
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "cl.tomass.tomass_seguridad"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
 
+    // ========================================================================
+    // FIRMA DE LAS COMPILACIONES DE PRUEBA
+    // ========================================================================
+    // QUÉ PROBLEMA RESUELVE
+    //
+    //   Cada compilación en GitHub generaba una firma digital NUEVA. Android ve
+    //   dos apps con el mismo nombre pero firmas distintas, y se niega a
+    //   actualizar con este mensaje:
+    //
+    //       "No se instaló la app debido a un conflicto con un paquete"
+    //
+    //   Eso obligaba a desinstalar la app antes de cada prueba, perdiendo
+    //   además la sesión guardada y teniendo que volver a iniciar sesión.
+    //
+    //   Con una firma FIJA, cada APK nuevo se instala encima del anterior como
+    //   una actualización normal, conservando la sesión.
+    //
+    // ⚠️ ESTA FIRMA ES SOLO PARA PRUEBAS. Su contraseña es "android", que es
+    //    pública y estándar en Android. NO sirve para publicar en Google Play:
+    //    para eso hay que crear una firma de verdad, con contraseña secreta,
+    //    y guardarla como secreto de GitHub. Eso va en la Fase 5.
+    // ========================================================================
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("../firma-pruebas.jks")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
+            // Por ahora la versión de publicación también usa la firma de
+            // pruebas, para poder compilarla y verla funcionar. Antes de subirla
+            // a Google Play hay que cambiarla por una firma real.
             signingConfig = signingConfigs.getByName("debug")
         }
     }

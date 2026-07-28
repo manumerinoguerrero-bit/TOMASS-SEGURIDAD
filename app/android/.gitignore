@@ -7,8 +7,18 @@ gradle-wrapper.jar
 GeneratedPluginRegistrant.java
 .cxx/
 
-# Remember to never publicly share your keystore.
-# See https://flutter.dev/to/reference-keystore
+# Nunca compartas públicamente tu firma digital.
+# https://flutter.dev/to/reference-keystore
 key.properties
 **/*.keystore
 **/*.jks
+
+# ÚNICA EXCEPCIÓN, y es a propósito: la firma de las compilaciones de PRUEBA.
+#
+# Su contraseña es "android", pública y estándar en Android. No protege nada:
+# solo sirve para que cada APK de prueba se instale encima del anterior como
+# una actualización, en lugar de fallar con "conflicto con un paquete".
+#
+# ⚠️ La firma REAL para publicar en Google Play NUNCA va acá. Esa se guarda
+#    como secreto de GitHub y su contraseña no se escribe en ningún archivo.
+!firma-pruebas.jks

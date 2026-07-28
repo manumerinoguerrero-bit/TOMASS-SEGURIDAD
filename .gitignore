@@ -11,6 +11,16 @@
 *.jks
 *.keystore
 key.properties
+
+# ÚNICA EXCEPCIÓN, y es a propósito: la firma de las compilaciones de PRUEBA.
+#
+# Su contraseña es "android", que es pública y estándar en Android. No protege
+# nada: solo sirve para que cada APK de prueba se instale encima del anterior
+# como una actualización, en vez de dar "conflicto con un paquete".
+#
+# ⚠️ La firma REAL para publicar en Google Play NUNCA va acá. Esa va como
+#    secreto de GitHub y su contraseña no se escribe en ningún archivo.
+!app/android/firma-pruebas.jks
 google-services.json
 GoogleService-Info.plist
 service-account*.json
