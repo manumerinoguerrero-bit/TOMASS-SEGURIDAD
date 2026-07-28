@@ -31,10 +31,10 @@ import '../modelos/modelos.dart';
 import '../pantallas/acceso/pantalla_codigo.dart';
 import '../pantallas/acceso/pantalla_escaner.dart';
 import '../pantallas/acceso/pantalla_resultado.dart';
-import '../pantallas/comunes/pantalla_en_construccion.dart';
 import '../pantallas/guardia/contenedor_guardia.dart';
 import '../pantallas/guardia/pantalla_autos_esperando.dart';
 import '../pantallas/guardia/pantalla_escaner_guardia.dart';
+import '../pantallas/guardia/pantalla_novedades.dart';
 import '../pantallas/guardia/pantalla_panel.dart';
 import '../pantallas/guardia/pantalla_porteria.dart';
 import '../pantallas/guardia/pantalla_turno.dart';
@@ -192,9 +192,6 @@ final rutasProvider = Provider<GoRouter>((ref) {
             builder: (context, estado) => const PantallaAutosEsperando(),
           ),
 
-          // Las tres que faltan de la Fase 4. Van conectadas con un cartel
-          // provisorio para que el menú funcione completo y no queden pestañas
-          // muertas, que parecerían un error de la app.
           GoRoute(
             path: Rutas.escanerGuardia,
             builder: (context, estado) => const PantallaEscanerGuardia(),
@@ -205,14 +202,7 @@ final rutasProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: Rutas.incidentes,
-            builder: (context, estado) => const PantallaEnConstruccion(
-              titulo: 'Novedades',
-              icono: Icons.report_rounded,
-              queVaAHacer:
-                  'El cuaderno de novedades, pero digital y con fotos: autos '
-                  'mal estacionados, ruidos, daños. Queda todo registrado para '
-                  'la reunión de copropietarios.',
-            ),
+            builder: (context, estado) => const PantallaNovedades(),
           ),
         ],
       ),
