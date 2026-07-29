@@ -110,6 +110,8 @@ final turnosAdminProvider = FutureProvider<List<TurnoAdmin>>((ref) {
 
 void refrescarPanel(WidgetRef ref) {
   ref.invalidate(resumenAdminProvider);
+  ref.invalidate(puntosDeControlAdminProvider);
+  ref.invalidate(informeDeRondasProvider);
   ref.invalidate(misInstalacionesProvider);
   ref.invalidate(vehiculosPorAprobarProvider);
   ref.invalidate(personasProvider);
@@ -117,3 +119,33 @@ void refrescarPanel(WidgetRef ref) {
   ref.invalidate(movimientosAdminProvider);
   ref.invalidate(turnosAdminProvider);
 }
+
+// ============================================================================
+// LOS PUNTOS DE CONTROL DE LAS RONDAS
+// ============================================================================
+
+final puntosDeControlAdminProvider =
+    FutureProvider<List<PuntoControlAdmin>>((ref) {
+  return ref.watch(servicioAdminProvider).puntosDeControl();
+});
+
+/// Cuántos sectores todavía no tienen ubicación tomada.
+///
+/// Mientras haya alguno sin ubicar, el sistema no puede demostrar que el
+/// guardia estuvo ahí: solo que tenía el código del cartel.
+final sectoresSinUbicarProvider = Provider<int>((ref) {
+  final puntos = ref.watch(puntosDeControlAdminProvider).valueOrNull ?? const [];
+  return puntos.where((p) => !p.tieneUbicacion).length;
+});
+
+// ============================================================================
+// EL INFORME DE RONDAS
+// ============================================================================
+
+final diasDelInformeDeRondasProvider = StateProvider<int>((ref) => 7);
+
+final informeDeRondasProvider = FutureProvider<List<RondaDelInforme>>((ref) {
+  return ref
+      .watch(servicioAdminProvider)
+      .informeDeRondas(dias: ref.watch(diasDelInformeDeRondasProvider));
+});

@@ -50,6 +50,7 @@ import '../pantallas/admin/pantalla_admin_espacios.dart';
 import '../pantallas/admin/pantalla_admin_informes.dart';
 import '../pantallas/admin/pantalla_admin_inicio.dart';
 import '../pantallas/admin/pantalla_admin_personas.dart';
+import '../pantallas/admin/pantalla_admin_sectores.dart';
 import '../pantallas/admin/pantalla_admin_vehiculos.dart';
 
 class Rutas {
@@ -83,6 +84,7 @@ class Rutas {
   static const adminVehiculos = '/administracion/vehiculos';
   static const adminPersonas = '/administracion/personas';
   static const adminEspacios = '/administracion/espacios';
+  static const adminSectores = '/administracion/sectores';
   static const adminInformes = '/administracion/informes';
 }
 
@@ -229,6 +231,10 @@ final rutasProvider = Provider<GoRouter>((ref) {
         builder: (context, estado) => const PantallaAdminEspacios(),
       ),
       GoRoute(
+        path: Rutas.adminSectores,
+        builder: (context, estado) => const PantallaAdminSectores(),
+      ),
+      GoRoute(
         path: Rutas.adminInformes,
         builder: (context, estado) => const PantallaAdminInformes(),
       ),
@@ -311,6 +317,7 @@ const _deAdministracion = {
   Rutas.adminVehiculos,
   Rutas.adminPersonas,
   Rutas.adminEspacios,
+  Rutas.adminSectores,
   Rutas.adminInformes,
 };
 

@@ -1,7 +1,7 @@
 // ============================================================================
 // Tomass Seguridad — Panel de administración · Informes
 // ============================================================================
-// Dos cosas en dos pestañas:
+// Tres cosas en tres pestañas:
 //
 //   ACCESOS → quién entró y salió, con fecha y hora. Es lo que se revisa cuando
 //             hay un problema, y lo que el administrador lleva a la reunión de
@@ -9,6 +9,10 @@
 //
 //   TURNOS  → qué guardia estuvo a cargo y en qué horario. Sirve para el pago
 //             de horas y para saber a quién preguntarle por algo que pasó.
+//
+//   RONDAS  → si se hicieron los recorridos, cada cuánto, y si se marcaron los
+//             sectores estando ahí. Vive en informe_de_rondas.dart. Es el que
+//             se le muestra al cliente.
 //
 // Los registros de acceso no se pueden modificar ni borrar: la base de datos lo
 // impide. Por eso sirven como prueba.
@@ -24,6 +28,7 @@ import '../../nucleo/errores.dart';
 import '../../nucleo/formato.dart';
 import '../comunes/componentes.dart';
 import 'acciones_admin.dart';
+import 'informe_de_rondas.dart';
 
 class PantallaAdminInformes extends ConsumerWidget {
   const PantallaAdminInformes({super.key});
@@ -31,7 +36,7 @@ class PantallaAdminInformes extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return DefaultTabController(
-      length: 2,
+      length: 3,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Informes'),
@@ -44,11 +49,12 @@ class PantallaAdminInformes extends ConsumerWidget {
             tabs: [
               Tab(text: 'Accesos'),
               Tab(text: 'Turnos'),
+              Tab(text: 'Rondas'),
             ],
           ),
         ),
         body: const TabBarView(
-          children: [_PestanaAccesos(), _PestanaTurnos()],
+          children: [_PestanaAccesos(), _PestanaTurnos(), PestanaRondas()],
         ),
       ),
     );

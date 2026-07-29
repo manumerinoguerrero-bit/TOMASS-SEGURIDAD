@@ -99,6 +99,13 @@ dependencies:
   # que cambió de teléfono
   device_info_plus: ^11.2.0
 
+  # ---- Ubicación ----------------------------------------------------------
+  # Para los puntos de control de las rondas.
+  #
+  # Sin esto el sistema demuestra que alguien TUVO el código del cartel. Con
+  # esto demuestra que ESTUVO AHÍ, que es lo que el cliente quiere saber.
+  geolocator: ^13.0.2
+
   # ---- Utilidades ---------------------------------------------------------
   # Fechas y números en formato chileno
   intl: ^0.20.1

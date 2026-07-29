@@ -169,6 +169,8 @@ class ServicioGuardia {
     required String codigoDelCartel,
     String? novedad,
     String? fotoUrl,
+    double? latitud,
+    double? longitud,
   }) async {
     try {
       final filas = await _supabase.rpc('marcar_punto_control', params: {
@@ -176,6 +178,8 @@ class ServicioGuardia {
         'p_codigo_qr': codigoDelCartel,
         'p_novedad': novedad,
         'p_foto_url': fotoUrl,
+        'p_geo_lat': latitud,
+        'p_geo_lng': longitud,
       }).timeout(Entorno.esperaMaxima);
 
       final lista = filas as List;

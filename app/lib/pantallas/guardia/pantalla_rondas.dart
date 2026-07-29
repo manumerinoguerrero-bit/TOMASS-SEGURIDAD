@@ -37,6 +37,7 @@ import '../../estado/proveedores_guardia.dart';
 import '../../modelos/guardia.dart';
 import '../../nucleo/errores.dart';
 import '../../nucleo/formato.dart';
+import '../../nucleo/ubicacion.dart';
 import '../comunes/componentes.dart';
 import 'acciones_de_turno.dart';
 
@@ -82,9 +83,18 @@ class _EstadoRondas extends ConsumerState<PantallaRondas> {
     });
 
     try {
+      // Se pide la ubicación pero NO se espera para siempre: si el GPS no
+      // contesta en unos segundos, la marca se anota igual sin ella. Un guardia
+      // que no puede registrar una ronda que sí hizo deja de usar la app.
+      final donde = await Localizador.donde(
+        esperaMaxima: const Duration(seconds: 8),
+      );
+
       final r = await ref.read(servicioGuardiaProvider).marcarPuntoDeControl(
             idLocal: _nuevoId(),
             codigoDelCartel: codigo,
+            latitud: donde?.latitud,
+            longitud: donde?.longitud,
           );
       if (!mounted) return;
 

@@ -24,6 +24,18 @@
     <uses-permission android:name="android.permission.USE_FINGERPRINT" />
 
     <!-- Para que el celular vibre al aprobar o denegar un acceso -->
+    <!-- UBICACIÓN, para los puntos de control de las rondas.
+
+         Sirve para dejar registrado que el guardia ESTUVO en cada sector, y no
+         solo que tenía el código del cartel. Sin esto, alguien podría sacarle
+         una foto a los carteles el primer día y escanear las fotos desde la
+         garita sin moverse en toda la noche.
+
+         Solo se pide mientras la app está abierta: no se sigue al guardia
+         cuando no está trabajando. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
     <uses-permission android:name="android.permission.VIBRATE" />
 
     <!-- Para los avisos al guardia y al residente (Android 13 o superior) -->

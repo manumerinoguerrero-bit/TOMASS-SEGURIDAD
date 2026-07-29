@@ -48,6 +48,9 @@
 	<key>NSFaceIDUsageDescription</key>
 	<string>Tomass Seguridad usa Face ID para que puedas entrar a la app sin escribir tu contraseña cada vez.</string>
 
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Tomass Seguridad usa tu ubicación para dejar registrado que estuviste en cada sector durante la ronda. Solo se usa mientras la app está abierta.</string>
+
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Tomass Seguridad accede a tus fotos solo si elegís una imagen guardada para registrar un vehículo.</string>
 

@@ -504,6 +504,8 @@ class ResultadoDeMarca {
     required this.marcados,
     required this.total,
     required this.yaEstaba,
+    this.metrosDeLejos,
+    this.lejos = false,
   });
 
   /// El nombre del sector, para poder decirle "Patio central, listo".
@@ -515,10 +517,23 @@ class ResultadoDeMarca {
   /// se le avisa y no se cuenta dos veces.
   final bool yaEstaba;
 
+  /// A cuántos metros del cartel estaba el teléfono al escanear.
+  /// null si el cartel no tiene ubicación guardada, o si el GPS no contestó.
+  final double? metrosDeLejos;
+
+  /// true si esa distancia se pasó de lo permitido para ese punto.
+  ///
+  /// NO se le muestra al guardia como una acusación: el GPS falla bajo techo y
+  /// acusar a alguien que hizo bien su trabajo es la forma más rápida de que
+  /// deje de usar el sistema. Queda anotado y lo mira el administrador.
+  final bool lejos;
+
   factory ResultadoDeMarca.desdeMapa(Map<String, dynamic> m) => ResultadoDeMarca(
         punto: (m['punto'] ?? '') as String,
         marcados: (m['marcados'] ?? 0) as int,
         total: (m['total'] ?? 0) as int,
         yaEstaba: (m['ya_estaba'] ?? false) as bool,
+        metrosDeLejos: (m['metros_de_lejos'] as num?)?.toDouble(),
+        lejos: (m['lejos'] ?? false) as bool,
       );
 }

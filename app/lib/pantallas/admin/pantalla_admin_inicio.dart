@@ -109,6 +109,12 @@ class PantallaAdminInicio extends ConsumerWidget {
                 alTocar: () => context.go(Rutas.adminEspacios),
               ),
               _Acceso(
+                icono: Icons.add_location_alt_rounded,
+                titulo: 'Sectores de la ronda',
+                detalle: 'Los carteles que marca el guardia al hacer el recorrido',
+                alTocar: () => context.go(Rutas.adminSectores),
+              ),
+              _Acceso(
                 icono: Icons.assessment_rounded,
                 titulo: 'Informes',
                 detalle: 'Quién entró y salió, y los turnos de los guardias',

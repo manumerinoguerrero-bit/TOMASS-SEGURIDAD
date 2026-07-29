@@ -388,3 +388,121 @@ class Instalacion {
         esLaActiva: (m['es_la_activa'] ?? false) as bool,
       );
 }
+
+// ============================================================================
+// UN PUNTO DE CONTROL DE LAS RONDAS
+// ============================================================================
+// El cartel que se pega en cada sector. Lo crea el administrador PARADO AHÍ,
+// para que quede guardada la ubicación real del lugar.
+// ============================================================================
+
+class PuntoControlAdmin {
+  const PuntoControlAdmin({
+    required this.id,
+    required this.nombre,
+    required this.orden,
+    required this.codigoQr,
+    required this.metrosDeTolerancia,
+    this.descripcion,
+    this.latitud,
+    this.longitud,
+    this.ubicacionTomadaEn,
+  });
+
+  final String id;
+  final String nombre;
+  final int orden;
+
+  /// Lo que va impreso adentro del QR del cartel.
+  final String codigoQr;
+
+  /// Cuántos metros de error de GPS se le perdonan a este punto.
+  final int metrosDeTolerancia;
+
+  final String? descripcion;
+  final double? latitud;
+  final double? longitud;
+  final DateTime? ubicacionTomadaEn;
+
+  /// Sin ubicación, el sistema solo puede demostrar que alguien tuvo el código
+  /// del cartel; con ella demuestra que estuvo ahí.
+  bool get tieneUbicacion => latitud != null && longitud != null;
+
+  factory PuntoControlAdmin.desdeMapa(Map<String, dynamic> m) =>
+      PuntoControlAdmin(
+        id: m['id'] as String,
+        nombre: (m['nombre'] ?? '') as String,
+        orden: (m['orden'] ?? 0) as int,
+        codigoQr: (m['codigo_qr'] ?? '') as String,
+        metrosDeTolerancia: (m['metros_de_tolerancia'] ?? 60) as int,
+        descripcion: m['descripcion'] as String?,
+        latitud: (m['latitud'] as num?)?.toDouble(),
+        longitud: (m['longitud'] as num?)?.toDouble(),
+        ubicacionTomadaEn: m['ubicacion_tomada_en'] == null
+            ? null
+            : DateTime.parse(m['ubicacion_tomada_en'] as String),
+      );
+}
+
+// ============================================================================
+// UNA RONDA EN EL INFORME
+// ============================================================================
+
+class RondaDelInforme {
+  const RondaDelInforme({
+    required this.id,
+    required this.guardia,
+    required this.inicio,
+    required this.minutos,
+    required this.marcados,
+    required this.total,
+    required this.completa,
+    required this.marcasLejanas,
+    required this.sePasoDelLimite,
+    this.cerradaEn,
+    this.horasDesdeLaAnterior,
+    this.notas,
+  });
+
+  final String id;
+  final String guardia;
+  final DateTime inicio;
+  final DateTime? cerradaEn;
+  final int minutos;
+  final int marcados;
+  final int total;
+  final bool completa;
+
+  /// Cuántos puntos se marcaron desde más lejos de lo permitido.
+  ///
+  /// No prueba que alguien haya hecho trampa: el GPS falla bajo techo. Es una
+  /// señal para mirar, no una acusación.
+  final int marcasLejanas;
+
+  /// true si pasaron más de las 2 horas de contrato desde la ronda anterior.
+  final bool sePasoDelLimite;
+
+  final double? horasDesdeLaAnterior;
+  final String? notas;
+
+  bool get sigueAbierta => cerradaEn == null;
+  bool get hayAlgoQueMirar => sePasoDelLimite || marcasLejanas > 0 || !completa;
+
+  factory RondaDelInforme.desdeMapa(Map<String, dynamic> m) => RondaDelInforme(
+        id: m['ronda_id'] as String,
+        guardia: (m['guardia'] ?? 'Sin nombre') as String,
+        inicio: DateTime.parse(m['inicio'] as String),
+        cerradaEn: m['cerrada_en'] == null
+            ? null
+            : DateTime.parse(m['cerrada_en'] as String),
+        minutos: (m['minutos'] ?? 0) as int,
+        marcados: (m['marcados'] ?? 0) as int,
+        total: (m['total'] ?? 0) as int,
+        completa: (m['completa'] ?? false) as bool,
+        marcasLejanas: (m['marcas_lejanas'] ?? 0) as int,
+        sePasoDelLimite: (m['se_paso_del_limite'] ?? false) as bool,
+        horasDesdeLaAnterior:
+            (m['horas_desde_la_anterior'] as num?)?.toDouble(),
+        notas: m['notas'] as String?,
+      );
+}

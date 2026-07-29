@@ -315,6 +315,115 @@ class ServicioAdmin {
   }
 
   // ==========================================================================
+  // LOS PUNTOS DE CONTROL DE LAS RONDAS
+  // ==========================================================================
+  // Los carteles que se pegan en cada sector. El administrador los crea PARADO
+  // AHI, para que la ubicacion guardada sea la de verdad: cargarla a mano desde
+  // una oficina seria inventarla.
+  // ==========================================================================
+
+  Future<List<PuntoControlAdmin>> puntosDeControl() async {
+    try {
+      final filas = await _supabase
+          .from('puntos_control')
+          .select('id, nombre, descripcion, orden, codigo_qr, latitud, '
+              'longitud, metros_de_tolerancia, ubicacion_tomada_en')
+          .eq('activo', true)
+          .order('orden')
+          .timeout(Entorno.esperaMaxima);
+
+      return (filas as List)
+          .map((f) => PuntoControlAdmin.desdeMapa(Map<String, dynamic>.from(f)))
+          .toList();
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+
+  /// Crea un sector nuevo. La ubicacion sale del telefono del administrador.
+  Future<String> crearPuntoDeControl({
+    required String nombre,
+    double? latitud,
+    double? longitud,
+    String? descripcion,
+    int tolerancia = 60,
+  }) async {
+    try {
+      final id = await _supabase.rpc('crear_punto_control', params: {
+        'p_nombre': nombre,
+        'p_latitud': latitud,
+        'p_longitud': longitud,
+        'p_descripcion': descripcion,
+        'p_tolerancia': tolerancia,
+      }).timeout(Entorno.esperaMaxima);
+      return id as String;
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+
+  /// Le guarda la ubicacion a un sector que ya existe. Sirve para los que se
+  /// crearon antes de que hubiera ubicacion.
+  Future<void> ubicarPuntoDeControl({
+    required String puntoId,
+    required double latitud,
+    required double longitud,
+    int? tolerancia,
+  }) async {
+    try {
+      await _supabase.rpc('ubicar_punto_control', params: {
+        'p_punto_id': puntoId,
+        'p_latitud': latitud,
+        'p_longitud': longitud,
+        'p_tolerancia': tolerancia,
+      }).timeout(Entorno.esperaMaxima);
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+
+  Future<void> renombrarPuntoDeControl(String puntoId, String nombre) async {
+    try {
+      await _supabase
+          .from('puntos_control')
+          .update({'nombre': nombre.trim()})
+          .eq('id', puntoId);
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+
+  /// Da de baja un sector. No se borra: si se borrara, las rondas viejas
+  /// quedarian apuntando a un punto que ya no existe y el historial se
+  /// arruinaria. Se marca como inactivo y deja de aparecer.
+  Future<void> darDeBajaPuntoDeControl(String puntoId) async {
+    try {
+      await _supabase
+          .from('puntos_control')
+          .update({'activo': false})
+          .eq('id', puntoId);
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+
+  /// El informe de rondas: cuantas hizo, si se paso de las 2 horas, y si marco
+  /// algun punto desde lejos.
+  Future<List<RondaDelInforme>> informeDeRondas({int dias = 7}) async {
+    try {
+      final filas = await _supabase
+          .rpc('informe_de_rondas', params: {'p_dias': dias})
+          .timeout(Entorno.esperaMaxima);
+
+      return (filas as List)
+          .map((f) => RondaDelInforme.desdeMapa(Map<String, dynamic>.from(f)))
+          .toList();
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+
+  // ==========================================================================
   // ESPACIOS (unidades en un condominio, cursos en un colegio)
   // ==========================================================================
 
