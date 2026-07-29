@@ -2,11 +2,17 @@
   "_leeme": [
     "Esta es la lista de entradas que se convierten en carteles.",
     "Sale de la base de datos. Para actualizarla, mirá LEEME.txt en esta misma carpeta.",
+    "",
+    "SOLO VAN LAS ENTRADAS EN MODO 'qr'.",
+    "Los dos colegios NO están acá a propósito: tienen barrera y portones que abre",
+    "el guardia, así que el ingreso se anota a mano en la app y no hay nada que",
+    "escanear. Viveros Yapur tampoco, por lo mismo.",
+    "",
     "El 'codigo' es lo que va adentro del QR. NO se inventa ni se cambia a mano:",
     "tiene que ser igual, letra por letra, al que está guardado en la base de datos,",
     "o el cartel no lo va a reconocer nadie."
   ],
-  "generado_el": "2026-07-27",
+  "generado_el": "2026-07-28",
   "entradas": [
     {
       "instalacion": "Condominio Cerro Grande",
@@ -67,46 +73,6 @@
       "tipo_entrada": "vehicular",
       "ubicacion": "Barrera del estacionamiento",
       "codigo": "09b885fce73514fc476b576dc02a8a74"
-    },
-    {
-      "instalacion": "Colegio Alemán",
-      "nombre_corto": "Colegio Alemán",
-      "tipo": "colegio",
-      "ciudad": "La Serena",
-      "entrada": "Entrada Peatonal",
-      "tipo_entrada": "peatonal",
-      "ubicacion": "Portón peatonal principal",
-      "codigo": "0c7613e2755e00682dbf32fa71809f74"
-    },
-    {
-      "instalacion": "Colegio Alemán",
-      "nombre_corto": "Colegio Alemán",
-      "tipo": "colegio",
-      "ciudad": "La Serena",
-      "entrada": "Entrada Vehicular",
-      "tipo_entrada": "vehicular",
-      "ubicacion": "Barrera del estacionamiento",
-      "codigo": "f093450982301679131ea8765c39d228"
-    },
-    {
-      "instalacion": "Colegio International",
-      "nombre_corto": "International",
-      "tipo": "colegio",
-      "ciudad": "La Serena",
-      "entrada": "Entrada Peatonal",
-      "tipo_entrada": "peatonal",
-      "ubicacion": "Portón peatonal principal",
-      "codigo": "426245e2d144e7118116951f7f7a2e10"
-    },
-    {
-      "instalacion": "Colegio International",
-      "nombre_corto": "International",
-      "tipo": "colegio",
-      "ciudad": "La Serena",
-      "entrada": "Entrada Vehicular",
-      "tipo_entrada": "vehicular",
-      "ubicacion": "Barrera del estacionamiento",
-      "codigo": "cde6e90b248bcb77a01887c0862a9179"
     }
   ]
 }

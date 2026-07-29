@@ -84,7 +84,7 @@ void main() {
 
   stdout.writeln('Los ${dibujos.length} carteles pasaron la revisión.');
   stdout.writeln('');
-  stdout.writeln('Igual, antes de imprimir los diez: imprimí UNO en papel común');
+  stdout.writeln('Igual, antes de imprimir todos: imprimí UNO en papel común');
   stdout.writeln('y escaneálo con la app. Esta revisión comprueba que el dibujo');
   stdout.writeln('esté bien hecho, pero la prueba de verdad es la cámara.');
 }
