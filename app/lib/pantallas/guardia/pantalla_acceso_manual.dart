@@ -1,0 +1,613 @@
+// ============================================================================
+// Tomass Seguridad — El guardia anota un ingreso a mano
+// ============================================================================
+// DÓNDE SE USA
+//
+//   En los colegios y en Viveros Yapur. Ahí hay barrera y portones de cierre
+//   que abre el guardia: nadie va a apuntar un teléfono a un cartel. El guardia
+//   mira, abre, y anota.
+//
+// LO QUE SE ANOTA, Y POR QUÉ ES OBLIGATORIO
+//
+//   nombre · RUT · a dónde va · quién autoriza · patente (si viene en vehículo)
+//
+//   Los definió Manuel, que es quien conoce la operación. El más importante de
+//   todos es QUIÉN AUTORIZA: es el único que contesta la pregunta que se hace
+//   siempre cuando pasa algo, que es "¿y este quién lo dejó entrar?". Sin ese
+//   dato, el registro dice que alguien entró pero no de quién fue la decisión,
+//   y el guardia queda solo cargando con la responsabilidad.
+//
+//   La foto es OPCIONAL. En la entrada de un colegio a las 8 de la mañana hay
+//   fila de autos, y obligar una foto por cada uno agrega quince segundos a
+//   cada ingreso. Se usa cuando el guardia ve algo que conviene respaldar.
+//
+// CÓMO ESTÁ PENSADA LA PANTALLA
+//
+//   Para usarse con una mano, parado, de noche y con alguien esperando. Por eso:
+//
+//     · Entrada/Salida y A pie/En vehículo son botones grandes, no listas.
+//     · "Quién autoriza" recuerda los últimos que se escribieron: la primera
+//       vez se escribe, las siguientes es un toque.
+//     · El botón de guardar es enorme y dice qué va a pasar.
+//     · Si algo falta, el aviso dice exactamente qué, sin palabras raras.
+// ============================================================================
+
+import 'dart:async';
+import 'dart:io';
+import 'dart:math';
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../config/tema.dart';
+import '../../estado/proveedores.dart';
+import '../../estado/proveedores_guardia.dart';
+import '../../modelos/guardia.dart';
+import '../../nucleo/errores.dart';
+import '../../servicios/servicio_fotos.dart';
+import '../comunes/componentes.dart';
+import 'acciones_de_turno.dart';
+
+class PantallaAccesoManual extends ConsumerStatefulWidget {
+  const PantallaAccesoManual({super.key});
+
+  @override
+  ConsumerState<PantallaAccesoManual> createState() => _EstadoAccesoManual();
+}
+
+class _EstadoAccesoManual extends ConsumerState<PantallaAccesoManual> {
+  final _nombre = TextEditingController();
+  final _rut = TextEditingController();
+  final _patente = TextEditingController();
+  final _aDondeVa = TextEditingController();
+  final _autoriza = TextEditingController();
+  final _observacion = TextEditingController();
+
+  String _sentido = 'entrada';
+  String _tipoAcceso = 'peatonal';
+  String? _garitaId;
+  File? _foto;
+  bool _guardando = false;
+  ErrorAmigable? _problema;
+
+  /// Los últimos "quién autoriza" que se escribieron en este turno.
+  ///
+  /// En un colegio autoriza casi siempre la misma gente (inspectoría, la
+  /// directora, el jefe de mantención). Guardarlos convierte cinco toques de
+  /// teclado en uno solo, y es la diferencia entre que el guardia lo complete
+  /// siempre o que empiece a poner cualquier cosa para salir del paso.
+  final _autorizantesRecientes = <String>[];
+
+  /// El identificador de ESTE ingreso. Se arma una sola vez, a propósito: si se
+  /// corta el internet y hay que reintentar, el servidor reconoce que es el
+  /// mismo y no anota dos veces a la misma persona.
+  String _idDelIngreso = _nuevoId();
+
+  static String _nuevoId() {
+    final azar = Random.secure();
+    String bloque(int bytes) => List.generate(
+          bytes,
+          (_) => azar.nextInt(256).toRadixString(16).padLeft(2, '0'),
+        ).join();
+    return '${bloque(4)}-${bloque(2)}-4${bloque(2).substring(1)}-'
+        '${(8 + azar.nextInt(4)).toRadixString(16)}${bloque(2).substring(1)}-'
+        '${bloque(6)}';
+  }
+
+  @override
+  void dispose() {
+    _nombre.dispose();
+    _rut.dispose();
+    _patente.dispose();
+    _aDondeVa.dispose();
+    _autoriza.dispose();
+    _observacion.dispose();
+    super.dispose();
+  }
+
+  Future<void> _sacarFoto() async {
+    try {
+      final foto = await ref.read(servicioFotosProvider).sacarFoto();
+      if (foto != null && mounted) setState(() => _foto = foto);
+    } catch (falla) {
+      if (mounted) setState(() => _problema = Traductor.traducir(falla));
+    }
+  }
+
+  Future<void> _guardar(List<PuntoAcceso> garitas) async {
+    final garita = _garitaId ?? ref.read(miPuestoProvider);
+
+    if (garita == null) {
+      setState(() => _problema = const ErrorAmigable(
+            'Falta elegir en qué garita estás.',
+            detalle: 'Es lo que dice por dónde pasó la persona.',
+            sePuedeReintentar: false,
+          ));
+      return;
+    }
+
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _guardando = true;
+      _problema = null;
+    });
+
+    try {
+      String? rutaFoto;
+      if (_foto != null) {
+        final perfil = ref.read(perfilProvider).valueOrNull;
+        if (perfil != null) {
+          rutaFoto = await ref.read(servicioFotosProvider).subir(
+                archivo: _foto!,
+                cajon: CajonDeFotos.personas,
+                condominioId: perfil.condominioId,
+                nombreDescriptivo: 'ingreso-manual',
+              );
+        }
+      }
+
+      await ref.read(servicioGuardiaProvider).anotarAccesoManual(
+            idLocal: _idDelIngreso,
+            puntoAccesoId: garita,
+            nombre: _nombre.text,
+            rut: _rut.text,
+            tipoAcceso: _tipoAcceso,
+            sentido: _sentido,
+            aDondeVa: _aDondeVa.text,
+            autorizadoPor: _autoriza.text,
+            patente: _patente.text,
+            fotoUrl: rutaFoto,
+            observacion: _observacion.text,
+          );
+
+      if (!mounted) return;
+
+      // El golpecito de confirmación no se espera: es una vibración, y esperarla
+      // dejaría la pantalla sin poder mostrar el aviso hasta que termine.
+      unawaited(HapticFeedback.mediumImpact());
+
+      final quien = _nombre.text.trim();
+      final entro = _sentido == 'entrada';
+
+      // Se recuerda quién autorizó, para el próximo
+      final autoriza = _autoriza.text.trim();
+      if (autoriza.isNotEmpty && !_autorizantesRecientes.contains(autoriza)) {
+        _autorizantesRecientes.insert(0, autoriza);
+        if (_autorizantesRecientes.length > 4) _autorizantesRecientes.removeLast();
+      }
+
+      // Se limpia todo menos "quién autoriza" y la garita: en una entrada de
+      // colegio pasan diez personas seguidas autorizadas por la misma persona,
+      // y volver a escribirlo cada vez es lo que hace que se deje de completar.
+      setState(() {
+        _nombre.clear();
+        _rut.clear();
+        _patente.clear();
+        _aDondeVa.clear();
+        _observacion.clear();
+        _foto = null;
+        _tipoAcceso = 'peatonal';
+        _guardando = false;
+        _idDelIngreso = _nuevoId();
+      });
+
+      ref.invalidate(ultimosAccesosProvider);
+      ref.invalidate(resumenProvider);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('$quien quedó registrado. '
+              '${entro ? "Entrada" : "Salida"} anotada.'),
+          backgroundColor: Colores.verde,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    } catch (falla) {
+      if (!mounted) return;
+      setState(() {
+        _guardando = false;
+        _problema = Traductor.traducir(falla);
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final garitas = ref.watch(puestosDisponiblesProvider).valueOrNull ?? const [];
+    final miPuesto = ref.watch(miPuestoProvider);
+    final cubroTodo = ref.watch(cubroTodoProvider);
+    final palabras = ref.watch(palabrasProvider);
+
+    // Si el guardia está asignado a una garita puntual, esa es y no se pregunta.
+    // Solo se pregunta cuando cubre todo y podría estar en cualquiera.
+    final garitaFija = miPuesto != null;
+    final garitaElegida = garitaFija ? miPuesto : _garitaId;
+    final garita = garitas.where((g) => g.id == garitaElegida).firstOrNull;
+    final aceptaVehiculos = garita?.aceptaVehiculos ?? true;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Anotar ingreso'),
+        actions: const [MenuDelGuardia()],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(Medidas.margen),
+        children: [
+          if (_problema != null) ...[
+            AvisoDeError(problema: _problema!),
+            const SizedBox(height: 14),
+          ],
+
+          // ---- Dónde ----
+          if (cubroTodo && garitas.length > 1) ...[
+            Text('EN QUÉ GARITA ESTÁS',
+                style: Theme.of(context).textTheme.labelSmall),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String>(
+              initialValue: _garitaId,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.meeting_room_outlined),
+                hintText: 'Elegí la garita',
+              ),
+              items: garitas
+                  .map((g) => DropdownMenuItem(value: g.id, child: Text(g.nombre)))
+                  .toList(),
+              onChanged: (v) => setState(() => _garitaId = v),
+            ),
+            const SizedBox(height: 18),
+          ],
+
+          // ---- Entra o sale ----
+          Text('¿ENTRA O SALE?',
+              style: Theme.of(context).textTheme.labelSmall),
+          const SizedBox(height: 8),
+          _DosBotones(
+            izquierda: 'Entra',
+            derecha: 'Sale',
+            iconoIzq: Icons.login_rounded,
+            iconoDer: Icons.logout_rounded,
+            elegidaIzquierda: _sentido == 'entrada',
+            alElegir: (esIzq) =>
+                setState(() => _sentido = esIzq ? 'entrada' : 'salida'),
+          ),
+
+          const SizedBox(height: 18),
+
+          // ---- A pie o en vehículo ----
+          Text('¿CÓMO PASA?', style: Theme.of(context).textTheme.labelSmall),
+          const SizedBox(height: 8),
+          _DosBotones(
+            izquierda: 'A pie',
+            derecha: 'En vehículo',
+            iconoIzq: Icons.directions_walk_rounded,
+            iconoDer: Icons.directions_car_rounded,
+            elegidaIzquierda: _tipoAcceso == 'peatonal',
+            derechaHabilitada: aceptaVehiculos,
+            alElegir: (esIzq) =>
+                setState(() => _tipoAcceso = esIzq ? 'peatonal' : 'vehicular'),
+          ),
+          if (!aceptaVehiculos)
+            const Padding(
+              padding: EdgeInsets.only(top: 6),
+              child: Text(
+                'Esta garita es solo peatonal.',
+                style: TextStyle(fontSize: 11.5, color: Colores.textoSuave),
+              ),
+            ),
+
+          const SizedBox(height: 20),
+          const Divider(),
+          const SizedBox(height: 14),
+
+          // ---- Quién es ----
+          TextField(
+            controller: _nombre,
+            textCapitalization: TextCapitalization.words,
+            textInputAction: TextInputAction.next,
+            decoration: const InputDecoration(
+              labelText: 'Nombre completo',
+              prefixIcon: Icon(Icons.person_outline_rounded),
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          TextField(
+            controller: _rut,
+            keyboardType: TextInputType.text,
+            textInputAction: TextInputAction.next,
+            decoration: const InputDecoration(
+              labelText: 'RUT',
+              hintText: '12.345.678-9',
+              prefixIcon: Icon(Icons.badge_outlined),
+            ),
+          ),
+
+          // ---- La patente, solo si viene en vehículo ----
+          if (_tipoAcceso == 'vehicular') ...[
+            const SizedBox(height: 12),
+            TextField(
+              controller: _patente,
+              textCapitalization: TextCapitalization.characters,
+              textInputAction: TextInputAction.next,
+              decoration: const InputDecoration(
+                labelText: 'Patente del vehículo',
+                hintText: 'ABCD12',
+                prefixIcon: Icon(Icons.directions_car_outlined),
+              ),
+            ),
+          ],
+
+          const SizedBox(height: 12),
+          TextField(
+            controller: _aDondeVa,
+            textCapitalization: TextCapitalization.sentences,
+            textInputAction: TextInputAction.next,
+            decoration: InputDecoration(
+              labelText: '¿A dónde se dirige?',
+              hintText: palabras.tipo == 'colegio'
+                  ? 'Ej: 4°B, Inspectoría, Estacionamiento'
+                  : 'Ej: ${palabras.elEspacioConMayuscula} 302, Administración',
+              prefixIcon: const Icon(Icons.place_outlined),
+            ),
+          ),
+
+          const SizedBox(height: 12),
+          TextField(
+            controller: _autoriza,
+            textCapitalization: TextCapitalization.words,
+            decoration: const InputDecoration(
+              labelText: '¿Quién autoriza el ingreso?',
+              hintText: 'Ej: Inspectoría general',
+              prefixIcon: Icon(Icons.how_to_reg_outlined),
+              helperText: 'Es lo que contesta después "¿quién lo dejó entrar?"',
+              helperMaxLines: 2,
+            ),
+          ),
+
+          // Los últimos que se escribieron, para no reescribirlos
+          if (_autorizantesRecientes.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 7,
+              children: [
+                for (final a in _autorizantesRecientes)
+                  ActionChip(
+                    label: Text(a, style: const TextStyle(fontSize: 12)),
+                    avatar: const Icon(Icons.history_rounded, size: 15),
+                    onPressed: () => setState(() => _autoriza.text = a),
+                  ),
+              ],
+            ),
+          ],
+
+          const SizedBox(height: 18),
+
+          // ---- La foto, opcional ----
+          _Foto(
+            foto: _foto,
+            alSacar: _sacarFoto,
+            alQuitar: () => setState(() => _foto = null),
+          ),
+
+          const SizedBox(height: 12),
+          TextField(
+            controller: _observacion,
+            maxLines: 2,
+            maxLength: 200,
+            textCapitalization: TextCapitalization.sentences,
+            decoration: const InputDecoration(
+              labelText: 'Observación (opcional)',
+              hintText: 'Algo para dejar anotado',
+              alignLabelWithHint: true,
+            ),
+          ),
+
+          const SizedBox(height: 10),
+
+          // ---- Guardar ----
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: _guardando ? null : () => _guardar(garitas),
+              style: FilledButton.styleFrom(
+                backgroundColor:
+                    _sentido == 'entrada' ? Colores.verde : Colores.grafito,
+                minimumSize: const Size(0, Medidas.altoBotonGigante),
+              ),
+              icon: _guardando
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2.5, color: Colors.white),
+                    )
+                  : Icon(
+                      _sentido == 'entrada'
+                          ? Icons.login_rounded
+                          : Icons.logout_rounded,
+                      size: 26,
+                    ),
+              label: Text(
+                _guardando
+                    ? 'Guardando…'
+                    : _sentido == 'entrada'
+                        ? 'Registrar entrada'
+                        : 'Registrar salida',
+                style: const TextStyle(
+                    fontSize: 17, fontWeight: FontWeight.w800),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// DOS BOTONES GRANDES
+// ============================================================================
+// En vez de una lista desplegable. El guardia usa esto parado, de noche, con
+// una mano y con gente esperando: un toque en un botón grande no se falla.
+// ============================================================================
+
+class _DosBotones extends StatelessWidget {
+  const _DosBotones({
+    required this.izquierda,
+    required this.derecha,
+    required this.iconoIzq,
+    required this.iconoDer,
+    required this.elegidaIzquierda,
+    required this.alElegir,
+    this.derechaHabilitada = true,
+  });
+
+  final String izquierda;
+  final String derecha;
+  final IconData iconoIzq;
+  final IconData iconoDer;
+  final bool elegidaIzquierda;
+  final bool derechaHabilitada;
+  final void Function(bool esIzquierda) alElegir;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: _Boton(
+            texto: izquierda,
+            icono: iconoIzq,
+            elegido: elegidaIzquierda,
+            habilitado: true,
+            alTocar: () => alElegir(true),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _Boton(
+            texto: derecha,
+            icono: iconoDer,
+            elegido: !elegidaIzquierda,
+            habilitado: derechaHabilitada,
+            alTocar: () => alElegir(false),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _Boton extends StatelessWidget {
+  const _Boton({
+    required this.texto,
+    required this.icono,
+    required this.elegido,
+    required this.habilitado,
+    required this.alTocar,
+  });
+
+  final String texto;
+  final IconData icono;
+  final bool elegido;
+  final bool habilitado;
+  final VoidCallback alTocar;
+
+  @override
+  Widget build(BuildContext context) {
+    final apagado = !habilitado;
+    return Material(
+      color: elegido && !apagado
+          ? Colores.grafito
+          : Colores.grafito.withValues(alpha: 0.05),
+      borderRadius: BorderRadius.circular(Medidas.redondeo),
+      child: InkWell(
+        onTap: apagado ? null : alTocar,
+        borderRadius: BorderRadius.circular(Medidas.redondeo),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 15),
+          child: Column(
+            children: [
+              Icon(
+                icono,
+                size: 24,
+                color: apagado
+                    ? Colores.textoTenue
+                    : elegido
+                        ? Colors.white
+                        : Colores.textoSuave,
+              ),
+              const SizedBox(height: 5),
+              Text(
+                texto,
+                style: TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w700,
+                  color: apagado
+                      ? Colores.textoTenue
+                      : elegido
+                          ? Colors.white
+                          : Colores.textoSuave,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// LA FOTO, QUE ES OPCIONAL
+// ============================================================================
+
+class _Foto extends StatelessWidget {
+  const _Foto({
+    required this.foto,
+    required this.alSacar,
+    required this.alQuitar,
+  });
+
+  final File? foto;
+  final VoidCallback alSacar;
+  final VoidCallback alQuitar;
+
+  @override
+  Widget build(BuildContext context) {
+    if (foto == null) {
+      return OutlinedButton.icon(
+        onPressed: alSacar,
+        icon: const Icon(Icons.photo_camera_outlined, size: 20),
+        label: const Text('Agregar una foto (opcional)'),
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(double.infinity, Medidas.altoBoton),
+          foregroundColor: Colores.textoSuave,
+        ),
+      );
+    }
+
+    return Row(
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(Medidas.redondeoChico),
+          child: Image.file(foto!, width: 64, height: 64, fit: BoxFit.cover),
+        ),
+        const SizedBox(width: 12),
+        const Expanded(
+          child: Text('Foto agregada',
+              style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
+        ),
+        TextButton(
+          onPressed: alQuitar,
+          style: TextButton.styleFrom(foregroundColor: Colores.rojo),
+          child: const Text('Quitar'),
+        ),
+      ],
+    );
+  }
+}

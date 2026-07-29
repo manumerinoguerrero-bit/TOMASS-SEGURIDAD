@@ -117,3 +117,42 @@ final incidentesAbiertosProvider = Provider<int>((ref) {
   final lista = ref.watch(incidentesProvider).valueOrNull ?? const <Incidente>[];
   return lista.where((i) => !i.estaCerrado).length;
 });
+
+// ============================================================================
+// ¿ACÁ SE ESCANEA O SE ANOTA A MANO?
+// ============================================================================
+// De esto depende qué pestaña ve el guardia: el lector de códigos o el
+// formulario de ingreso.
+//
+// En los colegios y en Viveros Yapur hay barrera y portones que abre el
+// guardia, así que no hay nada que escanear. Mostrarle igual el lector sería
+// darle un botón que no sirve para nada en su puesto.
+//
+// Si el guardia cubre TODAS las entradas, alcanza con que una sola sea manual
+// para que necesite el formulario.
+// ============================================================================
+
+final anotaAManoProvider = Provider<bool>((ref) {
+  final garitas = ref.watch(puestosDisponiblesProvider).valueOrNull;
+  if (garitas == null || garitas.isEmpty) return false;
+
+  final miPuesto = ref.watch(miPuestoProvider);
+
+  // Sin puesto fijo cubre todo: le hace falta si CUALQUIERA es manual.
+  if (miPuesto == null) {
+    return garitas.any((g) => g.seAnotaAMano);
+  }
+
+  return garitas.where((g) => g.id == miPuesto).any((g) => g.seAnotaAMano);
+});
+
+/// true si en su puesto TAMBIÉN se usan códigos QR.
+/// Con las dos cosas en true, el guardia ve las dos pestañas.
+final escaneaCodigosProvider = Provider<bool>((ref) {
+  final garitas = ref.watch(puestosDisponiblesProvider).valueOrNull;
+  if (garitas == null || garitas.isEmpty) return true;
+
+  final miPuesto = ref.watch(miPuestoProvider);
+  if (miPuesto == null) return garitas.any((g) => !g.seAnotaAMano);
+  return garitas.where((g) => g.id == miPuesto).any((g) => !g.seAnotaAMano);
+});

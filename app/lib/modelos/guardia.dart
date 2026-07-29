@@ -12,21 +12,47 @@ class PuntoAcceso {
   const PuntoAcceso({
     required this.id,
     required this.nombre,
-    required this.esVehicular,
+    required this.tipo,
+    required this.modo,
     required this.activo,
     this.ubicacion,
   });
 
   final String id;
   final String nombre;
-  final bool esVehicular;
+
+  /// 'peatonal', 'vehicular' o 'mixto'.
+  ///
+  /// "mixto" es una garita que controla las dos cosas desde el mismo lugar, que
+  /// es como funcionan las de los colegios.
+  final String tipo;
+
+  /// Cómo se controla esta entrada:
+  ///
+  ///   'qr'     la persona escanea el cartel del muro con su app.
+  ///   'manual' el guardia anota el ingreso a mano. Se usa donde hay barrera y
+  ///            portón que abre el guardia, como en los colegios.
+  ///
+  /// De esto depende qué pantalla ve el guardia: el lector de códigos o el
+  /// formulario de ingreso.
+  final String modo;
+
   final bool activo;
   final String? ubicacion;
+
+  bool get esVehicular => tipo == 'vehicular';
+  bool get esMixto => tipo == 'mixto';
+  bool get aceptaVehiculos => tipo == 'vehicular' || tipo == 'mixto';
+  bool get aceptaPeatones => tipo == 'peatonal' || tipo == 'mixto';
+
+  /// true si acá el guardia anota a mano en vez de leer códigos.
+  bool get seAnotaAMano => modo == 'manual';
 
   factory PuntoAcceso.desdeMapa(Map<String, dynamic> m) => PuntoAcceso(
         id: m['id'] as String,
         nombre: (m['nombre'] ?? '') as String,
-        esVehicular: m['tipo'] == 'vehicular',
+        tipo: (m['tipo'] ?? 'peatonal') as String,
+        modo: (m['modo'] ?? 'qr') as String,
         activo: m['activo'] == true,
         ubicacion: m['ubicacion'] as String?,
       );

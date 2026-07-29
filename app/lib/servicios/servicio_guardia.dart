@@ -51,7 +51,7 @@ class ServicioGuardia {
     try {
       final filas = await _supabase
           .from('puntos_acceso')
-          .select('id, nombre, tipo, ubicacion, activo')
+          .select('id, nombre, tipo, modo, ubicacion, activo')
           .eq('activo', true)
           .order('tipo')
           .timeout(Entorno.esperaMaxima);
@@ -59,6 +59,63 @@ class ServicioGuardia {
       return filas
           .map((f) => PuntoAcceso.desdeMapa(Map<String, dynamic>.from(f)))
           .toList();
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+
+  // ==========================================================================
+  // EL INGRESO ANOTADO A MANO
+  // ==========================================================================
+  // Se usa donde NO hay codigo QR: los colegios y Viveros Yapur tienen barrera
+  // y portones que abre el guardia, asi que no hay nadie apuntando un telefono
+  // a un cartel. El guardia mira, abre, y anota.
+  //
+  // TODAS LAS REVISIONES VIVEN EN LA BASE DE DATOS, NO ACA
+  //
+  //   Que el guardia tenga turno abierto, que la garita sea de su instalacion,
+  //   y que no falte ningun dato obligatorio lo revisa la funcion
+  //   registrar_acceso_manual del servidor.
+  //
+  //   Si viviera en la app, alcanzaria con modificar la app para saltearlo.
+  //   Aca solo se arman los datos y se traducen los errores al castellano.
+  // ==========================================================================
+
+  /// Anota una entrada o salida a mano.
+  ///
+  /// [idLocal] tiene que ser el MISMO si se reintenta el mismo ingreso (por
+  /// ejemplo si se corto el internet), y uno nuevo para cada ingreso distinto.
+  /// Asi el servidor reconoce el reintento y no anota dos veces a la misma
+  /// persona.
+  Future<void> anotarAccesoManual({
+    required String idLocal,
+    required String puntoAccesoId,
+    required String nombre,
+    required String rut,
+    required String tipoAcceso, // 'peatonal' o 'vehicular'
+    required String sentido, // 'entrada' o 'salida'
+    required String aDondeVa,
+    required String autorizadoPor,
+    String? patente,
+    String? fotoUrl,
+    String? observacion,
+    String? residenteId,
+  }) async {
+    try {
+      await _supabase.rpc('registrar_acceso_manual', params: {
+        'p_id_local': idLocal,
+        'p_punto_acceso_id': puntoAccesoId,
+        'p_nombre': nombre,
+        'p_tipo_acceso': tipoAcceso,
+        'p_sentido': sentido,
+        'p_rut': rut,
+        'p_a_donde_va': aDondeVa,
+        'p_autorizado_por': autorizadoPor,
+        'p_patente': patente,
+        'p_foto_url': fotoUrl,
+        'p_observacion': observacion,
+        'p_residente_id': residenteId,
+      }).timeout(Entorno.esperaMaxima);
     } catch (falla) {
       throw Traductor.traducir(falla);
     }
@@ -560,3 +617,4 @@ class ServicioGuardia {
     }
   }
 }
+

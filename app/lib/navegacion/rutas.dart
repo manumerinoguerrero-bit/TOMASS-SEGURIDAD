@@ -32,6 +32,7 @@ import '../pantallas/acceso/pantalla_codigo.dart';
 import '../pantallas/acceso/pantalla_escaner.dart';
 import '../pantallas/acceso/pantalla_resultado.dart';
 import '../pantallas/guardia/contenedor_guardia.dart';
+import '../pantallas/guardia/pantalla_acceso_manual.dart';
 import '../pantallas/guardia/pantalla_autos_esperando.dart';
 import '../pantallas/guardia/pantalla_escaner_guardia.dart';
 import '../pantallas/guardia/pantalla_novedades.dart';
@@ -73,6 +74,7 @@ class Rutas {
   static const escanerGuardia = '/escanear';
   static const paquetesGuardia = '/porteria';
   static const incidentes = '/incidentes';
+  static const accesoManual = '/anotar-ingreso';
 
   // Administrador
   static const adminInicio = '/administracion';
@@ -250,6 +252,10 @@ final rutasProvider = Provider<GoRouter>((ref) {
             builder: (context, estado) => const PantallaPorteria(),
           ),
           GoRoute(
+            path: Rutas.accesoManual,
+            builder: (context, estado) => const PantallaAccesoManual(),
+          ),
+          GoRoute(
             path: Rutas.incidentes,
             builder: (context, estado) => const PantallaNovedades(),
           ),
@@ -305,6 +311,7 @@ const _deAdministracion = {
 /// Las pantallas que puede ver el personal de portería.
 const _dePorteria = {
   Rutas.panel,
+  Rutas.accesoManual,
   Rutas.autosEsperando,
   Rutas.escanerGuardia,
   Rutas.paquetesGuardia,
