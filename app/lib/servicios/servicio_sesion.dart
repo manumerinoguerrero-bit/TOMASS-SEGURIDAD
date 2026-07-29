@@ -12,6 +12,7 @@ import '../config/entorno.dart';
 import '../modelos/modelos.dart';
 import '../nucleo/almacenamiento_seguro.dart';
 import '../nucleo/errores.dart';
+import 'servicio_avisos.dart';
 
 class ServicioSesion {
   ServicioSesion(this._supabase);
@@ -222,6 +223,14 @@ class ServicioSesion {
   // Salir
   // --------------------------------------------------------------------------
   Future<void> salir() async {
+    // Primero se da de baja el teléfono, y recién después se cierra la sesión:
+    // al revés ya no habría permiso para escribir en la tabla.
+    //
+    // Esto importa sobre todo en la garita: el guardia del día cierra sesión y
+    // entra el de la noche EN EL MISMO TELÉFONO. Sin dar de baja, los avisos
+    // del turno de noche le seguirían sonando al guardia del día, en su casa.
+    await ServicioAvisos(_supabase).darDeBajaEsteTelefono();
+
     try {
       await _supabase.auth.signOut();
     } catch (_) {

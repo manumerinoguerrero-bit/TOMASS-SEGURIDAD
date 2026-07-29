@@ -86,6 +86,19 @@ dependencies:
   #    (Lo descubrimos compilando en GitHub el 27/07/2026.)
   vibration: ^3.2.0
 
+  # ---- Avisos que suenan con la app cerrada -------------------------------
+  # Firebase es el servicio gratuito de Google que hace sonar los celulares.
+  #
+  # ⚠️ La app FUNCIONA SIN ESTO CONFIGURADO. Si falta el archivo de Google, los
+  #    avisos igual llegan al instante mientras la app está abierta, que es lo
+  #    que ya venía andando. Lo único que falta en ese caso es que el teléfono
+  #    suene con la app cerrada. Los pasos están en LEEME-AVISOS.md.
+  firebase_core: ^3.8.0
+  firebase_messaging: ^15.1.5
+  # Para reconocer el aparato y no mandarle el mismo aviso cinco veces a alguien
+  # que cambió de teléfono
+  device_info_plus: ^11.2.0
+
   # ---- Utilidades ---------------------------------------------------------
   # Fechas y números en formato chileno
   intl: ^0.20.1

@@ -19,6 +19,7 @@ import 'config/entorno.dart';
 import 'config/tema.dart';
 import 'navegacion/rutas.dart';
 import 'nucleo/almacenamiento_seguro.dart';
+import 'servicios/servicio_avisos.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -47,6 +48,13 @@ Future<void> main() async {
       localStorage: AlmacenamientoSeguro(),
     ),
   );
+
+  // Los avisos que hacen sonar el celular con la app cerrada.
+  //
+  // Se prende ANTES de mostrar la primera pantalla porque Firebase tiene que
+  // estar listo para cuando alguien entre. Si no está configurado todavía, esto
+  // no falla: se anota y la app sigue igual. Ver servicios/servicio_avisos.dart.
+  await ServicioAvisos.prenderFirebase();
 
   runApp(const ProviderScope(child: AppTomass()));
 }

@@ -222,15 +222,30 @@ export async function hacerSonarCelulares(
             token: destino,
             notification: { title: aviso.titulo, body: aviso.mensaje },
             data: extras,
+            // ANDROID
+            //
+            // El canal es lo único que hay que acertar acá. De Android 8 en
+            // adelante, el canal manda: él decide el sonido, la vibración y si
+            // el aviso aparece encima de lo que la persona esté haciendo. Lo
+            // que se pida en este mensaje, si contradice al canal, se ignora.
+            //
+            // ⚠️ Estos dos nombres tienen que existir en la app, creados en
+            //    android/app/src/main/kotlin/cl/tomass/tomass_seguridad/
+            //    MainActivity.kt. Si acá se escriben distinto, Android no
+            //    encuentra el canal, usa uno por defecto y el aviso urgente
+            //    pierde su vibración y su prioridad, sin ningún error.
             android: {
               priority: aviso.urgente ? "HIGH" : "NORMAL",
               notification: {
                 channel_id: aviso.urgente ? "accesos_urgentes" : "avisos",
-                sound: aviso.urgente ? "alerta_vehicular" : "default",
-                default_vibrate_timings: !aviso.urgente,
-                vibrate_timings: aviso.urgente ? ["0s", "0.5s", "0.3s", "0.5s"] : undefined,
               },
             },
+            // IPHONE
+            //
+            // Acá no hay canales: el iPhone lee estos valores directo.
+            // "time-sensitive" es lo que permite que el aviso suene aunque la
+            // persona tenga puesto el modo concentración, que es justo el caso
+            // del guardia de noche.
             apns: {
               headers: {
                 "apns-priority": aviso.urgente ? "10" : "5",
@@ -238,7 +253,7 @@ export async function hacerSonarCelulares(
               },
               payload: {
                 aps: {
-                  sound: aviso.urgente ? "alerta_vehicular.caf" : "default",
+                  sound: "default",
                   "interruption-level": aviso.urgente ? "time-sensitive" : "active",
                   badge: 1,
                 },

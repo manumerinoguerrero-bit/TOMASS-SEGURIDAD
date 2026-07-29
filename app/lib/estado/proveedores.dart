@@ -23,6 +23,7 @@ import '../modelos/modelos.dart';
 import '../nucleo/errores.dart';
 import '../servicios/lector_de_patentes.dart';
 import '../servicios/servicio_acceso.dart';
+import '../servicios/servicio_avisos.dart';
 import '../servicios/servicio_fotos.dart';
 import '../servicios/servicio_residente.dart';
 import '../servicios/servicio_sesion.dart';
@@ -38,6 +39,14 @@ final supabaseProvider = Provider<SupabaseClient>((ref) {
 
 final servicioSesionProvider = Provider<ServicioSesion>((ref) {
   return ServicioSesion(ref.watch(supabaseProvider));
+});
+
+/// Los avisos que hacen sonar el celular con la app cerrada.
+///
+/// Si Firebase no está configurado todavía, este servicio no falla: se queda
+/// quieto y la app funciona igual, con los avisos en vivo que ya andaban.
+final servicioAvisosProvider = Provider<ServicioAvisos>((ref) {
+  return ServicioAvisos(ref.watch(supabaseProvider));
 });
 
 final servicioAccesoProvider = Provider<ServicioAcceso>((ref) {
@@ -86,7 +95,20 @@ final haySesionProvider = Provider<bool>((ref) {
 final perfilProvider = FutureProvider<Perfil>((ref) async {
   // Si cambia la sesión, la ficha se vuelve a pedir sola
   ref.watch(cambiosDeSesionProvider);
-  return ref.watch(servicioSesionProvider).traerPerfil();
+  final perfil = await ref.watch(servicioSesionProvider).traerPerfil();
+
+  // Con la ficha cargada ya se sabe quién es y de qué instalación, así que este
+  // es el momento de anotar el teléfono para los avisos.
+  //
+  // Se hace acá y no en la pantalla de login a propósito: el residente que
+  // vuelve a abrir la app no pasa por el login, porque la sesión sigue abierta,
+  // y ahí también hay que refrescar el registro del teléfono.
+  //
+  // No se espera el resultado: si Google tarda o no contesta, la app no se
+  // queda trabada mostrando el reloj de arena.
+  unawaited(ref.read(servicioAvisosProvider).registrarEsteTelefono());
+
+  return perfil;
 });
 
 // ============================================================================

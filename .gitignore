@@ -21,10 +21,42 @@ key.properties
 # ⚠️ La firma REAL para publicar en Google Play NUNCA va acá. Esa va como
 #    secreto de GitHub y su contraseña no se escribe en ningún archivo.
 !app/android/firma-pruebas.jks
+# ---- Las llaves de Firebase, que NO son todas iguales -----------------------
+# Firebase entrega dos archivos y solo UNO es secreto. Confundirlos cuesta caro
+# en los dos sentidos: bloquear el que no lo es hace que los avisos no funcionen
+# sin dar ningún error, y subir el que sí lo es entrega el control del sistema.
+
+# LA LLAVE MAESTRA DEL SERVIDOR — ESTA SÍ ES SECRETA
+#
+# Es la que se baja desde "Cuentas de servicio". Quien la tenga puede mandar
+# notificaciones a nombre de la empresa. Va como secreto en Supabase, con el
+# nombre FIREBASE_CUENTA_SERVICIO, y NUNCA dentro del proyecto.
+#
+# ⚠️ El asterisco del principio es necesario. Firebase no descarga el archivo
+#    como "firebase-adminsdk-algo.json": le pone adelante el nombre del
+#    proyecto, o sea "tomass-seguridad-firebase-adminsdk-abc123.json". Sin el
+#    asterisco de adelante, la regla no lo agarra y la llave se sube.
+*firebase-adminsdk*.json
+*service-account*.json
+*cuenta-servicio*.json
+
+# EL ARCHIVO DE LA APP — ESTE NO ES SECRETO Y TIENE QUE SUBIRSE
+#
+# google-services.json solo dice a qué proyecto de Firebase pertenece la app.
+# Va incrustado dentro de cada APK que se instala, así que cualquiera que baje
+# la app lo puede sacar igual: no hay nada que proteger.
+#
+# Y tiene que estar en el repositorio, porque quien compila la app es GitHub, no
+# este computador. Si estuviera bloqueado, el archivo quedaría solo acá y las
+# compilaciones saldrían sin avisos, sin ningún mensaje que explique por qué.
+#
+# (Se deja la regla general por si aparece una copia suelta en otra carpeta, y
+#  se permite explícitamente el que va en su lugar.)
 google-services.json
+!app/android/app/google-services.json
 GoogleService-Info.plist
-service-account*.json
-firebase-adminsdk*.json
+!app/ios/Runner/GoogleService-Info.plist
+
 .env
 .env.*
 *.pem
