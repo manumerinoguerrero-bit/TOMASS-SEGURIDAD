@@ -16,6 +16,24 @@ final servicioAdminProvider = Provider<ServicioAdmin>((ref) {
 });
 
 // ============================================================================
+// LAS INSTALACIONES QUE ATIENDE
+// ============================================================================
+
+final misInstalacionesProvider = FutureProvider<List<Instalacion>>((ref) {
+  // Si cambia el perfil (por ejemplo al cambiar de instalación), la lista se
+  // vuelve a pedir sola para que la marca de "activa" quede al día.
+  ref.watch(perfilProvider);
+  return ref.watch(servicioAdminProvider).misInstalaciones();
+});
+
+/// true si atiende más de una. Con una sola, el selector no se muestra: sería
+/// un botón que no hace nada.
+final atiendeVariasProvider = Provider<bool>((ref) {
+  final lista = ref.watch(misInstalacionesProvider).valueOrNull;
+  return (lista?.length ?? 0) > 1;
+});
+
+// ============================================================================
 // LA PANTALLA DE INICIO
 // ============================================================================
 
@@ -92,6 +110,7 @@ final turnosAdminProvider = FutureProvider<List<TurnoAdmin>>((ref) {
 
 void refrescarPanel(WidgetRef ref) {
   ref.invalidate(resumenAdminProvider);
+  ref.invalidate(misInstalacionesProvider);
   ref.invalidate(vehiculosPorAprobarProvider);
   ref.invalidate(personasProvider);
   ref.invalidate(espaciosProvider);

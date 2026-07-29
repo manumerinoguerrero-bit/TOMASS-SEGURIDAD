@@ -184,7 +184,10 @@ class ServicioSesion {
             id, condominio_id, nombre_completo, cedula, telefono, email,
             foto_url, unidad_id, relacion_unidad, rol, estado,
             unidades!usuarios_unidad_id_fkey ( numero, torre ),
-            condominios ( nombre, nombre_corto, tipo )
+            propia:condominios!usuarios_condominio_id_fkey
+              ( id, nombre, nombre_corto, tipo ),
+            activa:condominios!usuarios_condominio_activo_fkey
+              ( id, nombre, nombre_corto, tipo )
           ''')
           .eq('id', usuario.id)
           .maybeSingle()

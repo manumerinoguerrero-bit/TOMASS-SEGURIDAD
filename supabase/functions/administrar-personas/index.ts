@@ -30,8 +30,48 @@
 //   cualquiera podría decir "soy administrador" y crearse un usuario.
 // ============================================================================
 
+import { createClient } from "npm:@supabase/supabase-js@2";
 import { clienteServidor, ErrorDeSesion, quienPregunta } from "../_compartido/clientes.ts";
 import { error, exito, registrar, saludoPrevio } from "../_compartido/respuesta.ts";
+
+/**
+ * En qué instalación está trabajando el administrador AHORA.
+ *
+ * POR QUÉ NO ALCANZA CON usuarios.condominio_id
+ *
+ *   Tomass Seguridad Privada atiende varias instalaciones, y su administrador
+ *   se cambia entre ellas con el selector del panel. Su condominio_id sigue
+ *   siendo el de siempre; la que está atendiendo ahora es otra cosa.
+ *
+ *   Sin esto, un administrador parado en el Colegio Alemán daría de alta a los
+ *   apoderados en Los Aromos, y recién se daría cuenta cuando la gente no
+ *   apareciera en la lista.
+ *
+ * POR QUÉ SE LE PREGUNTA A LA BASE Y NO SE CALCULA ACÁ
+ *
+ *   Porque la base ya sabe la respuesta y, sobre todo, ya sabe VALIDARLA: si el
+ *   administrador tuviera anotada una instalación que no le corresponde, la
+ *   función mi_condominio() la ignora y devuelve la suya. Repetir esa lógica
+ *   acá sería tener dos reglas que se pueden desincronizar, y la que manda es
+ *   la de la base.
+ */
+async function instalacionEnLaQueTrabaja(peticion: Request): Promise<string | null> {
+  const cliente = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_ANON_KEY")!,
+    {
+      global: { headers: { Authorization: peticion.headers.get("Authorization")! } },
+      auth: { persistSession: false, autoRefreshToken: false },
+    },
+  );
+
+  const { data, error: falla } = await cliente.rpc("mi_condominio");
+  if (falla) {
+    registrar("no_se_pudo_saber_la_instalacion", { detalle: falla.message });
+    return null;
+  }
+  return data as string | null;
+}
 
 interface Peticion {
   accion: "crear" | "cambiar_estado" | "restablecer_clave";
@@ -77,6 +117,17 @@ Deno.serve(async (peticion: Request) => {
       );
     }
 
+    // Todo lo que sigue pasa en la instalacion que esta administrando AHORA,
+    // que puede no ser la suya propia.
+    const instalacion = await instalacionEnLaQueTrabaja(peticion);
+    if (!instalacion) {
+      return error(
+        "No se pudo determinar en que instalacion estas trabajando. " +
+        "Volve a entrar y proba de nuevo.",
+        500,
+      );
+    }
+
     const cuerpo = (await peticion.json()) as Peticion;
     const servidor = clienteServidor();
 
@@ -107,7 +158,7 @@ Deno.serve(async (peticion: Request) => {
 
       if (yaEsta) {
         return error(
-          yaEsta.condominio_id === quien.condominio_id
+          yaEsta.condominio_id === instalacion
             ? "Ya hay una persona registrada con ese correo en esta instalación."
             : "Ese correo ya está en uso en otra instalación.",
           409,
@@ -123,7 +174,7 @@ Deno.serve(async (peticion: Request) => {
           .from("unidades")
           .select("id")
           .eq("id", cuerpo.unidad_id)
-          .eq("condominio_id", quien.condominio_id)
+          .eq("condominio_id", instalacion)
           .maybeSingle();
 
         if (!espacio) {
@@ -150,7 +201,7 @@ Deno.serve(async (peticion: Request) => {
 
       const { error: fallaFicha } = await servidor.from("usuarios").insert({
         id: cuenta.user.id,
-        condominio_id: quien.condominio_id,
+        condominio_id: instalacion,
         nombre_completo: nombre,
         email,
         rol,
@@ -199,7 +250,7 @@ Deno.serve(async (peticion: Request) => {
         .from("usuarios")
         .select("id, nombre_completo")
         .eq("id", cuerpo.usuario_id)
-        .eq("condominio_id", quien.condominio_id)
+        .eq("condominio_id", instalacion)
         .maybeSingle();
 
       if (!persona) {
@@ -239,7 +290,7 @@ Deno.serve(async (peticion: Request) => {
         .from("usuarios")
         .select("id, nombre_completo, email")
         .eq("id", cuerpo.usuario_id)
-        .eq("condominio_id", quien.condominio_id)
+        .eq("condominio_id", instalacion)
         .maybeSingle();
 
       if (!persona) {

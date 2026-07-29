@@ -66,6 +66,10 @@ class PantallaAdminInicio extends ConsumerWidget {
           child: ListView(
             padding: const EdgeInsets.all(Medidas.margen),
             children: [
+              // En qué instalación estás trabajando. Solo aparece si atendés
+              // más de una.
+              const SelectorDeInstalacion(),
+
               if (r.hayPendientes)
                 _LoQueFalta(resumen: r)
               else

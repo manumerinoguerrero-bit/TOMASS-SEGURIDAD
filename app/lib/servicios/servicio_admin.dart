@@ -32,6 +32,44 @@ class ServicioAdmin {
   final SupabaseClient _supabase;
 
   // ==========================================================================
+  // LAS INSTALACIONES QUE ATIENDE
+  // ==========================================================================
+  // Tomass Seguridad Privada atiende varias. El administrador trabaja en UNA a
+  // la vez, y todo lo demás de esta clase se filtra solo: los candados de la
+  // base ya limitan cada consulta a la instalación activa.
+  // ==========================================================================
+
+  Future<List<Instalacion>> misInstalaciones() async {
+    try {
+      final filas = await _supabase
+          .rpc('mis_instalaciones')
+          .timeout(Entorno.esperaMaxima);
+
+      return (filas as List)
+          .map((f) => Instalacion.desdeMapa(Map<String, dynamic>.from(f)))
+          .toList();
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+
+  /// Cambia la instalación en la que se está trabajando.
+  ///
+  /// La validación de "¿puede atender esta instalación?" vive en la base de
+  /// datos, no acá. Si viviera acá, alcanzaría con modificar la app para
+  /// saltearla.
+  Future<void> cambiarDeInstalacion(String condominioId) async {
+    try {
+      await _supabase
+          .rpc('cambiar_de_instalacion',
+              params: {'p_condominio_id': condominioId})
+          .timeout(Entorno.esperaMaxima);
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+
+  // ==========================================================================
   // EL RESUMEN DE LA PANTALLA DE INICIO
   // ==========================================================================
 

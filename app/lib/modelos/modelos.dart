@@ -107,23 +107,44 @@ class Perfil {
       unidadArmada = m['unidad'] as String;
     }
 
-    final condominioCrudo = m['condominios'];
+    // ⚠️ LA INSTALACIÓN VIENE POR DOS CAMINOS Y HAY QUE ELEGIR BIEN.
+    //
+    //    "propia"  es la instalación a la que la persona pertenece.
+    //    "activa"  es en la que un administrador está trabajando AHORA, si se
+    //              cambió con el selector. Para todos los demás viene vacía.
+    //
+    //    Se prefiere la ACTIVA, y esto no es un detalle de presentación: de
+    //    acá sale el condominioId con el que se crean cursos, se abren turnos y
+    //    se da de alta gente. Si acá quedara la propia, un administrador
+    //    trabajando en el Colegio Alemán crearía los cursos en Los Aromos.
+    //
+    //    Las dos relaciones van nombradas a mano porque la tabla de usuarios
+    //    apunta a condominios por dos columnas distintas. Sin nombrarlas, la
+    //    consulta falla entera y NADIE puede iniciar sesión.
+    final activa = m['activa'];
+    final propia = m['propia'] ?? m['condominios'];
+    final cual = (activa is Map) ? activa : propia;
+
     String? nombreCondo;
     String? tipoCondo;
-    if (condominioCrudo is Map) {
+    String? idCondo;
+    if (cual is Map) {
       // Se prefiere el nombre corto: los nombres oficiales no entran en la
       // pantalla angosta de un celular. "Condominio Milagros de Cerro Grande"
       // se corta; "Los Milagros" entra entero.
-      final corto = condominioCrudo['nombre_corto']?.toString();
+      final corto = cual['nombre_corto']?.toString();
       nombreCondo = (corto != null && corto.isNotEmpty)
           ? corto
-          : condominioCrudo['nombre']?.toString();
-      tipoCondo = condominioCrudo['tipo']?.toString();
+          : cual['nombre']?.toString();
+      tipoCondo = cual['tipo']?.toString();
+      idCondo = cual['id']?.toString();
     }
 
     return Perfil(
       id: m['id'] as String,
-      condominioId: m['condominio_id'] as String,
+      // La instalación en la que está trabajando, que para casi todos es la
+      // suya. Ver la explicación de más arriba.
+      condominioId: idCondo ?? m['condominio_id'] as String,
       nombreCompleto: (m['nombre_completo'] ?? '') as String,
       email: (m['email'] ?? '') as String,
       rol: RolUsuario.desdeTexto(m['rol'] as String?),

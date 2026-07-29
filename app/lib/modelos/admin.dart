@@ -345,3 +345,46 @@ class TurnoAdmin {
     );
   }
 }
+
+// ============================================================================
+// UNA INSTALACIÓN QUE EL ADMINISTRADOR PUEDE ATENDER
+// ============================================================================
+// Tomass Seguridad Privada atiende varias. El administrador trabaja en UNA a la
+// vez y cambia con el selector de arriba.
+//
+// Se trabaja de a una a propósito, y no viendo todas mezcladas: así los 38
+// candados de la base de datos siguen diciendo exactamente lo mismo que antes,
+// y no hubo que reescribirlos. Reescribirlos era el camino más corto a que un
+// condominio terminara viendo los datos de otro.
+// ============================================================================
+
+class Instalacion {
+  const Instalacion({
+    required this.id,
+    required this.nombre,
+    required this.tipo,
+    required this.esLaActiva,
+    this.nombreCorto,
+    this.ciudad,
+  });
+
+  final String id;
+  final String nombre;
+  final String tipo;
+  final bool esLaActiva;
+  final String? nombreCorto;
+  final String? ciudad;
+
+  /// El nombre que entra en la pantalla de un celular.
+  String get nombreParaMostrar =>
+      (nombreCorto != null && nombreCorto!.isNotEmpty) ? nombreCorto! : nombre;
+
+  factory Instalacion.desdeMapa(Map<String, dynamic> m) => Instalacion(
+        id: m['id'] as String,
+        nombre: (m['nombre'] ?? '') as String,
+        nombreCorto: m['nombre_corto'] as String?,
+        tipo: (m['tipo'] ?? 'condominio') as String,
+        ciudad: m['ciudad'] as String?,
+        esLaActiva: (m['es_la_activa'] ?? false) as bool,
+      );
+}
