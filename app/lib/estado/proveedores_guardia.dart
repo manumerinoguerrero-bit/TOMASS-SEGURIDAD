@@ -156,3 +156,31 @@ final escaneaCodigosProvider = Provider<bool>((ref) {
   if (miPuesto == null) return garitas.any((g) => !g.seAnotaAMano);
   return garitas.where((g) => g.id == miPuesto).any((g) => !g.seAnotaAMano);
 });
+
+// ============================================================================
+// RONDAS
+// ============================================================================
+
+final miRondaAbiertaProvider = FutureProvider<RondaAbierta?>((ref) {
+  return ref.watch(servicioGuardiaProvider).miRondaAbierta();
+});
+
+/// Los carteles del recorrido, marcando cuáles ya pasó en la ronda en curso.
+final puntosDeControlProvider = FutureProvider<List<PuntoControl>>((ref) async {
+  final ronda = await ref.watch(miRondaAbiertaProvider.future);
+  return ref.watch(servicioGuardiaProvider).puntosDeControl(rondaId: ronda?.id);
+});
+
+/// ¿En esta instalación se hacen rondas?
+///
+/// Si no hay carteles cargados, la pestaña de rondas no aparece: sería un botón
+/// que lleva a una pantalla vacía.
+final hayRondasProvider = Provider<bool>((ref) {
+  final puntos = ref.watch(puntosDeControlProvider).valueOrNull;
+  return (puntos?.length ?? 0) > 0;
+});
+
+void refrescarRonda(WidgetRef ref) {
+  ref.invalidate(miRondaAbiertaProvider);
+  ref.invalidate(puntosDeControlProvider);
+}

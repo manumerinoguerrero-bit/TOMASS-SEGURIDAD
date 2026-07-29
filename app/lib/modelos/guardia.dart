@@ -420,3 +420,105 @@ class Incidente {
     );
   }
 }
+
+// ============================================================================
+// RONDAS CON PUNTOS DE CONTROL
+// ============================================================================
+// POR QUÉ EL CÓDIGO ESTÁ PEGADO EN LA PARED Y NO EN EL TELÉFONO
+//
+//   Porque la única forma de demostrar que alguien ESTUVO en un lugar es que
+//   haya tenido que ir hasta ahí. Un botón en la app que diga "ya hice la ronda"
+//   se aprieta desde la garita sin moverse. Un cartel pegado en el fondo del
+//   condominio, no.
+// ============================================================================
+
+/// Un cartel pegado en un sector.
+class PuntoControl {
+  const PuntoControl({
+    required this.id,
+    required this.nombre,
+    required this.orden,
+    this.descripcion,
+    this.marcadoEn,
+  });
+
+  final String id;
+  final String nombre;
+  final int orden;
+  final String? descripcion;
+
+  /// Cuándo se marcó en la ronda que está abierta, o null si todavía no.
+  final DateTime? marcadoEn;
+
+  bool get yaMarcado => marcadoEn != null;
+
+  PuntoControl conMarca(DateTime? cuando) => PuntoControl(
+        id: id,
+        nombre: nombre,
+        orden: orden,
+        descripcion: descripcion,
+        marcadoEn: cuando,
+      );
+
+  factory PuntoControl.desdeMapa(Map<String, dynamic> m) => PuntoControl(
+        id: m['id'] as String,
+        nombre: (m['nombre'] ?? '') as String,
+        orden: (m['orden'] ?? 0) as int,
+        descripcion: m['descripcion'] as String?,
+      );
+}
+
+/// La ronda que el guardia tiene en curso.
+class RondaAbierta {
+  const RondaAbierta({
+    required this.id,
+    required this.inicio,
+    required this.marcados,
+    required this.total,
+  });
+
+  final String id;
+  final DateTime inicio;
+  final int marcados;
+  final int total;
+
+  bool get estaCompleta => total > 0 && marcados >= total;
+
+  /// De 0 a 1, para la barra de avance.
+  double get avance => total == 0 ? 0 : (marcados / total).clamp(0, 1).toDouble();
+
+  Duration get llevaAndando => DateTime.now().difference(inicio);
+
+  factory RondaAbierta.desdeMapa(Map<String, dynamic> m) => RondaAbierta(
+        id: m['ronda_id'] as String,
+        inicio: DateTime.parse(m['inicio'] as String),
+        marcados: (m['marcados'] ?? 0) as int,
+        total: (m['total'] ?? 0) as int,
+      );
+}
+
+/// Lo que contesta el servidor cuando el guardia escanea un cartel.
+class ResultadoDeMarca {
+  const ResultadoDeMarca({
+    required this.punto,
+    required this.marcados,
+    required this.total,
+    required this.yaEstaba,
+  });
+
+  /// El nombre del sector, para poder decirle "Patio central, listo".
+  final String punto;
+  final int marcados;
+  final int total;
+
+  /// true si ya había marcado ese mismo punto en esta ronda. No es un error:
+  /// se le avisa y no se cuenta dos veces.
+  final bool yaEstaba;
+
+  factory ResultadoDeMarca.desdeMapa(Map<String, dynamic> m) => ResultadoDeMarca(
+        punto: (m['punto'] ?? '') as String,
+        marcados: (m['marcados'] ?? 0) as int,
+        total: (m['total'] ?? 0) as int,
+        yaEstaba: (m['ya_estaba'] ?? false) as bool,
+      );
+}

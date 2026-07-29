@@ -87,6 +87,128 @@ class ServicioGuardia {
   /// ejemplo si se corto el internet), y uno nuevo para cada ingreso distinto.
   /// Asi el servidor reconoce el reintento y no anota dos veces a la misma
   /// persona.
+  // ==========================================================================
+  // RONDAS CON PUNTOS DE CONTROL
+  // ==========================================================================
+  // Es lo que le permite al condominio SABER que la ronda se hizo, en vez de
+  // creerle al guardia. Los carteles estan pegados en cada sector: para
+  // marcarlos hay que ir hasta ahi.
+  //
+  // Todas las revisiones (que haya turno abierto, que el cartel sea de esta
+  // instalacion, que no se cuente dos veces el mismo punto) viven en la base de
+  // datos. Aca solo se piden los datos y se traducen los errores.
+  // ==========================================================================
+
+  /// Los carteles de esta instalacion, con la marca de cuales ya se pasaron en
+  /// la ronda que esta abierta.
+  Future<List<PuntoControl>> puntosDeControl({String? rondaId}) async {
+    try {
+      final filas = await _supabase
+          .from('puntos_control')
+          .select('id, nombre, orden, descripcion')
+          .eq('activo', true)
+          .order('orden')
+          .timeout(Entorno.esperaMaxima);
+
+      final puntos = (filas as List)
+          .map((f) => PuntoControl.desdeMapa(Map<String, dynamic>.from(f)))
+          .toList();
+
+      if (rondaId == null) return puntos;
+
+      // Cuales ya marco en esta ronda
+      final marcas = await _supabase
+          .from('marcas_de_ronda')
+          .select('punto_control_id, marcado_en')
+          .eq('ronda_id', rondaId)
+          .timeout(Entorno.esperaMaxima);
+
+      final cuando = <String, DateTime>{};
+      for (final m in (marcas as List)) {
+        cuando[m['punto_control_id'] as String] =
+            DateTime.parse(m['marcado_en'] as String);
+      }
+
+      return puntos.map((p) => p.conMarca(cuando[p.id])).toList();
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+
+  /// La ronda en curso, o null si no arranco ninguna.
+  Future<RondaAbierta?> miRondaAbierta() async {
+    try {
+      final filas = await _supabase
+          .rpc('mi_ronda_abierta')
+          .timeout(Entorno.esperaMaxima);
+      final lista = filas as List;
+      if (lista.isEmpty) return null;
+      return RondaAbierta.desdeMapa(Map<String, dynamic>.from(lista.first));
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+
+  /// Arranca el recorrido. Si ya habia uno abierto, devuelve ese: pasa seguido
+  /// que el guardia cierre la app en medio de la ronda y la vuelva a abrir.
+  Future<String> empezarRonda() async {
+    try {
+      final id = await _supabase.rpc('empezar_ronda').timeout(Entorno.esperaMaxima);
+      return id as String;
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+
+  /// Marca un punto al pasar por el.
+  ///
+  /// [idLocal] tiene que ser el MISMO si se reintenta la misma marca, para que
+  /// un corte de internet no la anote dos veces.
+  Future<ResultadoDeMarca> marcarPuntoDeControl({
+    required String idLocal,
+    required String codigoDelCartel,
+    String? novedad,
+    String? fotoUrl,
+  }) async {
+    try {
+      final filas = await _supabase.rpc('marcar_punto_control', params: {
+        'p_id_local': idLocal,
+        'p_codigo_qr': codigoDelCartel,
+        'p_novedad': novedad,
+        'p_foto_url': fotoUrl,
+      }).timeout(Entorno.esperaMaxima);
+
+      final lista = filas as List;
+      if (lista.isEmpty) {
+        throw const ErrorAmigable('El servidor no contesto lo que esperabamos.');
+      }
+      return ResultadoDeMarca.desdeMapa(Map<String, dynamic>.from(lista.first));
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+
+  /// Cierra el recorrido. Devuelve cuantos puntos marco de cuantos, y cuanto
+  /// tardo en minutos.
+  Future<(int marcados, int total, int minutos)> cerrarRonda({String? notas}) async {
+    try {
+      final filas = await _supabase
+          .rpc('cerrar_ronda', params: {'p_notas': notas})
+          .timeout(Entorno.esperaMaxima);
+
+      final lista = filas as List;
+      if (lista.isEmpty) return (0, 0, 0);
+      final r = Map<String, dynamic>.from(lista.first);
+      return (
+        (r['marcados'] ?? 0) as int,
+        (r['total'] ?? 0) as int,
+        (r['minutos'] ?? 0) as int,
+      );
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+
   Future<void> anotarAccesoManual({
     required String idLocal,
     required String puntoAccesoId,

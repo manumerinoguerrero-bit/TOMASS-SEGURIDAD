@@ -1,0 +1,51 @@
+-- ============================================================================
+-- Tomass Seguridad — 10 · Rondas con puntos de control
+-- ============================================================================
+-- ⚠️ ESTE ARCHIVO YA ESTÁ APLICADO EN EL SERVIDOR. Queda para el historial.
+--
+-- QUÉ RESUELVE, Y POR QUÉ ES LO QUE MÁS VALE DE TODO EL SISTEMA
+--
+--   Hoy un condominio le paga a una empresa de seguridad por rondas nocturnas y
+--   no tiene NINGUNA forma de saber si se hicieron. El guardia dice que sí, y
+--   listo. Es la queja más vieja del rubro y nadie la puede contestar con datos.
+--
+--   Con esto sí: se pega un cartel con código en cada sector, el guardia lo
+--   escanea al pasar, y al otro día el administrador ve "recorrió los 6 sectores
+--   a las 23:15, 01:40 y 04:20".
+--
+-- POR QUÉ EL CÓDIGO ESTÁ PEGADO EN LA PARED Y NO EN EL TELÉFONO
+--
+--   Porque la única forma de demostrar que alguien ESTUVO en un lugar es que
+--   haya tenido que ir hasta ahí. Un botón en la app que diga "ya hice la ronda"
+--   se aprieta desde la garita sin moverse. Un cartel pegado en el fondo del
+--   condominio, no.
+--
+-- LAS TRES TABLAS
+--
+--   puntos_control    los carteles. Se ponen una vez y quedan.
+--   rondas            un recorrido completo: empezó 23:10, terminó 23:38.
+--   marcas_de_ronda   cada vez que el guardia escaneó un cartel.
+--
+-- LAS MARCAS SON DE SOLO AGREGAR
+--
+--   Igual que los movimientos de acceso: no se pueden modificar ni borrar. Si se
+--   pudieran, no servirían para demostrarle nada a nadie — cualquiera podría
+--   inventar una ronda que no hizo, o borrar la que hizo mal.
+--
+-- LAS CUATRO FUNCIONES
+--
+--   empezar_ronda()          arranca. Si ya había una abierta devuelve esa, no
+--                            crea otra: pasa seguido que el guardia cierre la
+--                            app en medio del recorrido.
+--   marcar_punto_control()   escanea un cartel. Revisa que sea de SU instalación
+--                            y no cuenta dos veces el mismo punto.
+--   cerrar_ronda()           termina, y devuelve cuántos de cuántos y en cuántos
+--                            minutos.
+--   mi_ronda_abierta()       para saber si mostrar "empezar" o retomar.
+--
+-- PROBADO entrando como la guardia del Colegio Alemán: no duplica la ronda, no
+-- cuenta dos veces el mismo punto, y rechaza un cartel de otra instalación.
+--
+-- (El texto completo de las tablas y funciones está en el panel de Supabase,
+--  en las migraciones rondas_con_puntos_de_control y funciones_de_ronda.)
+-- ============================================================================

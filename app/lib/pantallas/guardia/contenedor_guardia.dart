@@ -57,7 +57,12 @@ class _EstadoContenedorGuardia extends ConsumerState<ContenedorGuardia> {
   ///   gente escanea el cartel del muro.
   ///
   ///   Un guardia que cubre todo puede necesitar los dos.
-  List<_Opcion> _opcionesDe({required bool anota, required bool escanea}) => [
+  List<_Opcion> _opcionesDe({
+    required bool anota,
+    required bool escanea,
+    required bool rondas,
+  }) =>
+      [
         const _Opcion(
             Rutas.panel, 'Inicio', Icons.home_outlined, Icons.home_rounded),
         const _Opcion(Rutas.autosEsperando, 'Autos',
@@ -68,6 +73,9 @@ class _EstadoContenedorGuardia extends ConsumerState<ContenedorGuardia> {
         if (anota)
           const _Opcion(Rutas.accesoManual, 'Anotar',
               Icons.edit_note_outlined, Icons.edit_note_rounded),
+        if (rondas)
+          const _Opcion(Rutas.rondas, 'Rondas', Icons.route_outlined,
+              Icons.route_rounded),
         const _Opcion(Rutas.paquetesGuardia, 'Porteria',
             Icons.inventory_2_outlined, Icons.inventory_2_rounded),
         const _Opcion(Rutas.incidentes, 'Novedades', Icons.report_outlined,
@@ -101,6 +109,7 @@ class _EstadoContenedorGuardia extends ConsumerState<ContenedorGuardia> {
     final opciones = _opcionesDe(
       anota: ref.watch(anotaAManoProvider),
       escanea: ref.watch(escaneaCodigosProvider),
+      rondas: ref.watch(hayRondasProvider),
     );
     final indiceActual = _indiceActualDe(opciones);
 
