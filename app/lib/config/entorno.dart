@@ -35,6 +35,13 @@ class Entorno {
   static const String funcionValidarAcceso = 'validar-acceso';
   static const String funcionValidarCredencial = 'validar-credencial';
 
+  /// Dar de alta personas y cambiarles el estado o la contraseña.
+  ///
+  /// Vive en el servidor y no en la app porque crear una cuenta de acceso exige
+  /// la llave maestra, y esa llave nunca puede viajar dentro de la app: se
+  /// podría extraer del archivo instalado.
+  static const String funcionAdministrarPersonas = 'administrar-personas';
+
   /// Cuántos segundos antes de que venza el código se pide uno nuevo.
   /// Se pide con anticipación para que nunca se muestre un código muerto.
   static const int margenRenovacionSegundos = 5;

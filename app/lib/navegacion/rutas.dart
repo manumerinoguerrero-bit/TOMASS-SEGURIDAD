@@ -44,6 +44,11 @@ import '../pantallas/paquetes/pantalla_paquetes.dart';
 import '../pantallas/perfil/pantalla_perfil.dart';
 import '../pantallas/vehiculos/pantalla_vehiculos.dart';
 import '../pantallas/visitas/pantalla_visitas.dart';
+import '../pantallas/admin/pantalla_admin_espacios.dart';
+import '../pantallas/admin/pantalla_admin_informes.dart';
+import '../pantallas/admin/pantalla_admin_inicio.dart';
+import '../pantallas/admin/pantalla_admin_personas.dart';
+import '../pantallas/admin/pantalla_admin_vehiculos.dart';
 
 class Rutas {
   const Rutas._();
@@ -68,6 +73,13 @@ class Rutas {
   static const escanerGuardia = '/escanear';
   static const paquetesGuardia = '/porteria';
   static const incidentes = '/incidentes';
+
+  // Administrador
+  static const adminInicio = '/administracion';
+  static const adminVehiculos = '/administracion/vehiculos';
+  static const adminPersonas = '/administracion/personas';
+  static const adminEspacios = '/administracion/espacios';
+  static const adminInformes = '/administracion/informes';
 }
 
 final rutasProvider = Provider<GoRouter>((ref) {
@@ -100,9 +112,18 @@ final rutasProvider = Provider<GoRouter>((ref) {
         return null;
       }
 
-      // ---- GUARDIA Y ADMINISTRADOR ----
-      // (el administrador usa las pantallas de portería hasta la Fase 5, que le
-      //  agrega su propio panel de gestión)
+      // ---- ADMINISTRADOR ----
+      //
+      // Tiene su propio panel y NO se le pide abrir turno: los turnos son de
+      // los guardias, que son los que están parados en la puerta. Antes el
+      // administrador caía en las pantallas de portería y quedaba obligado a
+      // abrir un turno que no le correspondía.
+      if (rol == RolUsuario.administrador) {
+        if (!_deAdministracion.contains(donde)) return Rutas.adminInicio;
+        return null;
+      }
+
+      // ---- GUARDIA ----
       final turno = ref.read(miTurnoProvider);
 
       // Todavía averiguando si tiene turno abierto
@@ -180,6 +201,34 @@ final rutasProvider = Provider<GoRouter>((ref) {
         builder: (context, estado) => const PantallaTurno(),
       ),
 
+      // ======================================================================
+      // ADMINISTRADOR
+      // ======================================================================
+      // Sin contenedor con menú: son pocas pantallas y se llega a todas desde
+      // el inicio. Un menú de cinco opciones para cinco pantallas sería una
+      // capa de más.
+
+      GoRoute(
+        path: Rutas.adminInicio,
+        builder: (context, estado) => const PantallaAdminInicio(),
+      ),
+      GoRoute(
+        path: Rutas.adminVehiculos,
+        builder: (context, estado) => const PantallaAdminVehiculos(),
+      ),
+      GoRoute(
+        path: Rutas.adminPersonas,
+        builder: (context, estado) => const PantallaAdminPersonas(),
+      ),
+      GoRoute(
+        path: Rutas.adminEspacios,
+        builder: (context, estado) => const PantallaAdminEspacios(),
+      ),
+      GoRoute(
+        path: Rutas.adminInformes,
+        builder: (context, estado) => const PantallaAdminInformes(),
+      ),
+
       ShellRoute(
         builder: (context, estado, hijo) => ContenedorGuardia(hijo: hijo),
         routes: [
@@ -242,6 +291,15 @@ const _deResidente = {
   Rutas.paquetes,
   Rutas.visitas,
   Rutas.perfil,
+};
+
+/// Las pantallas del panel de administración.
+const _deAdministracion = {
+  Rutas.adminInicio,
+  Rutas.adminVehiculos,
+  Rutas.adminPersonas,
+  Rutas.adminEspacios,
+  Rutas.adminInformes,
 };
 
 /// Las pantallas que puede ver el personal de portería.
