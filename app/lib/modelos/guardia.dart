@@ -537,3 +537,69 @@ class ResultadoDeMarca {
         lejos: (m['lejos'] ?? false) as bool,
       );
 }
+
+// ============================================================================
+// UNA VISITA ESPERANDO QUE EL RESIDENTE CONTESTE
+// ============================================================================
+// El guardia deja esta pantalla abierta con la persona parada adelante. Lo que
+// importa acá es una sola cosa: ¿ya contestó o todavía no?
+// ============================================================================
+
+class VisitaEsperando {
+  const VisitaEsperando({
+    required this.id,
+    required this.nombreVisitante,
+    required this.residente,
+    required this.espacio,
+    required this.estado,
+    required this.llamoPorTelefono,
+    required this.creadoEn,
+    required this.minutosEsperando,
+    this.patente,
+    this.motivo,
+    this.motivoRechazo,
+  });
+
+  final String id;
+  final String nombreVisitante;
+  final String residente;
+  final String espacio;
+
+  /// 'esperando_aprobacion', 'aprobada' o 'rechazada'
+  final String estado;
+
+  /// true si el guardia además llamó por teléfono.
+  ///
+  /// NO vale lo mismo que una aprobación desde la app: una la confirmó el
+  /// residente con su propio teléfono, la otra la afirma el guardia. Las dos
+  /// sirven, pero el informe las tiene que mostrar distinto.
+  final bool llamoPorTelefono;
+
+  final DateTime creadoEn;
+  final int minutosEsperando;
+  final String? patente;
+  final String? motivo;
+  final String? motivoRechazo;
+
+  bool get estaEsperando => estado == 'esperando_aprobacion';
+  bool get fueAprobada => estado == 'aprobada';
+  bool get fueRechazada => estado == 'rechazada';
+
+  /// A los 3 minutos con la persona parada en el portón, conviene que el
+  /// guardia levante el teléfono en vez de seguir esperando.
+  bool get convieneLlamar => estaEsperando && minutosEsperando >= 3;
+
+  factory VisitaEsperando.desdeMapa(Map<String, dynamic> m) => VisitaEsperando(
+        id: m['visita_id'] as String,
+        nombreVisitante: (m['nombre_visitante'] ?? '') as String,
+        residente: (m['residente'] ?? '') as String,
+        espacio: (m['espacio'] ?? '—') as String,
+        estado: (m['estado'] ?? 'esperando_aprobacion') as String,
+        llamoPorTelefono: (m['llamo_por_telefono'] ?? false) as bool,
+        creadoEn: DateTime.parse(m['creado_en'] as String),
+        minutosEsperando: (m['minutos_esperando'] ?? 0) as int,
+        patente: m['patente'] as String?,
+        motivo: m['motivo'] as String?,
+        motivoRechazo: m['motivo_rechazo'] as String?,
+      );
+}

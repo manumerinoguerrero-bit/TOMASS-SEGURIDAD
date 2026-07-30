@@ -61,6 +61,7 @@ class _EstadoContenedorGuardia extends ConsumerState<ContenedorGuardia> {
     required bool anota,
     required bool escanea,
     required bool rondas,
+    required bool visitas,
   }) =>
       [
         const _Opcion(
@@ -73,6 +74,9 @@ class _EstadoContenedorGuardia extends ConsumerState<ContenedorGuardia> {
         if (anota)
           const _Opcion(Rutas.accesoManual, 'Anotar',
               Icons.edit_note_outlined, Icons.edit_note_rounded),
+        if (visitas)
+          const _Opcion(Rutas.visitasGuardia, 'Visitas',
+              Icons.person_add_alt_1_outlined, Icons.person_add_alt_1_rounded),
         if (rondas)
           const _Opcion(Rutas.rondas, 'Rondas', Icons.route_outlined,
               Icons.route_rounded),
@@ -110,6 +114,7 @@ class _EstadoContenedorGuardia extends ConsumerState<ContenedorGuardia> {
       anota: ref.watch(anotaAManoProvider),
       escanea: ref.watch(escaneaCodigosProvider),
       rondas: ref.watch(hayRondasProvider),
+      visitas: ref.watch(pideAutorizacionProvider),
     );
     final indiceActual = _indiceActualDe(opciones);
 
@@ -121,6 +126,7 @@ class _EstadoContenedorGuardia extends ConsumerState<ContenedorGuardia> {
       Rutas.autosEsperando: autos,
       Rutas.paquetesGuardia: paquetes,
       Rutas.incidentes: novedades,
+      Rutas.visitasGuardia: ref.watch(cuantasVisitasEsperandoProvider),
     };
 
     if (esTablet) {

@@ -88,6 +88,94 @@ class ServicioGuardia {
   /// Asi el servidor reconoce el reintento y no anota dos veces a la misma
   /// persona.
   // ==========================================================================
+  // VISITAS QUE LLEGAN SIN AVISO
+  // ==========================================================================
+  // EL CASO REAL DE LA GARITA DE UN CONDOMINIO
+  //
+  //   Llega alguien al porton y no esta en ninguna lista. El guardia no puede
+  //   decidir por su cuenta: tiene que preguntarle al residente.
+  //
+  //   Hoy eso se hace por telefono y no queda registro de nada. Si manana el
+  //   residente dice "yo nunca autorice a esa persona", el guardia no tiene con
+  //   que defenderse.
+  //
+  //   Con esto el residente contesta desde su celular y la respuesta queda
+  //   guardada con la hora.
+  // ==========================================================================
+
+  /// Busca residentes por nombre o por unidad, para elegir a quien avisarle.
+  Future<List<Map<String, dynamic>>> buscarAQuienAvisar(String texto) async {
+    if (texto.trim().length < 2) return const [];
+    try {
+      final t = texto.trim();
+      final filas = await _supabase
+          .from('usuarios')
+          .select('id, nombre_completo, telefono, '
+              'unidades!usuarios_unidad_id_fkey ( numero, torre )')
+          .eq('rol', 'residente')
+          .eq('estado', 'activo')
+          .or('nombre_completo.ilike.%$t%,email.ilike.%$t%')
+          .limit(15)
+          .timeout(Entorno.esperaMaxima);
+
+      return (filas as List).map((f) => Map<String, dynamic>.from(f)).toList();
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+
+  /// Registra la visita y le manda el aviso al residente.
+  Future<String> pedirAutorizacionDeVisita({
+    required String residenteId,
+    required String nombre,
+    String? cedula,
+    String? patente,
+    String? motivo,
+    String? telefono,
+    String? fotoUrl,
+    int horasDeValidez = 4,
+    bool llamoPorTelefono = false,
+    String? notaGuardia,
+  }) async {
+    try {
+      final id = await _supabase.rpc('registrar_visita_espontanea', params: {
+        'p_residente_id': residenteId,
+        'p_nombre': nombre,
+        'p_cedula': cedula,
+        'p_patente': patente,
+        'p_motivo': motivo,
+        'p_telefono': telefono,
+        'p_foto_url': fotoUrl,
+        'p_horas_de_validez': horasDeValidez,
+        'p_llamo_por_telefono': llamoPorTelefono,
+        'p_nota_guardia': notaGuardia,
+      }).timeout(Entorno.esperaMaxima);
+      return id as String;
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+
+  /// Las visitas de las ultimas 2 horas y en que quedaron.
+  ///
+  /// Se limita a 2 horas a proposito: una visita de ayer ya no esta parada en el
+  /// porton, y llenaria la pantalla de ruido justo cuando el guardia necesita
+  /// ver la de ahora.
+  Future<List<VisitaEsperando>> visitasEsperandoRespuesta() async {
+    try {
+      final filas = await _supabase
+          .rpc('visitas_esperando_respuesta')
+          .timeout(Entorno.esperaMaxima);
+
+      return (filas as List)
+          .map((f) => VisitaEsperando.desdeMapa(Map<String, dynamic>.from(f)))
+          .toList();
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+
+  // ==========================================================================
   // RONDAS CON PUNTOS DE CONTROL
   // ==========================================================================
   // Es lo que le permite al condominio SABER que la ronda se hizo, en vez de

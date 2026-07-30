@@ -184,3 +184,27 @@ void refrescarRonda(WidgetRef ref) {
   ref.invalidate(miRondaAbiertaProvider);
   ref.invalidate(puntosDeControlProvider);
 }
+
+// ============================================================================
+// VISITAS QUE LLEGAN SIN AVISO
+// ============================================================================
+
+final visitasEsperandoProvider = FutureProvider<List<VisitaEsperando>>((ref) {
+  return ref.watch(servicioGuardiaProvider).visitasEsperandoRespuesta();
+});
+
+/// Cuántas están esperando que el residente conteste.
+/// Es el globito de la pestaña: hay gente parada en el portón.
+final cuantasVisitasEsperandoProvider = Provider<int>((ref) {
+  final lista = ref.watch(visitasEsperandoProvider).valueOrNull ?? const [];
+  return lista.where((v) => v.estaEsperando).length;
+});
+
+/// ¿En esta instalación el guardia pide autorización a los residentes?
+///
+/// Solo tiene sentido donde hay residentes que puedan contestar: en un colegio
+/// no hay a quién preguntarle, ahí el guardia decide con quien lo autoriza.
+final pideAutorizacionProvider = Provider<bool>((ref) {
+  final tipo = ref.watch(palabrasProvider).tipo;
+  return tipo == 'condominio' || tipo == 'edificio';
+});
