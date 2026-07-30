@@ -106,6 +106,17 @@ dependencies:
   # esto demuestra que ESTUVO AHÍ, que es lo que el cliente quiere saber.
   geolocator: ^13.0.2
 
+  # ---- Informes en PDF ----------------------------------------------------
+  # Para el informe de rondas que el administrador le entrega al cliente.
+  #
+  #   pdf       arma el documento
+  #   printing  lo abre, lo comparte por WhatsApp o lo manda a una impresora
+  #
+  # Se genera EN EL TELÉFONO, no en el servidor. Así el administrador saca el
+  # informe estando en la instalación, sin depender de que haya internet bueno.
+  pdf: ^3.11.1
+  printing: ^5.13.4
+
   # ---- Utilidades ---------------------------------------------------------
   # Fechas y números en formato chileno
   intl: ^0.20.1

@@ -26,19 +26,97 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:printing/printing.dart';
 
 import '../../config/tema.dart';
+import '../../estado/proveedores.dart';
 import '../../estado/proveedores_admin.dart';
 import '../../modelos/admin.dart';
 import '../../nucleo/errores.dart';
 import '../../nucleo/formato.dart';
+import '../../servicios/informe_pdf.dart';
 import '../comunes/componentes.dart';
 
-class PestanaRondas extends ConsumerWidget {
+class PestanaRondas extends ConsumerStatefulWidget {
   const PestanaRondas({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<PestanaRondas> createState() => _EstadoPestanaRondas();
+}
+
+class _EstadoPestanaRondas extends ConsumerState<PestanaRondas> {
+  bool _armandoPdf = false;
+
+  // ==========================================================================
+  // EL INFORME PARA EL CLIENTE
+  // ==========================================================================
+  // Se arma EN EL TELÉFONO, no en el servidor. Así el administrador lo saca
+  // parado en la instalación, aunque la señal sea mala, y lo manda por WhatsApp
+  // en el momento.
+  // ==========================================================================
+
+  Future<void> _sacarPdf() async {
+    setState(() => _armandoPdf = true);
+    try {
+      final servicio = ref.read(servicioAdminProvider);
+      final dias = ref.read(diasDelInformeDeRondasProvider);
+      final perfil = ref.read(perfilProvider).valueOrNull;
+
+      // Los tres pedidos van a la vez: el informe tarda lo que tarda el más
+      // lento, y no la suma de los tres.
+      final (rondas, marcas, sectores) = await (
+        servicio.informeDeRondas(dias: dias),
+        servicio.detalleDeRondas(dias: dias),
+        servicio.sectoresParaElPlano(),
+      ).wait;
+
+      final pdf = await InformeDeRondasPdf.armar(
+        instalacion: perfil?.nombreCondominio ?? 'Instalación',
+        dias: dias,
+        rondas: rondas,
+        marcas: marcas,
+        sectores: sectores,
+        // Lo que exige el contrato de trabajo: una ronda cada 2 horas.
+        minutosEntreRondas: 120,
+      );
+
+      if (!mounted) return;
+      setState(() => _armandoPdf = false);
+
+      // Abre la hoja del teléfono para compartir, imprimir o guardar
+      await Printing.sharePdf(
+        bytes: pdf,
+        filename: 'rondas-${_nombreDeArchivo(perfil?.nombreCondominio)}-'
+            '${dias}dias.pdf',
+      );
+    } catch (falla) {
+      if (!mounted) return;
+      setState(() => _armandoPdf = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(Traductor.traducir(falla).mensaje),
+          backgroundColor: Colores.rojo,
+        ),
+      );
+    }
+  }
+
+  static String _nombreDeArchivo(String? nombre) {
+    if (nombre == null || nombre.isEmpty) return 'instalacion';
+    return nombre
+        .toLowerCase()
+        .replaceAll(RegExp('[áàä]'), 'a')
+        .replaceAll(RegExp('[éèë]'), 'e')
+        .replaceAll(RegExp('[íìï]'), 'i')
+        .replaceAll(RegExp('[óòö]'), 'o')
+        .replaceAll(RegExp('[úùü]'), 'u')
+        .replaceAll('ñ', 'n')
+        .replaceAll(RegExp('[^a-z0-9]+'), '-')
+        .replaceAll(RegExp('^-|-\$'), '');
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final rondas = ref.watch(informeDeRondasProvider);
     final dias = ref.watch(diasDelInformeDeRondasProvider);
 
@@ -46,17 +124,46 @@ class PestanaRondas extends ConsumerWidget {
       children: [
         Padding(
           padding: const EdgeInsets.all(Medidas.margen),
-          child: SegmentedButton<int>(
-            segments: const [
-              ButtonSegment(value: 1, label: Text('Hoy')),
-              ButtonSegment(value: 7, label: Text('7 días')),
-              ButtonSegment(value: 30, label: Text('30 días')),
+          child: Column(
+            children: [
+              SegmentedButton<int>(
+                segments: const [
+                  ButtonSegment(value: 7, label: Text('Semana')),
+                  ButtonSegment(value: 30, label: Text('Mes')),
+                  ButtonSegment(value: 90, label: Text('3 meses')),
+                ],
+                selected: {dias},
+                onSelectionChanged: (s) => ref
+                    .read(diasDelInformeDeRondasProvider.notifier)
+                    .state = s.first,
+                showSelectedIcon: false,
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: _armandoPdf ? null : _sacarPdf,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colores.grafito,
+                    minimumSize: const Size(0, Medidas.altoBoton),
+                  ),
+                  icon: _armandoPdf
+                      ? const SizedBox(
+                          width: 19,
+                          height: 19,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white))
+                      : const Icon(Icons.picture_as_pdf_rounded, size: 21),
+                  label: Text(
+                    _armandoPdf
+                        ? 'Armando el informe…'
+                        : 'Informe en PDF para el cliente',
+                    style: const TextStyle(
+                        fontSize: 15, fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ),
             ],
-            selected: {dias},
-            onSelectionChanged: (s) => ref
-                .read(diasDelInformeDeRondasProvider.notifier)
-                .state = s.first,
-            showSelectedIcon: false,
           ),
         ),
         Expanded(

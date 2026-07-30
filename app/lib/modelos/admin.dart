@@ -506,3 +506,105 @@ class RondaDelInforme {
         notas: m['notas'] as String?,
       );
 }
+
+// ============================================================================
+// EL DETALLE DE UNA MARCACIÓN, PARA EL INFORME EN PDF
+// ============================================================================
+
+class MarcaDelInforme {
+  const MarcaDelInforme({
+    required this.rondaId,
+    required this.guardia,
+    required this.rondaInicio,
+    required this.sector,
+    required this.sectorOrden,
+    required this.marcadoEn,
+    required this.lejos,
+    this.rondaCerrada,
+    this.rondaNotas,
+    this.novedad,
+    this.sectorLat,
+    this.sectorLng,
+    this.marcaLat,
+    this.marcaLng,
+    this.metrosDeLejos,
+    this.tolerancia = 60,
+  });
+
+  final String rondaId;
+  final String guardia;
+  final DateTime rondaInicio;
+  final DateTime? rondaCerrada;
+  final String? rondaNotas;
+
+  final String sector;
+  final int sectorOrden;
+  final DateTime marcadoEn;
+  final String? novedad;
+
+  /// Dónde está pegado el cartel.
+  final double? sectorLat;
+  final double? sectorLng;
+  final int tolerancia;
+
+  /// Dónde estaba el teléfono al marcar.
+  final double? marcaLat;
+  final double? marcaLng;
+
+  final double? metrosDeLejos;
+  final bool lejos;
+
+  bool get tieneUbicacion =>
+      sectorLat != null && marcaLat != null && metrosDeLejos != null;
+
+  factory MarcaDelInforme.desdeMapa(Map<String, dynamic> m) => MarcaDelInforme(
+        rondaId: m['ronda_id'] as String,
+        guardia: (m['guardia'] ?? '') as String,
+        rondaInicio: DateTime.parse(m['ronda_inicio'] as String),
+        rondaCerrada: m['ronda_cerrada'] == null
+            ? null
+            : DateTime.parse(m['ronda_cerrada'] as String),
+        rondaNotas: m['ronda_notas'] as String?,
+        sector: (m['sector'] ?? '') as String,
+        sectorOrden: (m['sector_orden'] ?? 0) as int,
+        marcadoEn: DateTime.parse(m['marcado_en'] as String),
+        novedad: m['novedad'] as String?,
+        sectorLat: (m['sector_lat'] as num?)?.toDouble(),
+        sectorLng: (m['sector_lng'] as num?)?.toDouble(),
+        tolerancia: (m['tolerancia'] ?? 60) as int,
+        marcaLat: (m['marca_lat'] as num?)?.toDouble(),
+        marcaLng: (m['marca_lng'] as num?)?.toDouble(),
+        metrosDeLejos: (m['metros_de_lejos'] as num?)?.toDouble(),
+        lejos: (m['lejos'] ?? false) as bool,
+      );
+}
+
+/// Un sector con su ubicación, para dibujar el plano del informe.
+class SectorDelPlano {
+  const SectorDelPlano({
+    required this.id,
+    required this.nombre,
+    required this.orden,
+    required this.tolerancia,
+    this.latitud,
+    this.longitud,
+  });
+
+  final String id;
+  final String nombre;
+  final int orden;
+  final int tolerancia;
+  final double? latitud;
+  final double? longitud;
+
+  bool get tieneUbicacion => latitud != null && longitud != null;
+
+  factory SectorDelPlano.desdeMapa(Map<String, dynamic> m) => SectorDelPlano(
+        id: m['id'] as String,
+        nombre: (m['nombre'] ?? '') as String,
+        orden: (m['orden'] ?? 0) as int,
+        tolerancia: (m['tolerancia'] ?? 60) as int,
+        latitud: (m['latitud'] as num?)?.toDouble(),
+        longitud: (m['longitud'] as num?)?.toDouble(),
+      );
+}

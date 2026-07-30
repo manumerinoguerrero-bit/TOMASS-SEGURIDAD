@@ -23,6 +23,7 @@ import '../../config/tema.dart';
 import '../../estado/proveedores.dart';
 import '../../modelos/modelos.dart';
 import '../../nucleo/errores.dart';
+import '../../servicios/servicio_fotos.dart';
 import '../comunes/componentes.dart';
 
 class FormularioVehiculo extends ConsumerStatefulWidget {
@@ -69,7 +70,10 @@ class _EstadoFormulario extends ConsumerState<FormularioVehiculo> {
     setState(() => _problema = null);
 
     try {
-      final foto = await ref.read(servicioFotosProvider).sacarFoto();
+      // Con la mejor calidad: de esta foto el lector saca la patente sola.
+      final foto = await ref.read(servicioFotosProvider).sacarFoto(
+            proposito: PropositoDeLaFoto.leerLaPatente,
+          );
       if (foto == null) return;
 
       setState(() {
@@ -108,7 +112,9 @@ class _EstadoFormulario extends ConsumerState<FormularioVehiculo> {
   Future<void> _fotografiarVehiculo() async {
     setState(() => _problema = null);
     try {
-      final foto = await ref.read(servicioFotosProvider).sacarFoto();
+      final foto = await ref.read(servicioFotosProvider).sacarFoto(
+            proposito: PropositoDeLaFoto.elVehiculo,
+          );
       if (foto != null && mounted) setState(() => _fotoVehiculo = foto);
     } catch (falla) {
       if (mounted) setState(() => _problema = Traductor.traducir(falla));

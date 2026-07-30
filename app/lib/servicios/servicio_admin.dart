@@ -407,6 +407,39 @@ class ServicioAdmin {
     }
   }
 
+  /// El detalle de cada marcacion del periodo, para armar el informe en PDF.
+  Future<List<MarcaDelInforme>> detalleDeRondas({int dias = 7}) async {
+    try {
+      final filas = await _supabase
+          .rpc('detalle_de_rondas', params: {'p_dias': dias})
+          .timeout(Entorno.esperaMaxima);
+
+      return (filas as List)
+          .map((f) => MarcaDelInforme.desdeMapa(Map<String, dynamic>.from(f)))
+          .toList();
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+
+  /// Los sectores con su ubicacion, para dibujar el plano del informe.
+  ///
+  /// Trae TODOS, incluso los que no se marcaron: un sector que falta es
+  /// justamente lo que el cliente quiere ver.
+  Future<List<SectorDelPlano>> sectoresParaElPlano() async {
+    try {
+      final filas = await _supabase
+          .rpc('sectores_para_el_plano')
+          .timeout(Entorno.esperaMaxima);
+
+      return (filas as List)
+          .map((f) => SectorDelPlano.desdeMapa(Map<String, dynamic>.from(f)))
+          .toList();
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+
   /// El informe de rondas: cuantas hizo, si se paso de las 2 horas, y si marco
   /// algun punto desde lejos.
   Future<List<RondaDelInforme>> informeDeRondas({int dias = 7}) async {

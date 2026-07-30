@@ -10,11 +10,24 @@
 //      nada (y si sirviera, sería un problema de privacidad). Cuando la app va a
 //      mostrar una foto, le pide al servidor un enlace temporal de una hora.
 //
-//   2. Las fotos se comprimen antes de subirlas.
-//      Una foto de celular moderno pesa 4 o 5 MB. Subir eso desde la entrada del
-//      condominio con mala señal puede tardar medio minuto. Comprimida a 1600
-//      píxeles de ancho pesa unos 300 KB y se ve igual de bien para reconocer un
-//      auto o una patente.
+//   2. Cada foto se comprime SEGÚN PARA QUÉ SIRVE, y eso importa.
+//
+//      Una foto de celular moderno pesa 4 o 5 MB. Subir eso desde la entrada
+//      del condominio con mala señal tarda medio minuto, y guardarla llena el
+//      espacio del servidor rapidísimo: con 90 encomiendas por día son 1,3 GB
+//      por mes solo en fotos de cajas.
+//
+//      ⚠️ PERO NO TODAS SE PUEDEN COMPRIMIR IGUAL.
+//
+//         La foto de la patente NO es para mirarla: la app la LEE para sacar el
+//         número solo. Si se le quita detalle, el lector deja de acertar y el
+//         guardia tiene que escribir la patente a mano cada vez. Ahí la
+//         compresión ahorra unos KB y cuesta el doble de trabajo por auto.
+//
+//         La foto de una caja, en cambio, solo tiene que mostrar que llegó y en
+//         qué estado. Con la mitad de tamaño se ve igual.
+//
+//      Por eso cada foto declara PARA QUÉ es, y de eso sale cuánto se comprime.
 // ============================================================================
 
 import 'dart:io';
@@ -33,6 +46,47 @@ enum CajonDeFotos {
   String get nombre => name;
 }
 
+// ============================================================================
+// PARA QUÉ ES ESTA FOTO
+// ============================================================================
+// De acá sale cuánto se comprime. Los números salieron de mirar qué necesita
+// cada caso, no de elegir uno parejo para todos.
+// ============================================================================
+
+enum PropositoDeLaFoto {
+  /// La patente, para que la APP LA LEA SOLA.
+  ///
+  /// ⚠️ NO BAJAR ESTOS NÚMEROS. Esta foto no es para mirar: el lector
+  ///    automático saca el número de acá. Cada píxel que se le quita es una
+  ///    patente que el guardia va a tener que escribir a mano.
+  ///
+  ///    Pesa unos 350 KB, y son pocas por día: un residente registra su auto
+  ///    una vez y listo. No es lo que llena el espacio.
+  leerLaPatente(ancho: 1600, calidad: 85),
+
+  /// El paquete en portería. Es la que más se saca y la que más pesa en total.
+  ///
+  /// Solo tiene que mostrar que el paquete llegó y en qué estado. Para eso
+  /// 1280 píxeles alcanzan de sobra: una caja golpeada se ve golpeada igual.
+  /// Baja de ~350 KB a ~170 KB, o sea la mitad del espacio del servidor.
+  elPaquete(ancho: 1280, calidad: 72),
+
+  /// El auto completo, para reconocerlo después. No se lee nada de acá.
+  elVehiculo(ancho: 1280, calidad: 78),
+
+  /// Una persona, un documento o una novedad. Tiene que dejar reconocer una
+  /// cara o leer un texto grande, pero no un número chico.
+  unaPersona(ancho: 1200, calidad: 75);
+
+  const PropositoDeLaFoto({required this.ancho, required this.calidad});
+
+  /// A cuántos píxeles de ancho se achica.
+  final double ancho;
+
+  /// De 0 a 100. Más bajo pesa menos y se ve peor.
+  final int calidad;
+}
+
 class ServicioFotos {
   ServicioFotos(this._supabase);
 
@@ -49,13 +103,19 @@ class ServicioFotos {
   // Sacar una foto
   // --------------------------------------------------------------------------
   /// Abre la cámara. Devuelve null si la persona canceló.
-  Future<File?> sacarFoto() async {
+  ///
+  /// [proposito] decide cuánto se comprime. Ver PropositoDeLaFoto: no es un
+  /// detalle, de eso depende que el lector de patentes siga acertando y que el
+  /// espacio del servidor no se llene con fotos de cajas.
+  Future<File?> sacarFoto({
+    PropositoDeLaFoto proposito = PropositoDeLaFoto.unaPersona,
+  }) async {
     try {
       final foto = await _selector.pickImage(
         source: ImageSource.camera,
         // Se comprime acá mismo, antes de que la imagen ocupe memoria
-        maxWidth: 1600,
-        imageQuality: 82,
+        maxWidth: proposito.ancho,
+        imageQuality: proposito.calidad,
         preferredCameraDevice: CameraDevice.rear,
       );
       return foto == null ? null : File(foto.path);
@@ -74,12 +134,14 @@ class ServicioFotos {
   }
 
   /// Elige una foto ya guardada en el teléfono.
-  Future<File?> elegirDeLaGaleria() async {
+  Future<File?> elegirDeLaGaleria({
+    PropositoDeLaFoto proposito = PropositoDeLaFoto.unaPersona,
+  }) async {
     try {
       final foto = await _selector.pickImage(
         source: ImageSource.gallery,
-        maxWidth: 1600,
-        imageQuality: 82,
+        maxWidth: proposito.ancho,
+        imageQuality: proposito.calidad,
       );
       return foto == null ? null : File(foto.path);
     } catch (falla) {

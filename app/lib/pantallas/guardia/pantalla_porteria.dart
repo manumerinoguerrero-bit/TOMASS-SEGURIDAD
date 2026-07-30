@@ -107,7 +107,12 @@ class _EstadoRecibir extends ConsumerState<_PestanaRecibir> {
 
   Future<void> _fotografiar() async {
     try {
-      final foto = await ref.read(servicioFotosProvider).sacarFoto();
+      // La que más se saca de todas: 90 por día en un condominio de 300
+      // departamentos. Se comprime más que las otras, y por eso baja a la mitad
+      // el espacio que ocupa el sistema entero.
+      final foto = await ref.read(servicioFotosProvider).sacarFoto(
+            proposito: PropositoDeLaFoto.elPaquete,
+          );
       if (foto != null && mounted) setState(() => _foto = foto);
     } catch (falla) {
       if (mounted) setState(() => _problema = Traductor.traducir(falla));

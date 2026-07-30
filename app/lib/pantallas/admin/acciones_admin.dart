@@ -294,61 +294,95 @@ class SelectorDeInstalacion extends ConsumerWidget {
     final elegida = await showModalBottomSheet<Instalacion>(
       context: context,
       backgroundColor: Colores.superficie,
+      // ⚠️ ESTAS DOS LÍNEAS NO SON DECORACIÓN. NO LAS SAQUES.
+      //
+      //    Sin isScrollControlled, la hoja no puede pasar de la mitad de la
+      //    pantalla, y la lista de instalaciones se corta sin aviso: con 7
+      //    instalaciones se veían 4 y las otras 3 quedaban abajo, invisibles.
+      //    El administrador no podía elegir Milagros ni Viveros Yapur.
+      //
+      //    Y la lista va dentro de un ListView, no de un Column: un Column no
+      //    se desplaza, así que apenas la empresa sume una instalación más el
+      //    problema volvería solo.
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 12),
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colores.linea,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Text('¿Cuál querés administrar?',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
-            const SizedBox(height: 4),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 30),
-              child: Text(
-                'Vas a ver y modificar solo la que elijas. Podés cambiar '
-                'cuando quieras.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                    fontSize: 12.5, height: 1.4, color: Colores.textoSuave),
-              ),
-            ),
-            const SizedBox(height: 14),
-            for (final i in instalaciones)
-              ListTile(
-                onTap: () => Navigator.pop(context, i),
-                leading: Icon(
-                  i.tipo == 'colegio'
-                      ? Icons.school_rounded
-                      : Icons.apartment_rounded,
-                  color: i.esLaActiva ? Colores.verdeOscuro : Colores.textoTenue,
+        child: ConstrainedBox(
+          // Deja ver que hay algo debajo, y que se puede cerrar tocando afuera
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(context).height * 0.82,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 12),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colores.linea,
+                  borderRadius: BorderRadius.circular(2),
                 ),
-                title: Text(
-                  i.nombre,
+              ),
+              const SizedBox(height: 16),
+              const Text('¿Cuál querés administrar?',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 4),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 30),
+                child: Text(
+                  'Vas a ver y modificar solo la que elijas. Podés cambiar '
+                  'cuando quieras.',
+                  textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: 14.5,
-                    fontWeight: i.esLaActiva ? FontWeight.w800 : FontWeight.w600,
-                  ),
+                      fontSize: 12.5, height: 1.4, color: Colores.textoSuave),
                 ),
-                subtitle: i.ciudad == null ? null : Text(i.ciudad!),
-                trailing: i.esLaActiva
-                    ? const Icon(Icons.check_circle_rounded,
-                        color: Colores.verde)
-                    : null,
               ),
-            const SizedBox(height: 12),
-          ],
+              const SizedBox(height: 10),
+
+              // Acá está el arreglo: la lista se desplaza y ocupa lo que sobra.
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  padding: EdgeInsets.zero,
+                  itemCount: instalaciones.length,
+                  itemBuilder: (context, n) {
+                    final i = instalaciones[n];
+                    return ListTile(
+                      key: ValueKey(i.id),
+                      onTap: () => Navigator.pop(context, i),
+                      leading: Icon(
+                        switch (i.tipo) {
+                          'colegio' => Icons.school_rounded,
+                          'empresa' => Icons.warehouse_rounded,
+                          _ => Icons.apartment_rounded,
+                        },
+                        color: i.esLaActiva
+                            ? Colores.verdeOscuro
+                            : Colores.textoTenue,
+                      ),
+                      title: Text(
+                        i.nombre,
+                        style: TextStyle(
+                          fontSize: 14.5,
+                          fontWeight:
+                              i.esLaActiva ? FontWeight.w800 : FontWeight.w600,
+                        ),
+                      ),
+                      subtitle: i.ciudad == null ? null : Text(i.ciudad!),
+                      trailing: i.esLaActiva
+                          ? const Icon(Icons.check_circle_rounded,
+                              color: Colores.verde)
+                          : null,
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+          ),
         ),
       ),
     );
