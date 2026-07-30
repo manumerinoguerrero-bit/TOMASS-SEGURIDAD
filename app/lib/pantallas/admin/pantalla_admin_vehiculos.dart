@@ -68,7 +68,24 @@ class PantallaAdminVehiculos extends ConsumerWidget {
             child: ListView.builder(
               padding: const EdgeInsets.all(Medidas.margen),
               itemCount: lista.length,
-              itemBuilder: (_, i) => _Tarjeta(vehiculo: lista[i]),
+              // ⚠️ LA LLAVE NO ES OPCIONAL ACÁ. NO LA SAQUES.
+              //
+              //    Cada tarjeta tiene su propio estado (el reloj de arena
+              //    mientras se aprueba). Sin llave, Flutter le asigna ese estado
+              //    a la POSICIÓN en la lista, no al vehículo.
+              //
+              //    Qué pasaba sin esto: se aprobaba el primer vehículo, ese
+              //    desaparecía de la lista, el segundo pasaba a ocupar la
+              //    posición 0 y HEREDABA el reloj de arena del que se fue. Se
+              //    quedaba trabado para siempre, sin botones, y había que salir
+              //    y volver a entrar a la pantalla.
+              //
+              //    Con la llave, Flutter sabe que la tarjeta de MNO-654 es la de
+              //    MNO-654 aunque cambie de lugar.
+              itemBuilder: (_, i) => _Tarjeta(
+                key: ValueKey(lista[i].id),
+                vehiculo: lista[i],
+              ),
             ),
           );
         },
@@ -78,7 +95,7 @@ class PantallaAdminVehiculos extends ConsumerWidget {
 }
 
 class _Tarjeta extends ConsumerStatefulWidget {
-  const _Tarjeta({required this.vehiculo});
+  const _Tarjeta({super.key, required this.vehiculo});
 
   final VehiculoParaAprobar vehiculo;
 

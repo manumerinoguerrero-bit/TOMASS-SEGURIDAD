@@ -74,7 +74,10 @@ class PantallaAdminEspacios extends ConsumerWidget {
               padding: const EdgeInsets.fromLTRB(
                   Medidas.margen, Medidas.margen, Medidas.margen, 92),
               itemCount: lista.length,
-              itemBuilder: (_, i) => _Fila(espacio: lista[i]),
+              // Llave por si esta fila alguna vez toma estado propio: sin
+              // ella, al borrar un espacio la siguiente heredaria su estado.
+              itemBuilder: (_, i) =>
+                  _Fila(key: ValueKey(lista[i].id), espacio: lista[i]),
             ),
           );
         },
@@ -96,7 +99,7 @@ class PantallaAdminEspacios extends ConsumerWidget {
 }
 
 class _Fila extends ConsumerWidget {
-  const _Fila({required this.espacio});
+  const _Fila({super.key, required this.espacio});
 
   final EspacioAdmin espacio;
 

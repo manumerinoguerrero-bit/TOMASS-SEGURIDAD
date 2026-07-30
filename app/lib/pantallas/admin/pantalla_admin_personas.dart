@@ -130,8 +130,11 @@ class PantallaAdminPersonas extends ConsumerWidget {
                   padding: const EdgeInsets.fromLTRB(
                       Medidas.margen, 0, Medidas.margen, 92),
                   itemCount: lista.length,
-                  itemBuilder: (_, i) =>
-                      _Fila(persona: lista[i], palabras: palabras),
+                  itemBuilder: (_, i) => _Fila(
+                    key: ValueKey(lista[i].id),
+                    persona: lista[i],
+                    palabras: palabras,
+                  ),
                 );
               },
             ),
@@ -178,7 +181,7 @@ class _Filtro extends StatelessWidget {
 // ============================================================================
 
 class _Fila extends ConsumerWidget {
-  const _Fila({required this.persona, required this.palabras});
+  const _Fila({super.key, required this.persona, required this.palabras});
 
   final PersonaAdmin persona;
   final Palabras palabras;

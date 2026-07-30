@@ -102,8 +102,11 @@ class PantallaVisitasGuardia extends ConsumerWidget {
               padding: const EdgeInsets.fromLTRB(
                   Medidas.margen, Medidas.margen, Medidas.margen, 96),
               itemCount: lista.length,
-              itemBuilder: (_, i) =>
-                  _Tarjeta(visita: lista[i], palabras: palabras),
+              itemBuilder: (_, i) => _Tarjeta(
+                key: ValueKey(lista[i].id),
+                visita: lista[i],
+                palabras: palabras,
+              ),
             ),
           );
         },
@@ -117,7 +120,7 @@ class PantallaVisitasGuardia extends ConsumerWidget {
 // ============================================================================
 
 class _Tarjeta extends ConsumerWidget {
-  const _Tarjeta({required this.visita, required this.palabras});
+  const _Tarjeta({super.key, required this.visita, required this.palabras});
 
   final VisitaEsperando visita;
   final dynamic palabras;

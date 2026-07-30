@@ -87,6 +87,20 @@ class PantallaAdminInicio extends ConsumerWidget {
                   style: Theme.of(context).textTheme.labelSmall),
               const SizedBox(height: 10),
 
+              // ⚠️ ACÁ VA push Y NO go. NO LO CAMBIES.
+              //
+              //    "go" REEMPLAZA la pantalla; "push" la APILA encima.
+              //
+              //    El administrador no tiene barra de pestañas abajo: estas
+              //    pantallas se abren solas, ocupando todo. Con "go" no queda
+              //    ninguna pantalla debajo, así que Flutter no dibuja la flecha
+              //    de volver y el botón físico del teléfono tampoco hace nada:
+              //    el administrador entra y queda encerrado, sin salida.
+              //
+              //    (En las pantallas del guardia sí se usa "go", y está bien:
+              //     ahí la barra de pestañas está siempre visible, así que nunca
+              //     se queda sin forma de moverse.)
+
               _Acceso(
                 icono: Icons.directions_car_rounded,
                 titulo: 'Vehículos',
@@ -94,31 +108,31 @@ class PantallaAdminInicio extends ConsumerWidget {
                     ? 'No hay ninguno esperando'
                     : '${r.vehiculosPorAprobar} esperando tu aprobación',
                 urgente: r.vehiculosPorAprobar > 0,
-                alTocar: () => context.go(Rutas.adminVehiculos),
+                alTocar: () => context.push(Rutas.adminVehiculos),
               ),
               _Acceso(
                 icono: Icons.people_alt_rounded,
                 titulo: palabras.losHabitantesConMayuscula,
                 detalle: 'Dar de alta, editar y desactivar personas',
-                alTocar: () => context.go(Rutas.adminPersonas),
+                alTocar: () => context.push(Rutas.adminPersonas),
               ),
               _Acceso(
                 icono: Icons.meeting_room_rounded,
                 titulo: palabras.losEspaciosConMayuscula,
                 detalle: '${r.espacios} registrados',
-                alTocar: () => context.go(Rutas.adminEspacios),
+                alTocar: () => context.push(Rutas.adminEspacios),
               ),
               _Acceso(
                 icono: Icons.add_location_alt_rounded,
                 titulo: 'Sectores de la ronda',
                 detalle: 'Los carteles que marca el guardia al hacer el recorrido',
-                alTocar: () => context.go(Rutas.adminSectores),
+                alTocar: () => context.push(Rutas.adminSectores),
               ),
               _Acceso(
                 icono: Icons.assessment_rounded,
                 titulo: 'Informes',
                 detalle: 'Quién entró y salió, y los turnos de los guardias',
-                alTocar: () => context.go(Rutas.adminInformes),
+                alTocar: () => context.push(Rutas.adminInformes),
               ),
 
               const SizedBox(height: 24),
