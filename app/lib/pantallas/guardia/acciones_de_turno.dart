@@ -30,6 +30,7 @@ import 'package:go_router/go_router.dart';
 import '../../config/tema.dart';
 import '../../estado/proveedores.dart';
 import '../../estado/proveedores_guardia.dart';
+import '../../modelos/admin.dart';
 import '../../nucleo/errores.dart';
 import '../../navegacion/rutas.dart';
 import '../../nucleo/formato.dart';
@@ -298,5 +299,208 @@ class SalirDeLaCuenta extends ConsumerWidget {
         ),
       ],
     );
+  }
+}
+
+// ============================================================================
+// EN QUÉ INSTALACIÓN ESTOY HOY
+// ============================================================================
+// Casi ningún guardia lo ve: si atiende una sola instalación (el caso normal),
+// este widget no dibuja nada. Es solo para los pocos que rotan entre dos, como
+// Hector, Ivan o Riends. Va ANTES de elegir el puesto, porque de acá depende
+// qué puestos aparecen para elegir.
+// ============================================================================
+
+class SelectorDeInstalacionGuardia extends ConsumerWidget {
+  const SelectorDeInstalacionGuardia({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (!ref.watch(atiendeVariasGuardiaProvider)) return const SizedBox.shrink();
+
+    final instalaciones =
+        ref.watch(misInstalacionesGuardiaProvider).valueOrNull ?? const [];
+    final activa = instalaciones.where((i) => i.esLaActiva).firstOrNull;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 18),
+      child: Material(
+        color: Colors.white.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(Medidas.redondeo),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(Medidas.redondeo),
+          onTap: () => _elegir(context, ref, instalaciones),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Row(
+              children: [
+                const Icon(Icons.apartment_rounded, color: Colors.white, size: 21),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'HOY ESTOY EN',
+                        style: TextStyle(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.3,
+                          color: Colors.white.withValues(alpha: 0.55),
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        activa?.nombreParaMostrar ?? '…',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('Cambiar',
+                          style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white)),
+                      SizedBox(width: 3),
+                      Icon(Icons.unfold_more_rounded, size: 15, color: Colors.white),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _elegir(
+    BuildContext context,
+    WidgetRef ref,
+    List<Instalacion> instalaciones,
+  ) async {
+    final elegida = await showModalBottomSheet<Instalacion>(
+      context: context,
+      backgroundColor: Colores.superficie,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => SafeArea(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(context).height * 0.82,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 12),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colores.linea,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text('¿En cuál trabajás hoy?',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 4),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 30),
+                child: Text(
+                  'Elegí la instalación donde vas a hacer el turno de hoy. '
+                  'Podés cambiar cuando quieras.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                      fontSize: 12.5, height: 1.4, color: Colores.textoSuave),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  padding: EdgeInsets.zero,
+                  itemCount: instalaciones.length,
+                  itemBuilder: (context, n) {
+                    final i = instalaciones[n];
+                    return ListTile(
+                      key: ValueKey(i.id),
+                      onTap: () => Navigator.pop(context, i),
+                      leading: Icon(
+                        switch (i.tipo) {
+                          'colegio' => Icons.school_rounded,
+                          'empresa' => Icons.warehouse_rounded,
+                          _ => Icons.apartment_rounded,
+                        },
+                        color: i.esLaActiva ? Colores.verdeOscuro : Colores.textoTenue,
+                      ),
+                      title: Text(
+                        i.nombre,
+                        style: TextStyle(
+                          fontSize: 14.5,
+                          fontWeight: i.esLaActiva ? FontWeight.w800 : FontWeight.w600,
+                        ),
+                      ),
+                      subtitle: i.ciudad == null ? null : Text(i.ciudad!),
+                      trailing: i.esLaActiva
+                          ? const Icon(Icons.check_circle_rounded, color: Colores.verde)
+                          : null,
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (elegida == null || elegida.esLaActiva || !context.mounted) return;
+
+    try {
+      await ref.read(servicioGuardiaProvider).cambiarDeInstalacion(elegida.id);
+      if (!context.mounted) return;
+
+      // Sin esto, la lista de puestos seguiría mostrando los de la
+      // instalación anterior: puestosDisponibles() no filtra a mano, confía
+      // en mi_condominio(), y esa función recién ahora devuelve la nueva.
+      ref.invalidate(perfilProvider);
+      ref.invalidate(misInstalacionesGuardiaProvider);
+      ref.invalidate(puestosDisponiblesProvider);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Ahora estás en ${elegida.nombre}.'),
+          backgroundColor: Colores.grafito,
+        ),
+      );
+    } catch (falla) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(Traductor.traducir(falla).mensaje),
+          backgroundColor: Colores.rojo,
+        ),
+      );
+    }
   }
 }

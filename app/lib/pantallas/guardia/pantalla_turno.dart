@@ -80,6 +80,18 @@ class _EstadoTurno extends ConsumerState<PantallaTurno> {
 
   @override
   Widget build(BuildContext context) {
+    // Si cambia la instalación activa (por el selector de arriba), el puesto
+    // que tenía elegido ya no existe en la lista nueva: sin esto, quedaría
+    // "elegido" un puesto de la instalación anterior, invisible pero todavía
+    // marcado, y el botón de empezar mandaría un id que ya no corresponde.
+    ref.listen(perfilProvider, (anterior, actual) {
+      final idAnterior = anterior?.valueOrNull?.condominioId;
+      final idActual = actual.valueOrNull?.condominioId;
+      if (idAnterior != null && idActual != null && idAnterior != idActual) {
+        setState(() => _eleccion = _cubroTodo);
+      }
+    });
+
     final puestos = ref.watch(puestosDisponiblesProvider);
     final perfil = ref.watch(perfilProvider).valueOrNull;
     final anchoGrande = MediaQuery.sizeOf(context).width > 700;
@@ -109,16 +121,22 @@ class _EstadoTurno extends ConsumerState<PantallaTurno> {
                           Expanded(child: _Bienvenida(perfil: perfil)),
                           const SizedBox(width: 34),
                           Expanded(
-                            child: _Eleccion(
-                              puestos: puestos,
-                              elegido: _eleccion,
-                              trabajando: _trabajando,
-                              problema: _problema,
-                              alElegir: (id) =>
-                                  setState(() => _eleccion = id),
-                              alEmpezar: _empezar,
-                              alReintentar: () =>
-                                  ref.invalidate(puestosDisponiblesProvider),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                const SelectorDeInstalacionGuardia(),
+                                _Eleccion(
+                                  puestos: puestos,
+                                  elegido: _eleccion,
+                                  trabajando: _trabajando,
+                                  problema: _problema,
+                                  alElegir: (id) =>
+                                      setState(() => _eleccion = id),
+                                  alEmpezar: _empezar,
+                                  alReintentar: () => ref
+                                      .invalidate(puestosDisponiblesProvider),
+                                ),
+                              ],
                             ),
                           ),
                         ],
@@ -128,6 +146,7 @@ class _EstadoTurno extends ConsumerState<PantallaTurno> {
                         children: [
                           _Bienvenida(perfil: perfil),
                           const SizedBox(height: 26),
+                          const SelectorDeInstalacionGuardia(),
                           _Eleccion(
                             puestos: puestos,
                             elegido: _eleccion,

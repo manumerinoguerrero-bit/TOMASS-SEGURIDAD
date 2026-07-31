@@ -8,6 +8,7 @@
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../modelos/admin.dart';
 import '../modelos/modelos.dart';
 import '../servicios/servicio_guardia.dart';
 import 'proveedores.dart';
@@ -17,6 +18,26 @@ final servicioGuardiaProvider = Provider<ServicioGuardia>((ref) {
     ref.watch(supabaseProvider),
     ref.watch(servicioFotosProvider),
   );
+});
+
+// ============================================================================
+// LAS INSTALACIONES QUE ATIENDE
+// ============================================================================
+// Casi ningún guardia necesita esto: es para los pocos que rotan entre dos
+// instalaciones. Si atiende una sola, el selector ni aparece.
+// ============================================================================
+
+final misInstalacionesGuardiaProvider =
+    FutureProvider<List<Instalacion>>((ref) {
+  // Si cambia el perfil (por ejemplo al cambiar de instalación), la lista se
+  // vuelve a pedir sola para que la marca de "activa" quede al día.
+  ref.watch(perfilProvider);
+  return ref.watch(servicioGuardiaProvider).misInstalaciones();
+});
+
+final atiendeVariasGuardiaProvider = Provider<bool>((ref) {
+  final lista = ref.watch(misInstalacionesGuardiaProvider).valueOrNull;
+  return (lista?.length ?? 0) > 1;
 });
 
 // ============================================================================

@@ -20,6 +20,7 @@ import 'dart:io';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../config/entorno.dart';
+import '../modelos/admin.dart';
 import '../modelos/modelos.dart';
 import '../nucleo/errores.dart';
 import 'servicio_fotos.dart';
@@ -40,6 +41,42 @@ class ServicioGuardia {
       );
     }
     return usuario.id;
+  }
+
+  // ==========================================================================
+  // LAS INSTALACIONES QUE ATIENDE
+  // ==========================================================================
+  // Casi todos los guardias trabajan en una sola. Los que rotan entre dos
+  // (turnos compartidos entre instalaciones) usan esto para elegir en cuál
+  // están parados hoy, antes de abrir turno.
+  //
+  // Son las mismas dos funciones que ya usaba el panel del administrador para
+  // lo mismo: no es un mecanismo aparte, es el mismo permiso extendido.
+  // ==========================================================================
+
+  Future<List<Instalacion>> misInstalaciones() async {
+    try {
+      final filas = await _supabase
+          .rpc('mis_instalaciones')
+          .timeout(Entorno.esperaMaxima);
+
+      return (filas as List)
+          .map((f) => Instalacion.desdeMapa(Map<String, dynamic>.from(f)))
+          .toList();
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+
+  Future<void> cambiarDeInstalacion(String condominioId) async {
+    try {
+      await _supabase
+          .rpc('cambiar_de_instalacion',
+              params: {'p_condominio_id': condominioId})
+          .timeout(Entorno.esperaMaxima);
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
   }
 
   // ==========================================================================
