@@ -603,3 +603,91 @@ class VisitaEsperando {
         motivoRechazo: m['motivo_rechazo'] as String?,
       );
 }
+
+// ============================================================================
+// UN VEHÍCULO ENCONTRADO POR SU PATENTE
+// ============================================================================
+// PARA QUÉ SIRVE ESTO EN LA GARITA
+//
+//   El caso real: hay un auto estacionado donde no corresponde, o uno que el
+//   guardia no reconoce dando vueltas adentro. Con la patente sabe de quién es
+//   y lo llama, en vez de tener que buscar a alguien que lo conozca.
+//
+//   También sirve al revés: si la patente NO aparece, es un auto que no está
+//   registrado, y eso ya es información.
+// ============================================================================
+
+class VehiculoBuscado {
+  const VehiculoBuscado({
+    required this.id,
+    required this.patente,
+    required this.marca,
+    required this.modelo,
+    required this.color,
+    required this.estado,
+    required this.dueno,
+    this.anio,
+    this.telefono,
+    this.espacio,
+    this.fotoUrl,
+  });
+
+  final String id;
+  final String patente;
+  final String marca;
+  final String modelo;
+  final String color;
+
+  /// 'aprobado', 'pendiente' o 'rechazado'.
+  ///
+  /// Importa: un auto PENDIENTE está registrado pero todavía no puede entrar,
+  /// y el guardia tiene que saberlo antes de dejarlo pasar.
+  final String estado;
+
+  final String dueno;
+  final int? anio;
+  final String? telefono;
+  final String? espacio;
+  final String? fotoUrl;
+
+  bool get puedeEntrar => estado == 'aprobado';
+  bool get estaEsperandoAprobacion => estado == 'pendiente';
+  bool get fueRechazado => estado == 'rechazado';
+
+  String get descripcion => [marca, modelo, color, if (anio != null) '$anio']
+      .where((p) => p.trim().isNotEmpty)
+      .join(' · ');
+
+  factory VehiculoBuscado.desdeMapa(Map<String, dynamic> m) {
+    final u = m['usuarios'];
+    String dueno = 'Sin dueño registrado';
+    String? telefono;
+    String? espacio;
+
+    if (u is Map) {
+      dueno = (u['nombre_completo'] ?? dueno) as String;
+      telefono = u['telefono'] as String?;
+      final un = u['unidades'];
+      if (un is Map) {
+        espacio = [un['numero'], un['torre']]
+            .where((p) => p != null && p.toString().isNotEmpty)
+            .join(' ');
+        if (espacio.isEmpty) espacio = null;
+      }
+    }
+
+    return VehiculoBuscado(
+      id: m['id'] as String,
+      patente: ((m['patente'] ?? '') as String).toUpperCase(),
+      marca: (m['marca'] ?? '') as String,
+      modelo: (m['modelo'] ?? '') as String,
+      color: (m['color'] ?? '') as String,
+      anio: m['anio'] as int?,
+      estado: (m['estado'] ?? 'pendiente') as String,
+      fotoUrl: m['foto_url'] as String?,
+      dueno: dueno,
+      telefono: telefono,
+      espacio: espacio,
+    );
+  }
+}

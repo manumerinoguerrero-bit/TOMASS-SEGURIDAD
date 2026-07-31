@@ -208,3 +208,16 @@ final pideAutorizacionProvider = Provider<bool>((ref) {
   final tipo = ref.watch(palabrasProvider).tipo;
   return tipo == 'condominio' || tipo == 'edificio';
 });
+
+// ============================================================================
+// BUSCAR UN AUTO POR SU PATENTE
+// ============================================================================
+
+/// Lo que el guardia escribió en el buscador de patentes.
+final busquedaDePatenteProvider = StateProvider<String>((ref) => '');
+
+final vehiculosEncontradosProvider =
+    FutureProvider<List<VehiculoBuscado>>((ref) {
+  final texto = ref.watch(busquedaDePatenteProvider);
+  return ref.watch(servicioGuardiaProvider).buscarPorPatente(texto);
+});

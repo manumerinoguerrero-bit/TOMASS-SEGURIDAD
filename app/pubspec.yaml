@@ -117,6 +117,15 @@ dependencies:
   pdf: ^3.11.1
   printing: ^5.13.4
 
+  # ---- Llamar por teléfono ------------------------------------------------
+  # Para que el guardia toque el número del dueño de un auto y lo llame, sin
+  # tener que copiarlo a mano.
+  #
+  # Ya venía incluida de rebote dentro de otra librería, pero se pide en forma
+  # directa a propósito: si esa librería algún día deja de usarla, la app
+  # dejaría de compilar sin motivo aparente.
+  url_launcher: ^6.3.1
+
   # ---- Utilidades ---------------------------------------------------------
   # Fechas y números en formato chileno
   intl: ^0.20.1
