@@ -43,6 +43,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../config/tema.dart';
 import '../../estado/proveedores.dart';
 import '../../estado/proveedores_guardia.dart';
+import '../../modelos/formato_patente.dart';
 import '../../modelos/guardia.dart';
 import '../../nucleo/errores.dart';
 import '../../servicios/servicio_fotos.dart';
@@ -156,7 +157,7 @@ class _EstadoAccesoManual extends ConsumerState<PantallaAccesoManual> {
             sentido: _sentido,
             aDondeVa: _aDondeVa.text,
             autorizadoPor: _autoriza.text,
-            patente: _patente.text,
+            patente: FormatoPatente.normalizar(_patente.text),
             fotoUrl: rutaFoto,
             observacion: _observacion.text,
           );
@@ -331,9 +332,18 @@ class _EstadoAccesoManual extends ConsumerState<PantallaAccesoManual> {
               controller: _patente,
               textCapitalization: TextCapitalization.characters,
               textInputAction: TextInputAction.next,
+              // Solo letras y números: el guion lo pone la app sola al guardar.
+              // Así "bcdf12", "BCDF 12" y "BCDF-12" quedan iguales en el
+              // registro, y el guardia no tiene que acordarse del formato con
+              // el camión esperando adelante.
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp('[a-zA-Z0-9]')),
+                LengthLimitingTextInputFormatter(6),
+              ],
               decoration: const InputDecoration(
                 labelText: 'Patente del vehículo',
-                hintText: 'ABCD12',
+                hintText: 'BCDF12',
+                helperText: 'Sin guion. La app lo agrega sola.',
                 prefixIcon: Icon(Icons.directions_car_outlined),
               ),
             ),

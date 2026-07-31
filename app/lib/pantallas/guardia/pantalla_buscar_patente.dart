@@ -83,7 +83,9 @@ class _EstadoBuscarPatente extends ConsumerState<PantallaBuscarPatente> {
               // preocuparse por el guion.
               inputFormatters: [
                 FilteringTextInputFormatter.allow(RegExp('[a-zA-Z0-9]')),
-                LengthLimitingTextInputFormatter(8),
+                // 6 es el máximo real: la patente chilena más larga tiene 4
+                // letras y 2 números (BBBB99), o 2 letras y 4 números (AA9999).
+                LengthLimitingTextInputFormatter(6),
               ],
               style: const TextStyle(
                 fontSize: 26,
@@ -94,7 +96,7 @@ class _EstadoBuscarPatente extends ConsumerState<PantallaBuscarPatente> {
               onChanged: (t) =>
                   ref.read(busquedaDePatenteProvider.notifier).state = t,
               decoration: InputDecoration(
-                hintText: 'ABCD12',
+                hintText: 'BCDF12',
                 hintStyle: TextStyle(
                   fontSize: 26,
                   letterSpacing: 4,

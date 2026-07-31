@@ -125,8 +125,18 @@ class LectorDePatentes {
     }
   }
 
-  /// Corrige los errores típicos de la lectura automática: la letra O que se lee
-  /// como cero, la I como uno, y así.
+  /// Corrige los errores típicos de la lectura automática: el cero que en
+  /// realidad era una letra, el uno que era otra, y así.
+  ///
+  /// ⚠️ LAS PATENTES CHILENAS MODERNAS NO USAN VOCALES.
+  ///
+  ///    Desde 2007 el registro solo entrega consonantes: B C D F G H J K L P R
+  ///    S T V W X Y Z. No existe ninguna patente nueva con A, E, I, O ni U.
+  ///
+  ///    Eso importa acá: si al leer un 0 se propusiera una "O", se estaría
+  ///    inventando una patente que NO PUEDE EXISTIR, y el guardia la daría por
+  ///    buena. Un 0 borroso en la parte de las letras es casi seguro una D o una
+  ///    C; un 1 es una L o una T.
   String _corregirConfusiones(String texto) {
     if (texto.length != 6 && texto.length != 5) return texto;
 
@@ -135,11 +145,15 @@ class LectorDePatentes {
 
     final letras = texto.substring(0, cantidadDeLetras).split('').map((c) {
       return switch (c) {
-        '0' => 'O',
-        '1' => 'I',
+        // Se corrige HACIA CONSONANTES, nunca hacia vocales: una patente con
+        // vocal no existe, así que proponerla sería peor que no corregir.
+        '0' => 'D',
+        '1' => 'L',
         '5' => 'S',
         '8' => 'B',
         '2' => 'Z',
+        '6' => 'G',
+        '7' => 'T',
         _ => c,
       };
     }).join();

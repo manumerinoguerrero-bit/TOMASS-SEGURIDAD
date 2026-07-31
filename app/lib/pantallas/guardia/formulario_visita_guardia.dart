@@ -20,11 +20,13 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../config/tema.dart';
 import '../../estado/proveedores.dart';
 import '../../estado/proveedores_guardia.dart';
+import '../../modelos/formato_patente.dart';
 import '../../nucleo/errores.dart';
 import '../comunes/componentes.dart';
 
@@ -121,7 +123,7 @@ class _EstadoFormulario extends ConsumerState<_Formulario> {
             residenteId: _aQuienVaAVer!['id'] as String,
             nombre: _nombre.text,
             cedula: _cedula.text,
-            patente: _patente.text,
+            patente: FormatoPatente.normalizar(_patente.text),
             motivo: _motivo.text,
             llamoPorTelefono: _llamoPorTelefono,
           );
@@ -288,6 +290,12 @@ class _EstadoFormulario extends ConsumerState<_Formulario> {
                   child: TextField(
                     controller: _patente,
                     textCapitalization: TextCapitalization.characters,
+                    // El guion lo pone la app: así la misma patente no queda
+                    // escrita de tres formas distintas en el historial.
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp('[a-zA-Z0-9]')),
+                      LengthLimitingTextInputFormatter(6),
+                    ],
                     decoration: const InputDecoration(
                       labelText: 'Patente',
                       hintText: 'Si viene en auto',

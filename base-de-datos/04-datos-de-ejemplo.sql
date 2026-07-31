@@ -209,28 +209,40 @@ insert into public.turnos (
 -- PASO 6 · VEHÍCULOS
 -- ============================================================================
 
+-- ⚠️ LAS PATENTES DE ESTE ARCHIVO SIGUEN EL FORMATO CHILENO REAL.
+--
+--    Desde 2007 son 4 CONSONANTES y 2 NÚMEROS (BCDF-12). Las viejas son 2
+--    letras y 4 números (AB-1234), y las motos 3 letras y 2 números.
+--
+--    NO se usan vocales: no existe ninguna patente nueva con A, E, I, O ni U.
+--
+--    Antes acá había "ABC-123", que es 3 letras y 3 números: un formato que no
+--    existe en Chile. Quedaba mal al mostrarle el sistema a un cliente, y peor:
+--    hacía creer que el validador de la app estaba roto cuando en realidad
+--    estaba bien y los datos de prueba estaban mal.
+
 insert into public.vehiculos (
   id, condominio_id, residente_id, patente, marca, modelo, color, anio,
   estado, aprobado_por, aprobado_en, creado_en
 ) values
   -- Aprobado: este SÍ puede usar la barrera
   ('bb000000-0000-0000-0000-000000000001', 'cc000000-0000-0000-0000-000000000001',
-   '44444444-4444-4444-4444-444444444444', 'ABC-123', 'Toyota', 'Corolla', 'Blanco', 2021,
+   '44444444-4444-4444-4444-444444444444', 'BCDF-12', 'Toyota', 'Corolla', 'Blanco', 2021,
    'aprobado', '11111111-1111-1111-1111-111111111111',
    now() - interval '40 days', now() - interval '41 days'),
 
   -- Pendiente: el residente lo registró pero el administrador no lo ha revisado
   ('bb000000-0000-0000-0000-000000000002', 'cc000000-0000-0000-0000-000000000001',
-   '44444444-4444-4444-4444-444444444444', 'XYZ-789', 'Nissan', 'Versa', 'Gris', 2019,
+   '44444444-4444-4444-4444-444444444444', 'TVWX-78', 'Nissan', 'Versa', 'Gris', 2019,
    'pendiente', null, null, now() - interval '2 days'),
 
   ('bb000000-0000-0000-0000-000000000003', 'cc000000-0000-0000-0000-000000000001',
-   '55555555-5555-5555-5555-555555555555', 'GHI-456', 'Kia', 'Rio', 'Rojo', 2022,
+   '55555555-5555-5555-5555-555555555555', 'GHJK-34', 'Kia', 'Rio', 'Rojo', 2022,
    'aprobado', '11111111-1111-1111-1111-111111111111',
    now() - interval '30 days', now() - interval '31 days'),
 
   ('bb000000-0000-0000-0000-000000000004', 'cc000000-0000-0000-0000-000000000001',
-   '66666666-6666-6666-6666-666666666666', 'MNO-654', 'Suzuki', 'Swift', 'Azul', 2020,
+   '66666666-6666-6666-6666-666666666666', 'LPRS-65', 'Suzuki', 'Swift', 'Azul', 2020,
    'pendiente', null, null, now() - interval '4 hours');
 
 
@@ -251,7 +263,7 @@ insert into public.movimientos_acceso (
   ('cc000000-0000-0000-0000-000000000001', gen_random_uuid(), 'residente',
    '44444444-4444-4444-4444-444444444444', 'Juan Pérez Soto', '101 A',
    'ee000000-0000-0000-0000-000000000002', 'vehicular', 'salida',
-   'bb000000-0000-0000-0000-000000000001', 'ABC-123', 'aprobado', null,
+   'bb000000-0000-0000-0000-000000000001', 'BCDF-12', 'aprobado', null,
    '22222222-2222-2222-2222-222222222222', '77000000-0000-0000-0000-000000000001',
    now() - interval '11 hours'),
 
@@ -259,7 +271,7 @@ insert into public.movimientos_acceso (
   ('cc000000-0000-0000-0000-000000000001', gen_random_uuid(), 'residente',
    '44444444-4444-4444-4444-444444444444', 'Juan Pérez Soto', '101 A',
    'ee000000-0000-0000-0000-000000000002', 'vehicular', 'entrada',
-   'bb000000-0000-0000-0000-000000000001', 'ABC-123', 'aprobado', null,
+   'bb000000-0000-0000-0000-000000000001', 'BCDF-12', 'aprobado', null,
    '22222222-2222-2222-2222-222222222222', '77000000-0000-0000-0000-000000000001',
    now() - interval '2 hours'),
 
@@ -281,8 +293,8 @@ insert into public.movimientos_acceso (
   ('cc000000-0000-0000-0000-000000000001', gen_random_uuid(), 'residente',
    '66666666-6666-6666-6666-666666666666', 'Pedro Lagos Díaz', '204 B',
    'ee000000-0000-0000-0000-000000000002', 'vehicular', 'entrada',
-   null, 'MNO-654', 'denegado',
-   'El vehículo MNO-654 está pendiente de aprobación de la administración.',
+   null, 'LPRS-65', 'denegado',
+   'El vehículo LPRS-65 está pendiente de aprobación de la administración.',
    '22222222-2222-2222-2222-222222222222', '77000000-0000-0000-0000-000000000001',
    now() - interval '3 hours'),
 
@@ -484,7 +496,7 @@ insert into public.incidentes (
    'dano_propiedad', 'alta',
    'Barrera vehicular golpeada',
    'Un vehículo que salía golpeó el brazo de la barrera. El brazo quedó torcido pero sigue funcionando.',
-   null, 'MNO-654',
+   null, 'LPRS-65',
    '22222222-2222-2222-2222-222222222222', '77000000-0000-0000-0000-000000000001',
    now() - interval '8 days', 'cerrado',
    '11111111-1111-1111-1111-111111111111', now() - interval '5 days',
@@ -519,7 +531,7 @@ select residente, unidad, patente, marca, modelo, color, segundos_esperando
 select residente, unidad, numero_seguimiento, dias_en_porteria, alerta_antiguedad
   from public.v_paquetes_porteria;
 
--- Esperado: 2 filas — XYZ-789 (Juan) y MNO-654 (Pedro)
+-- Esperado: 2 filas — TVWX-78 (Juan) y LPRS-65 (Pedro)
 select residente, unidad, patente, marca, modelo, color, dias_esperando
   from public.v_vehiculos_por_aprobar;
 
