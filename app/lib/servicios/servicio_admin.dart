@@ -592,4 +592,86 @@ class ServicioAdmin {
       throw Traductor.traducir(falla);
     }
   }
+
+  // ==========================================================================
+  // ENCOMIENDAS ENTREGADAS: EL INFORME SEMANAL CON FOTOS
+  // ==========================================================================
+  // Manuel pidió esto para no depender de la limpieza automática de 6 meses
+  // (archivo 11): en vez de esperar medio año, el administrador imprime un
+  // informe con la foto de cada encomienda entregada y la borra en el momento.
+  // ==========================================================================
+
+  /// Las encomiendas entregadas en el período, que todavía tienen alguna foto.
+  ///
+  /// Las que ya no tienen ninguna foto (porque se limpiaron antes, a mano o
+  /// por la limpieza automática de los 6 meses) no aparecen: no hay nada que
+  /// mostrar ni que borrar de ellas.
+  Future<List<EncomiendaDelInforme>> encomiendasEntregadas({
+    required DateTime desde,
+    required DateTime hasta,
+  }) async {
+    try {
+      // ⚠️ Igual que en movimientos(): paquetes apunta a usuarios por DOS
+      //    caminos (el residente y el guardia que entregó). Sin nombrar cada
+      //    relación, la consulta falla entera con "more than one relationship
+      //    was found".
+      final filas = await _supabase
+          .from('paquetes')
+          .select('''
+            id, descripcion, numero_seguimiento, empresa_courier, entregado_en,
+            retirado_por, foto_url, foto_entrega_url,
+            usuarios!paquetes_residente_id_fkey ( nombre_completo ),
+            unidades ( numero, torre ),
+            guardia:usuarios!paquetes_guardia_entrega_id_fkey ( nombre_completo )
+          ''')
+          .eq('estado', 'entregado')
+          .isFilter('fotos_borradas_en', null)
+          .or('foto_url.not.is.null,foto_entrega_url.not.is.null')
+          .gte('entregado_en', desde.toIso8601String())
+          .lte('entregado_en', hasta.toIso8601String())
+          .order('entregado_en', ascending: false)
+          .timeout(Entorno.esperaMaxima);
+
+      return (filas as List)
+          .map((f) =>
+              EncomiendaDelInforme.desdeMapa(Map<String, dynamic>.from(f)))
+          .toList();
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+
+  /// Borra las fotos de las encomiendas que ya quedaron impresas en un
+  /// informe. El texto (quién retiró, cuándo, quién entregó) y la firma NUNCA
+  /// se tocan acá: eso es lo que sigue sirviendo como constancia después.
+  Future<void> borrarFotosDeEncomiendas(
+    List<EncomiendaDelInforme> encomiendas,
+  ) async {
+    if (encomiendas.isEmpty) return;
+
+    final rutas = <String>[
+      for (final e in encomiendas) ...[
+        if (e.fotoUrl != null) e.fotoUrl!,
+        if (e.fotoEntregaUrl != null) e.fotoEntregaUrl!,
+      ],
+    ];
+
+    try {
+      // Primero se borran los ARCHIVOS. Si esto falla, no se toca la base de
+      // datos: mejor un archivo que sigue de más, que una fila que dice "sin
+      // foto" cuando en realidad la foto sigue ocupando espacio sin que nadie
+      // la encuentre.
+      if (rutas.isNotEmpty) {
+        await _supabase.storage.from('paquetes').remove(rutas);
+      }
+
+      await _supabase.from('paquetes').update({
+        'foto_url': null,
+        'foto_entrega_url': null,
+        'fotos_borradas_en': DateTime.now().toIso8601String(),
+      }).inFilter('id', encomiendas.map((e) => e.id).toList());
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
 }

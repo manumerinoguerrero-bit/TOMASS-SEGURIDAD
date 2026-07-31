@@ -118,6 +118,7 @@ void refrescarPanel(WidgetRef ref) {
   ref.invalidate(espaciosProvider);
   ref.invalidate(movimientosAdminProvider);
   ref.invalidate(turnosAdminProvider);
+  ref.invalidate(encomiendasDelInformeProvider);
 }
 
 // ============================================================================
@@ -148,4 +149,20 @@ final informeDeRondasProvider = FutureProvider<List<RondaDelInforme>>((ref) {
   return ref
       .watch(servicioAdminProvider)
       .informeDeRondas(dias: ref.watch(diasDelInformeDeRondasProvider));
+});
+
+// ============================================================================
+// EL INFORME DE ENCOMIENDAS, CON FOTO
+// ============================================================================
+
+final diasDelInformeDeEncomiendasProvider = StateProvider<int>((ref) => 7);
+
+final encomiendasDelInformeProvider =
+    FutureProvider<List<EncomiendaDelInforme>>((ref) {
+  final dias = ref.watch(diasDelInformeDeEncomiendasProvider);
+  final hasta = DateTime.now();
+  final desde = hasta.subtract(Duration(days: dias));
+  return ref
+      .watch(servicioAdminProvider)
+      .encomiendasEntregadas(desde: desde, hasta: hasta);
 });

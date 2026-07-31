@@ -31,7 +31,10 @@
 // ============================================================================
 
 import 'dart:io';
+import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show compute;
+import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -257,6 +260,48 @@ class ServicioFotos {
     } catch (_) {
       // Queda un archivo huérfano. No es grave y no vale interrumpir a nadie.
     }
+  }
+
+  // --------------------------------------------------------------------------
+  // Bajar una foto para meterla en un PDF (el informe de encomiendas)
+  // --------------------------------------------------------------------------
+  /// Baja los bytes de la foto y los achica, para incrustarla en el informe.
+  ///
+  /// Devuelve null si la foto ya no existe (por ejemplo, se borró antes de
+  /// generar el informe). Un informe con una foto faltante no debe romperse
+  /// entero: esa fila queda con el aviso de "sin foto" y el resto sigue.
+  Future<Uint8List?> bytesParaPdf(String? ruta, CajonDeFotos cajon) async {
+    if (ruta == null || ruta.isEmpty || ruta.startsWith('http')) return null;
+    try {
+      final original = await _supabase.storage.from(cajon.nombre).download(ruta);
+      // compute() lo manda a otro hilo: achicar y recomprimir varias fotos
+      // seguidas en el mismo hilo trabaría la pantalla mientras se arma el
+      // informe.
+      return await compute(_achicarParaElInforme, original);
+    } catch (_) {
+      return null;
+    }
+  }
+}
+
+/// La achica solo para el informe: ahí no hace falta calidad de foto, alcanza
+/// con que se reconozca el paquete. Una foto de portería ya viene a ~170 KB
+/// (ver PropositoDeLaFoto); un informe con 50 de esas pesaría varios MB,
+/// demasiado para mandar por WhatsApp con mala señal. Achicada así queda en
+/// unos 20-30 KB.
+///
+/// Función de nivel superior (no un método de clase) a propósito: es lo que
+/// pide compute() para poder correrla en otro hilo.
+Uint8List _achicarParaElInforme(Uint8List original) {
+  try {
+    final decodificada = img.decodeImage(original);
+    if (decodificada == null) return original;
+    final chica = img.copyResize(decodificada, width: 480);
+    return Uint8List.fromList(img.encodeJpg(chica, quality: 55));
+  } catch (_) {
+    // Si algo sale mal achicándola, mejor mostrar la original que no mostrar
+    // nada.
+    return original;
   }
 }
 

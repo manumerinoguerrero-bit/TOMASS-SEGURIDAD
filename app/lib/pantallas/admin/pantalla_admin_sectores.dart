@@ -27,8 +27,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:printing/printing.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-import 'package:share_plus/share_plus.dart';
 
 import '../../config/tema.dart';
 import '../../estado/proveedores.dart';
@@ -37,6 +37,7 @@ import '../../modelos/admin.dart';
 import '../../nucleo/errores.dart';
 import '../../nucleo/formato.dart';
 import '../../nucleo/ubicacion.dart';
+import '../../servicios/cartel_de_sector_pdf.dart';
 import '../comunes/componentes.dart';
 import 'acciones_admin.dart';
 
@@ -281,6 +282,8 @@ class _EstadoSectores extends ConsumerState<PantallaAdminSectores> {
   Widget build(BuildContext context) {
     final puntos = ref.watch(puntosDeControlAdminProvider);
     final sinUbicar = ref.watch(sectoresSinUbicarProvider);
+    final instalacion =
+        ref.watch(perfilProvider).valueOrNull?.nombreCondominio ?? 'Instalación';
 
     return Scaffold(
       appBar: AppBar(
@@ -333,6 +336,7 @@ class _EstadoSectores extends ConsumerState<PantallaAdminSectores> {
                 _Sector(
                   punto: lista[i],
                   numero: i + 1,
+                  instalacion: instalacion,
                   alUbicar: () => _ubicarAca(lista[i]),
                   alRenombrar: () async {
                     final n = await _pedirNombre(actual: lista[i].nombre);
@@ -443,6 +447,7 @@ class _Sector extends StatelessWidget {
   const _Sector({
     required this.punto,
     required this.numero,
+    required this.instalacion,
     required this.alUbicar,
     required this.alRenombrar,
     required this.alDarDeBaja,
@@ -450,6 +455,7 @@ class _Sector extends StatelessWidget {
 
   final PuntoControlAdmin punto;
   final int numero;
+  final String instalacion;
   final VoidCallback alUbicar;
   final VoidCallback alRenombrar;
   final VoidCallback alDarDeBaja;
@@ -461,7 +467,7 @@ class _Sector extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.only(bottom: 9),
       child: ListTile(
-        onTap: () => _mostrarCartel(context, punto),
+        onTap: () => _mostrarCartel(context, punto, instalacion),
         leading: Container(
           width: 42,
           height: 42,
@@ -493,7 +499,7 @@ class _Sector extends StatelessWidget {
           onSelected: (a) {
             switch (a) {
               case 'cartel':
-                _mostrarCartel(context, punto);
+                _mostrarCartel(context, punto, instalacion);
               case 'ubicar':
                 alUbicar();
               case 'nombre':
@@ -550,7 +556,11 @@ class _Sector extends StatelessWidget {
   // EL CARTEL PARA IMPRIMIR
   // ==========================================================================
 
-  static void _mostrarCartel(BuildContext context, PuntoControlAdmin punto) {
+  static void _mostrarCartel(
+    BuildContext context,
+    PuntoControlAdmin punto,
+    String instalacion,
+  ) {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -623,48 +633,63 @@ class _Sector extends StatelessWidget {
                 ),
 
               const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () {
-                        Clipboard.setData(ClipboardData(text: punto.codigoQr));
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () async {
+                    try {
+                      await Printing.layoutPdf(
+                        name: 'cartel-${punto.nombre}.pdf',
+                        onLayout: (_) => CartelDeSectorPdf.armar(
+                          instalacion: instalacion,
+                          sector: punto.nombre,
+                          codigoQr: punto.codigoQr,
+                          tieneUbicacion: punto.tieneUbicacion,
+                        ),
+                      );
+                    } catch (_) {
+                      if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                            content: Text('Código copiado.'),
-                            backgroundColor: Colores.grafito,
+                            content: Text('No se pudo abrir el diálogo de impresión.'),
+                            backgroundColor: Colores.rojo,
                           ),
                         );
-                      },
-                      icon: const Icon(Icons.copy_rounded, size: 18),
-                      label: const Text('Copiar código'),
-                      style: OutlinedButton.styleFrom(
-                        minimumSize: const Size(0, Medidas.altoBoton),
-                      ),
-                    ),
+                      }
+                    }
+                  },
+                  icon: const Icon(Icons.print_rounded, size: 19),
+                  label: const Text('Imprimir o guardar PDF'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colores.grafito,
+                    minimumSize: const Size(0, Medidas.altoBoton),
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: () => Share.share(
-                        'Cartel del sector "${punto.nombre}" — Tomass Seguridad\n\n'
-                        'Código: ${punto.codigoQr}',
-                        subject: 'Cartel de ${punto.nombre}',
-                      ),
-                      icon: const Icon(Icons.share_rounded, size: 18),
-                      label: const Text('Compartir'),
-                      style: FilledButton.styleFrom(
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: punto.codigoQr));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Código copiado.'),
                         backgroundColor: Colores.grafito,
-                        minimumSize: const Size(0, Medidas.altoBoton),
                       ),
-                    ),
+                    );
+                  },
+                  icon: const Icon(Icons.copy_rounded, size: 18),
+                  label: const Text('Copiar código'),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(0, Medidas.altoBoton),
                   ),
-                ],
+                ),
               ),
               const SizedBox(height: 10),
               const Text(
-                'Para imprimirlo en tamaño grande y plastificado, usá el archivo '
-                'de carteles de la carpeta del proyecto.',
+                'El diálogo que se abre deja elegir impresora, guardar como '
+                'PDF o compartirlo por WhatsApp para imprimirlo más tarde.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                     fontSize: 11.5, height: 1.4, color: Colores.textoTenue),

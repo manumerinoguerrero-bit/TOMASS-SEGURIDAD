@@ -608,3 +608,91 @@ class SectorDelPlano {
         longitud: (m['longitud'] as num?)?.toDouble(),
       );
 }
+
+// ============================================================================
+// UNA ENCOMIENDA ENTREGADA, PARA EL INFORME CON FOTOS
+// ============================================================================
+
+class EncomiendaDelInforme {
+  const EncomiendaDelInforme({
+    required this.id,
+    required this.entregadoEn,
+    this.descripcion,
+    this.numeroSeguimiento,
+    this.empresaCourier,
+    this.residente,
+    this.unidad,
+    this.retiradoPor,
+    this.guardiaEntrega,
+    this.fotoUrl,
+    this.fotoEntregaUrl,
+  });
+
+  final String id;
+  final DateTime entregadoEn;
+  final String? descripcion;
+  final String? numeroSeguimiento;
+  final String? empresaCourier;
+  final String? residente;
+  final String? unidad;
+
+  /// Quien retiró, si no fue el propio residente (por ejemplo, un familiar o
+  /// el conserje). Si es null, la retiró el residente en persona.
+  final String? retiradoPor;
+  final String? guardiaEntrega;
+
+  final String? fotoUrl;
+  final String? fotoEntregaUrl;
+
+  bool get tieneFoto => fotoUrl != null || fotoEntregaUrl != null;
+
+  /// Con qué foto se arma la fila del informe.
+  ///
+  /// Se prefiere la de la ENTREGA porque es la que prueba que el paquete se
+  /// fue en buen estado con la persona correcta, que es lo que este informe
+  /// necesita demostrar. Si esa no se sacó, se usa la de cuando llegó a
+  /// portería: es mejor mostrar esa que dejar la fila vacía.
+  String? get fotoParaElInforme => fotoEntregaUrl ?? fotoUrl;
+
+  /// A quién se le entregó, ya armado para mostrar.
+  String get quienRetiro => (retiradoPor != null && retiradoPor!.isNotEmpty)
+      ? retiradoPor!
+      : (residente ?? 'Sin nombre registrado');
+
+  factory EncomiendaDelInforme.desdeMapa(Map<String, dynamic> m) {
+    final residenteMapa = m['usuarios'];
+    String? residente;
+    if (residenteMapa is Map) {
+      residente = residenteMapa['nombre_completo'] as String?;
+    }
+
+    final unidadMapa = m['unidades'];
+    String? unidad;
+    if (unidadMapa is Map) {
+      unidad = [unidadMapa['numero'], unidadMapa['torre']]
+          .where((p) => p != null && p.toString().isNotEmpty)
+          .join(' ');
+      if (unidad.isEmpty) unidad = null;
+    }
+
+    final guardiaMapa = m['guardia'];
+    String? guardia;
+    if (guardiaMapa is Map) {
+      guardia = guardiaMapa['nombre_completo'] as String?;
+    }
+
+    return EncomiendaDelInforme(
+      id: m['id'] as String,
+      entregadoEn: DateTime.parse(m['entregado_en'] as String),
+      descripcion: m['descripcion'] as String?,
+      numeroSeguimiento: m['numero_seguimiento'] as String?,
+      empresaCourier: m['empresa_courier'] as String?,
+      residente: residente,
+      unidad: unidad,
+      retiradoPor: m['retirado_por'] as String?,
+      guardiaEntrega: guardia,
+      fotoUrl: m['foto_url'] as String?,
+      fotoEntregaUrl: m['foto_entrega_url'] as String?,
+    );
+  }
+}

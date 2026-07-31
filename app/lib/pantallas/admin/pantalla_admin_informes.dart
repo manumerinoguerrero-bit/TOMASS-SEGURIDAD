@@ -28,6 +28,7 @@ import '../../nucleo/errores.dart';
 import '../../nucleo/formato.dart';
 import '../comunes/componentes.dart';
 import 'acciones_admin.dart';
+import 'informe_de_encomiendas.dart';
 import 'informe_de_rondas.dart';
 
 class PantallaAdminInformes extends ConsumerWidget {
@@ -36,12 +37,13 @@ class PantallaAdminInformes extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return DefaultTabController(
-      length: 3,
+      length: 4,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Informes'),
           actions: const [MenuDelAdmin()],
           bottom: const TabBar(
+            isScrollable: true,
             indicatorColor: Colors.white,
             indicatorWeight: 3,
             labelColor: Colors.white,
@@ -50,11 +52,17 @@ class PantallaAdminInformes extends ConsumerWidget {
               Tab(text: 'Accesos'),
               Tab(text: 'Turnos'),
               Tab(text: 'Rondas'),
+              Tab(text: 'Encomiendas'),
             ],
           ),
         ),
         body: const TabBarView(
-          children: [_PestanaAccesos(), _PestanaTurnos(), PestanaRondas()],
+          children: [
+            _PestanaAccesos(),
+            _PestanaTurnos(),
+            PestanaRondas(),
+            PestanaEncomiendas(),
+          ],
         ),
       ),
     );

@@ -107,15 +107,28 @@ dependencies:
   geolocator: ^13.0.2
 
   # ---- Informes en PDF ----------------------------------------------------
-  # Para el informe de rondas que el administrador le entrega al cliente.
+  # Para el informe de rondas y el de encomiendas que el administrador le
+  # entrega al cliente, y para el cartel de cada sector de ronda.
   #
   #   pdf       arma el documento
   #   printing  lo abre, lo comparte por WhatsApp o lo manda a una impresora
+  #   barcode   dibuja el código QR del cartel DENTRO del PDF, como líneas y
+  #             no como una foto, para que salga nítido en cualquier tamaño de
+  #             hoja. Ya venía incluida de rebote dentro de pdf; se pide en
+  #             forma directa para poder usarla desde la app.
   #
   # Se genera EN EL TELÉFONO, no en el servidor. Así el administrador saca el
   # informe estando en la instalación, sin depender de que haya internet bueno.
   pdf: ^3.11.1
   printing: ^5.13.4
+  barcode: ^2.2.9
+
+  # Achica las fotos de las encomiendas antes de meterlas en el informe
+  # semanal. Ya vienen comprimidas desde que se sacaron (ver servicio_fotos),
+  # pero un informe con 50 fotos a ese tamaño pesaría demasiado para mandar
+  # por WhatsApp con mala señal. Acá se las achica una vez más, solo para el
+  # PDF: no se tocan las fotos originales.
+  image: ^4.3.0
 
   # ---- Llamar por teléfono ------------------------------------------------
   # Para que el guardia toque el número del dueño de un auto y lo llame, sin
@@ -138,10 +151,9 @@ dev_dependencies:
   flutter_lints: ^5.0.0
 
   # ---- Solo para preparar el ícono de la app ------------------------------
-  # Estas dos NO viajan dentro de la app instalada: son herramientas que se
-  # usan una sola vez, acá en el computador, para armar los íconos.
+  # Estas NO viajan dentro de la app instalada: son herramientas que se usan
+  # una sola vez, acá en el computador, para armar los íconos.
   #
-  #   image                 → recorta y centra el escudo (herramientas/generar_icono.dart)
   #   flutter_launcher_icons → reparte el ícono en los 20 tamaños que pide cada
   #                            teléfono, para no tener que hacerlo a mano
   #   qr                    → dibuja los códigos QR de los carteles del muro
@@ -149,7 +161,9 @@ dev_dependencies:
   #                            incluida dentro de qr_flutter; acá solo se pide
   #                            en forma directa para poder usarla desde afuera
   #                            de la app.
-  image: ^4.3.0
+  #
+  # (image ya no va acá: ahora también se usa DENTRO de la app para achicar
+  # las fotos del informe de encomiendas, así que subió a "dependencies".)
   flutter_launcher_icons: ^0.14.3
   qr: ^3.0.2
 
