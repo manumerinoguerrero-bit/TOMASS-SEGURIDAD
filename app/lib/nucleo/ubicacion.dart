@@ -58,6 +58,35 @@ class Ubicacion {
 }
 
 abstract final class Localizador {
+  /// Deja resuelto el permiso de ubicación (concedido o negado) ANTES de que
+  /// la pantalla que llama abra ningún cartel propio.
+  ///
+  /// ⚠️ POR QUÉ EXISTE, Y POR QUÉ HAY QUE LLAMARLA ANTES DE ABRIR UN DIÁLOGO
+  ///
+  ///    Si nunca se había pedido este permiso, Android lo pregunta con un
+  ///    aviso del SISTEMA OPERATIVO, no de la app. Si ese aviso aparece justo
+  ///    mientras se está cerrando un cartel de la app (por ejemplo, el de
+  ///    "nombre del sector" antes de tomar la ubicación), la interrupción deja
+  ///    esa animación a medio terminar y la app se cae con la pantalla roja de
+  ///    error. Nos pasó de verdad: a Manuel, recién reinstalada la app, se le
+  ///    cayó al tocar "Agregar sector acá".
+  ///
+  ///    Por eso hay que llamar a esto ANTES de abrir el primer cartel del
+  ///    flujo. Así, si el aviso de Android tiene que aparecer, aparece con la
+  ///    pantalla tranquila, sin ningún cartel de la app en el medio.
+  static Future<void> resolverPermiso() async {
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) return;
+      final permiso = await Geolocator.checkPermission();
+      if (permiso == LocationPermission.denied) {
+        await Geolocator.requestPermission();
+      }
+    } catch (_) {
+      // Si esto falla, no importa: donde() más adelante vuelve a intentar y,
+      // si tampoco puede, devuelve null sin romper nada.
+    }
+  }
+
   /// Dónde está el teléfono ahora, o null si no se pudo saber.
   ///
   /// Nunca lanza un error. Ver la explicación de arriba.

@@ -56,6 +56,11 @@ class _EstadoSectores extends ConsumerState<PantallaAdminSectores> {
   // ==========================================================================
 
   Future<void> _agregarAca() async {
+    // Se resuelve el permiso de ubicación ANTES de abrir el cartel de
+    // "nombre del sector". Ver la explicación larga en Localizador.resolverPermiso.
+    await Localizador.resolverPermiso();
+    if (!mounted) return;
+
     final nombre = await _pedirNombre();
     if (nombre == null || !mounted) return;
 
@@ -144,6 +149,12 @@ class _EstadoSectores extends ConsumerState<PantallaAdminSectores> {
   // ==========================================================================
 
   Future<void> _ubicarAca(PuntoControlAdmin punto) async {
+    // Mismo motivo que en _agregarAca: resolver el permiso ANTES de abrir el
+    // cartel de confirmación, para que el aviso de Android (si hace falta)
+    // nunca interrumpa una animación de la app a medio camino.
+    await Localizador.resolverPermiso();
+    if (!mounted) return;
+
     final ok = await _preguntar(
       titulo: '¿Estás parado en ${punto.nombre}?',
       texto: 'La ubicación se toma DONDE ESTÁS AHORA. Si la tomás desde otro '
