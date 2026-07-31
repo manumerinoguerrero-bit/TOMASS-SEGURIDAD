@@ -62,10 +62,39 @@ class _EstadoHoja extends ConsumerState<_HojaDelCodigo> {
     );
 
     try {
-      await Share.share(mensaje, subject: 'Tu código de acceso');
+      // ⚠️ EL TEXTO SOLO NO LE SIRVE A NADIE.
+      //
+      //    El lector del guardia es una cámara: necesita apuntarle a una
+      //    IMAGEN. Si se comparte solo el texto "Código: 16e57b4a...", el
+      //    visitante llega con un mensaje de WhatsApp y no tiene nada que
+      //    mostrarle al guardia para escanear.
+      //
+      //    Por eso el QR se dibuja acá mismo, aparte de la pantalla (con
+      //    QrPainter, no con una captura de lo que se ve), y se comparte
+      //    como imagen junto con el texto.
+      final bytes = await QrPainter(
+        data: widget.visita.tokenQr,
+        version: QrVersions.auto,
+        errorCorrectionLevel: QrErrorCorrectLevel.H,
+      ).toImageData(600);
+
+      if (bytes == null) throw Exception('No se pudo dibujar el QR');
+
+      await Share.shareXFiles(
+        [
+          XFile.fromData(
+            bytes.buffer.asUint8List(),
+            mimeType: 'image/png',
+            name: 'codigo-de-acceso.png',
+          ),
+        ],
+        text: mensaje,
+        subject: 'Tu código de acceso',
+      );
     } catch (_) {
       if (!mounted) return;
-      // Si no se pudo abrir el menú de compartir, al menos se copia el texto
+      // Si no se pudo armar la imagen o abrir el menú de compartir, al menos
+      // se copia el texto: no deja al residente sin nada.
       await Clipboard.setData(ClipboardData(text: mensaje));
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

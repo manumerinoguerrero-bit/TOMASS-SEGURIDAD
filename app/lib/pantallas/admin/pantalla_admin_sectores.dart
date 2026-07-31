@@ -56,27 +56,31 @@ class _EstadoSectores extends ConsumerState<PantallaAdminSectores> {
   // ==========================================================================
 
   Future<void> _agregarAca() async {
-    // Se resuelve el permiso de ubicación ANTES de abrir el cartel de
-    // "nombre del sector". Ver la explicación larga en Localizador.resolverPermiso.
-    await Localizador.resolverPermiso();
+    setState(() => _trabajando = true);
+
+    // ⚠️ TODO EL TRABAJO CON EL GPS VA ACÁ, ANTES DE ABRIR NINGÚN CARTEL.
+    //
+    //    No alcanzaba con resolver el permiso antes: el propio pedido de
+    //    ubicación (Geolocator.getCurrentPosition) puede disparar OTRO aviso
+    //    del sistema operativo, por ejemplo el de "activar ubicación de alta
+    //    precisión". Si cualquiera de esos avisos aparece mientras se está
+    //    cerrando un cartel de la app (el de "nombre del sector", por
+    //    ejemplo), la interrupción deja la animación a medio camino y la app
+    //    se cae con la pantalla roja. Nos volvió a pasar con el arreglo
+    //    anterior, que solo cubría el permiso y no el pedido en sí.
+    //
+    //    Acá no hay ningún cartel de la app abierto todavía, así que
+    //    cualquier aviso de Android aparece con la pantalla tranquila.
+    final donde = await Localizador.donde();
+    final porque = donde == null ? await Localizador.porQueNoSePudo() : null;
+
     if (!mounted) return;
+    setState(() => _trabajando = false);
 
     final nombre = await _pedirNombre();
     if (nombre == null || !mounted) return;
 
-    setState(() => _trabajando = true);
-
-    // Se toma la ubicación ANTES de crear nada: si el GPS no anda, conviene
-    // avisarle ahora y no dejarlo con un sector a medio hacer.
-    final donde = await Localizador.donde();
-
-    if (!mounted) return;
-
     if (donde == null) {
-      final porque = await Localizador.porQueNoSePudo();
-      if (!mounted) return;
-      setState(() => _trabajando = false);
-
       final igual = await _preguntar(
         titulo: 'No se pudo tomar la ubicación',
         texto: '${porque ?? ""}\n\nPodés crear el sector igual, pero sin '
@@ -96,7 +100,6 @@ class _EstadoSectores extends ConsumerState<PantallaAdminSectores> {
     // El GPS a veces contesta con un error enorme. Conviene decirlo antes de
     // guardar una ubicación que después va a dar falsas alarmas.
     if (!donde.esConfiable) {
-      setState(() => _trabajando = false);
       final igual = await _preguntar(
         titulo: 'La ubicación no es precisa',
         texto: 'El teléfono dice que puede errarle hasta ${donde.errorEnPalabras}. '
@@ -107,9 +110,9 @@ class _EstadoSectores extends ConsumerState<PantallaAdminSectores> {
         siText: 'Guardar igual',
       );
       if (igual != true || !mounted) return;
-      setState(() => _trabajando = true);
     }
 
+    setState(() => _trabajando = true);
     await _crear(nombre, donde);
   }
 
@@ -149,11 +152,21 @@ class _EstadoSectores extends ConsumerState<PantallaAdminSectores> {
   // ==========================================================================
 
   Future<void> _ubicarAca(PuntoControlAdmin punto) async {
-    // Mismo motivo que en _agregarAca: resolver el permiso ANTES de abrir el
-    // cartel de confirmación, para que el aviso de Android (si hace falta)
-    // nunca interrumpa una animación de la app a medio camino.
-    await Localizador.resolverPermiso();
+    setState(() => _trabajando = true);
+
+    // Mismo motivo que en _agregarAca: TODO el trabajo con el GPS va antes
+    // de abrir el cartel de confirmación, para que ningún aviso de Android
+    // pueda interrumpir una animación de la app a medio camino.
+    final donde = await Localizador.donde();
+    final porque = donde == null ? await Localizador.porQueNoSePudo() : null;
+
     if (!mounted) return;
+    setState(() => _trabajando = false);
+
+    if (donde == null) {
+      _avisar(porque ?? 'No se pudo.', malo: true);
+      return;
+    }
 
     final ok = await _preguntar(
       titulo: '¿Estás parado en ${punto.nombre}?',
@@ -165,14 +178,6 @@ class _EstadoSectores extends ConsumerState<PantallaAdminSectores> {
     if (ok != true || !mounted) return;
 
     setState(() => _trabajando = true);
-    final donde = await Localizador.donde();
-    if (!mounted) return;
-
-    if (donde == null) {
-      setState(() => _trabajando = false);
-      _avisar(await Localizador.porQueNoSePudo() ?? 'No se pudo.', malo: true);
-      return;
-    }
 
     try {
       await ref.read(servicioAdminProvider).ubicarPuntoDeControl(
