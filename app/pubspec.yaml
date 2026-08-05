@@ -144,6 +144,29 @@ dependencies:
   intl: ^0.20.1
   cupertino_icons: ^1.0.8
 
+# ============================================================================
+# UN EMPATE FORZADO, SOLO PARA QUE LA APP ARME EN IPHONE
+# ============================================================================
+# El lector de patentes (google_mlkit_text_recognition) y el lector de QR
+# (mobile_scanner) usan, cada uno por su lado, una misma pieza interna de
+# Google llamada MLKitVision. En Android no pasa nada. En iPhone, la versión
+# que google_mlkit_commons trae de fábrica (0.11.1 en adelante) pide
+# MLKitVision 10, y mobile_scanner pide MLKitVision 8: la app ni siquiera
+# llega a compilar para iPhone, se cae en el primer intento.
+#
+# La propia librería del lector de patentes ya permite usar la versión
+# anterior (0.11.0), que todavía pedía MLKitVision 8 y por lo tanto no choca
+# con el lector de QR. Esta línea fuerza esa versión más vieja.
+#
+# El día de mañana, si se actualiza mobile_scanner a su versión 7 (que dejó
+# de usar las piezas de Google en iPhone y pasó a usar las de Apple
+# directamente), este empate ya no va a hacer falta y se puede sacar. Ese
+# salto de versión no se hizo ahora a propósito: cambia demasiado el lector
+# de QR, que es lo que los guardias usan todos los días, y no es algo para
+# tocar a la ligera justo antes de salir a producción.
+dependency_overrides:
+  google_mlkit_commons: 0.11.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
