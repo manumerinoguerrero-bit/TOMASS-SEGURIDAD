@@ -17,9 +17,17 @@
 #   SÍ: comprueba que la app COMPILA para iPhone, que las piezas encajan y que
 #       no hay errores. Es la única forma de saberlo sin comprar un Mac.
 #
-#   NO: no genera algo instalable en un iPhone de verdad. Para eso Apple exige
-#       una firma digital, y esa firma sale de una cuenta de desarrollador que
-#       cuesta 99 dólares por año. Por eso se compila con --no-codesign.
+#   SÍ (con un paso más): deja para descargar un archivo .ipa SIN FIRMAR. No lo
+#       instala un iPhone abriéndolo así nomás — Apple no lo permite sin cuenta
+#       paga — pero programas como Sideloadly (gratis, corre en Windows) lo
+#       toman y lo firman ellos mismos con un Apple ID gratuito, para instalarlo
+#       en UN iPhone conectado por cable. Se vence a los 7 días: es la letra
+#       chica de Apple para todo lo que no pasa por una cuenta paga, no un
+#       límite de esta receta. Ver LEEME-IPHONE.md para los pasos con Sideloadly.
+#
+#   NO: no reemplaza la cuenta de desarrollador para repartir la app a otras
+#       personas (guardias, apoderados) sin tocarles el teléfono. Para eso sigue
+#       haciendo falta TestFlight, que exige la cuenta paga de Apple.
 #
 # ⚠️ POR QUÉ NO SE EJECUTA SOLA EN CADA CAMBIO
 #
@@ -78,9 +86,35 @@ jobs:
         working-directory: app
         run: flutter build ios --debug --no-codesign
 
+      # Un .ipa es, por dentro, un archivo .zip con una carpeta "Payload" que
+      # contiene la app. Acá se arma esa carpeta a mano y se comprime: es
+      # exactamente lo que espera un programa como Sideloadly para poder
+      # firmarlo con un Apple ID gratuito e instalarlo en un iPhone por cable.
+      - name: Empaquetar como .ipa (sin firmar)
+        working-directory: app
+        run: |
+          mkdir -p Payload
+          cp -r build/ios/iphoneos/Runner.app Payload/
+          zip -r tomass-seguridad-sin-firmar.ipa Payload
+
+      # Se guarda 7 días a propósito: es lo que dura instalada la app firmada
+      # con un Apple ID gratuito. Pasado ese tiempo, este archivo ya no sirve
+      # para nada nuevo, así que no tiene sentido guardarlo más tiempo.
+      - name: Dejar el .ipa para descargar
+        uses: actions/upload-artifact@v4
+        with:
+          name: tomass-seguridad-ipa-sin-firmar
+          path: app/tomass-seguridad-sin-firmar.ipa
+          retention-days: 7
+
       - name: Contar cómo fue
         if: always()
         run: |
           echo "Si este paso dice que todo salió bien, la app arma para iPhone."
-          echo "Para instalarla en un iPhone de verdad hace falta la cuenta de"
-          echo "desarrollador de Apple (99 dolares al ano). Ver LEEME-IPHONE.md"
+          echo "Más abajo en esta misma página, en 'Artifacts', está el archivo"
+          echo "tomass-seguridad-ipa-sin-firmar para bajar e instalar con"
+          echo "Sideloadly. Dura 7 días. Ver LEEME-IPHONE.md para los pasos."
+          echo ""
+          echo "Para repartirla a guardias o apoderados sin tocarles el"
+          echo "teléfono, sigue haciendo falta la cuenta de desarrollador de"
+          echo "Apple (99 dolares al ano) y TestFlight."

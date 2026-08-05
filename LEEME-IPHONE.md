@@ -84,6 +84,54 @@ configurado. En Android sí funcionan, y son gratis.
 
 ---
 
+## Mientras esperás que Apple te apruebe la cuenta: instalarla igual, gratis, en UN iPhone
+
+Esto no reemplaza la cuenta paga — es solo para ver la app andando en un iPhone
+de verdad HOY, mientras Apple aprueba tu membresía (puede tardar de horas a un
+par de días).
+
+### Lo que hace falta
+
+- Un iPhone, con su cable para conectarlo a la computadora.
+- Tu computadora Windows (no hace falta Mac para esto).
+- Un **Apple ID gratuito** (no la cuenta paga — el que se crea en
+  appleid.apple.com sin costo).
+
+### Paso a paso
+
+1. En GitHub → pestaña **Comportamiento** → **"Comprobar iPhone"** → **Run
+   workflow**. Esperá a que termine (tarda varios minutos, es normal).
+2. Entrá a esa ejecución terminada. Abajo de todo hay una sección
+   **"Artifacts"** con un archivo llamado **tomass-seguridad-ipa-sin-firmar**.
+   Descargalo y descomprimilo: adentro va a estar el archivo
+   `tomass-seguridad-sin-firmar.ipa`.
+3. Bajá e instalá **Sideloadly** (gratis) desde **sideloadly.io**, la versión
+   para Windows.
+4. Conectá el iPhone a la computadora por cable. Si el teléfono pregunta "¿Confiar
+   en esta computadora?", tocá que sí.
+5. Abrí Sideloadly. Debería reconocer el iPhone conectado solo.
+6. Arrastrá el archivo `tomass-seguridad-sin-firmar.ipa` a la ventana de
+   Sideloadly.
+7. Te va a pedir un Apple ID y su contraseña: poné el **gratuito** (no hace
+   falta que sea el mismo que estás dando de alta como pago). Sideloadly lo usa
+   solo para firmar la app, no toca nada de tu cuenta.
+8. Tocá **Start**. Va a tardar un par de minutos.
+9. **Paso que la gente se olvida y por eso la app no abre:** en el iPhone, andá
+   a **Ajustes → General → VPN y Gestión de dispositivos**. Ahí va a aparecer
+   tu Apple ID gratuito con un aviso de que no es de confianza. Tocalo, y tocá
+   **"Confiar"**. Recién ahí el ícono de la app va a abrir sin quejarse.
+
+### Lo que hay que tener presente
+
+- **Se vence a los 7 días.** Pasada la semana, la app deja de abrir. Hay que
+  repetir del paso 4 en adelante. No es un error de la app: es lo máximo que
+  Apple permite sin la cuenta paga.
+- **Sirve para UN iPhone a la vez**, el que tengas conectado por cable en ese
+  momento. No hay forma de mandarle esto a un guardia a distancia: para eso
+  sigue haciendo falta TestFlight.
+
+---
+
 ## Qué te conviene hacer
 
 **Mi recomendación: empezá solo con Android.**
