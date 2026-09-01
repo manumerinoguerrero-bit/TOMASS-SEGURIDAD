@@ -305,6 +305,9 @@ class TurnoAdmin {
     this.cerradoEn,
     this.puesto,
     this.notas,
+    this.fotoUrl,
+    this.geoLat,
+    this.geoLng,
   });
 
   final String id;
@@ -313,6 +316,18 @@ class TurnoAdmin {
   final DateTime? cerradoEn;
   final String? puesto;
   final String? notas;
+
+  /// Ruta de la selfie tomada al abrir el turno (bucket "guardias"). Se
+  /// resuelve a URL firmada al momento de mostrar.
+  final String? fotoUrl;
+
+  /// Coordenadas GPS donde se abrió el turno. Pueden ser null si el guardia
+  /// tenía el GPS apagado o sin señal.
+  final double? geoLat;
+  final double? geoLng;
+
+  bool get tieneFoto => fotoUrl != null && fotoUrl!.isNotEmpty;
+  bool get tieneUbicacion => geoLat != null && geoLng != null;
 
   bool get sigueAbierto => cerradoEn == null;
 
@@ -342,6 +357,9 @@ class TurnoAdmin {
       // caso normal cuando hay un solo guardia.
       puesto: p is Map ? p['nombre'] as String? : null,
       notas: m['notas_entrega'] as String?,
+      fotoUrl: m['foto_url'] as String?,
+      geoLat: (m['geo_lat'] as num?)?.toDouble(),
+      geoLng: (m['geo_lng'] as num?)?.toDouble(),
     );
   }
 }

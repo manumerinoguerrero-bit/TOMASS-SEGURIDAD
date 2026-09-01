@@ -44,7 +44,8 @@ enum CajonDeFotos {
   vehiculos,
   paquetes,
   firmas,
-  personas;
+  personas,
+  guardias;
 
   String get nombre => name;
 }
@@ -79,7 +80,13 @@ enum PropositoDeLaFoto {
 
   /// Una persona, un documento o una novedad. Tiene que dejar reconocer una
   /// cara o leer un texto grande, pero no un número chico.
-  unaPersona(ancho: 1200, calidad: 75);
+  unaPersona(ancho: 1200, calidad: 75),
+
+  /// La selfie del guardia al iniciar turno. Solo tiene que dejar reconocer
+  /// la cara para que el admin vea quién estaba a cargo. No pesa nada porque
+  /// se saca una sola vez por turno (una vez al día, no cientos por día como
+  /// las de paquetes).
+  elGuardiaEnTurno(ancho: 900, calidad: 72);
 
   const PropositoDeLaFoto({required this.ancho, required this.calidad});
 
@@ -112,6 +119,7 @@ class ServicioFotos {
   /// espacio del servidor no se llene con fotos de cajas.
   Future<File?> sacarFoto({
     PropositoDeLaFoto proposito = PropositoDeLaFoto.unaPersona,
+    bool frontal = false,
   }) async {
     try {
       final foto = await _selector.pickImage(
@@ -119,7 +127,8 @@ class ServicioFotos {
         // Se comprime acá mismo, antes de que la imagen ocupe memoria
         maxWidth: proposito.ancho,
         imageQuality: proposito.calidad,
-        preferredCameraDevice: CameraDevice.rear,
+        preferredCameraDevice:
+            frontal ? CameraDevice.front : CameraDevice.rear,
       );
       return foto == null ? null : File(foto.path);
     } catch (falla) {

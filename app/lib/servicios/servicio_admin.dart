@@ -578,6 +578,7 @@ class ServicioAdmin {
           .from('turnos')
           .select('''
             id, inicio, cerrado_en, notas_entrega,
+            foto_url, geo_lat, geo_lng,
             usuarios!turnos_guardia_id_fkey ( nombre_completo ),
             puntos_acceso ( nombre )
           ''')

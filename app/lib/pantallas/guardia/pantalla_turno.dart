@@ -15,6 +15,8 @@
 //   qué guardia estaba en qué puerta y a qué hora.
 // ============================================================================
 
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -24,6 +26,8 @@ import '../../estado/proveedores_guardia.dart';
 import '../../modelos/modelos.dart';
 import '../../nucleo/errores.dart';
 import '../../nucleo/formato.dart';
+import '../../nucleo/ubicacion.dart';
+import '../../servicios/servicio_fotos.dart';
 import '../comunes/componentes.dart';
 import 'acciones_de_turno.dart';
 
@@ -56,16 +60,70 @@ class _EstadoTurno extends ConsumerState<PantallaTurno> {
       return;
     }
 
+    // -----------------------------------------------------------------------
+    // Selfie del guardia + ubicación GPS del inicio
+    // -----------------------------------------------------------------------
+    // El admin necesita saber quién estaba a cargo y dónde. La selfie es
+    // obligatoria porque es la única prueba real: sin ella cualquiera con
+    // usuario y clave abre el turno desde otro lado. El GPS es "el que se
+    // pueda": si no responde en unos segundos, se abre igual sin él.
     setState(() {
       _trabajando = true;
       _problema = null;
     });
 
+    File? selfie;
     try {
+      selfie = await ref.read(servicioFotosProvider).sacarFoto(
+            proposito: PropositoDeLaFoto.elGuardiaEnTurno,
+            frontal: true,
+          );
+    } catch (falla) {
+      if (!mounted) return;
+      setState(() {
+        _trabajando = false;
+        _problema = Traductor.traducir(falla);
+      });
+      return;
+    }
+    if (selfie == null) {
+      // Canceló la cámara — no se abre turno sin selfie
+      if (!mounted) return;
+      setState(() {
+        _trabajando = false;
+        _problema = const ErrorAmigable(
+          'Necesitás sacarte una selfie para abrir el turno.',
+          detalle: 'Es la prueba de que sos vos el que está a cargo. Sin ella '
+              'cualquiera con tu usuario y clave podría abrir turno desde otro '
+              'lado.',
+        );
+      });
+      return;
+    }
+
+    // GPS con timeout corto: no bloqueamos al guardia si no engancha señal.
+    final donde = await Localizador.donde(
+      esperaMaxima: const Duration(seconds: 8),
+    );
+
+    try {
+      // Subir la selfie al bucket "guardias" ANTES de crear el turno, así
+      // el registro nace con la foto ya guardada y no queda huérfana la
+      // referencia si el insert falla.
+      final rutaFoto = await ref.read(servicioFotosProvider).subir(
+            archivo: selfie,
+            cajon: CajonDeFotos.guardias,
+            condominioId: perfil.condominioId,
+            nombreDescriptivo: 'turno',
+          );
+
       await ref.read(servicioGuardiaProvider).abrirTurno(
             condominioId: perfil.condominioId,
             // Vacío significa "cubro todo el condominio"
             puntoAccesoId: _eleccion == _cubroTodo ? null : _eleccion,
+            fotoUrl: rutaFoto,
+            geoLat: donde?.latitud,
+            geoLng: donde?.longitud,
           );
       ref.invalidate(miTurnoProvider);
       // La navegación la maneja sola la app al detectar que hay turno abierto

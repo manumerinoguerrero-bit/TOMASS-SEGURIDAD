@@ -460,6 +460,12 @@ class ServicioGuardia {
     required String condominioId,
     String? puntoAccesoId,
     DateTime? finProgramado,
+    // Selfie + GPS del inicio: el admin necesita ver quién estaba a cargo y
+    // dónde. Son opcionales para no romper si el teléfono no puede darlos
+    // (permiso de cámara denegado, GPS sin señal): se abre el turno igual.
+    String? fotoUrl,
+    double? geoLat,
+    double? geoLng,
   }) async {
     try {
       final fila = await _supabase
@@ -471,6 +477,9 @@ class ServicioGuardia {
             'punto_acceso_id': puntoAccesoId,
             if (finProgramado != null)
               'fin_programado': finProgramado.toUtc().toIso8601String(),
+            if (fotoUrl != null) 'foto_url': fotoUrl,
+            if (geoLat != null) 'geo_lat': geoLat,
+            if (geoLng != null) 'geo_lng': geoLng,
           })
           .select('''
             id, punto_acceso_id, inicio, fin_programado, cerrado_en,
