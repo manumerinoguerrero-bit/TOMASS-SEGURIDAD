@@ -325,20 +325,29 @@ class _PestanaTurnos extends ConsumerWidget {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          'Preparando informe con ${lista.length} turnos y sus fotos...',
+          'Calculando estadísticas y bajando ${lista.length} fotos...',
         ),
         backgroundColor: Colores.grafito,
-        duration: const Duration(seconds: 6),
+        duration: const Duration(seconds: 8),
       ),
     );
     try {
       final instalacion = ref.read(perfilProvider).valueOrNull?.nombreCondominio
           ?? 'Instalación';
       final servicioFotos = ref.read(servicioFotosProvider);
+      final servicio = ref.read(servicioAdminProvider);
+
+      // Traemos las estadísticas del período (últimos 14 días por defecto)
+      final desde = DateTime.now().subtract(const Duration(days: 14));
+      final hasta = DateTime.now();
+      final (stats, turnosEnriquecidos) =
+          await servicio.estadisticasTurnos(desde: desde, hasta: hasta);
+
       final bytes = await InformeDeTurnosPdf.armar(
         instalacion: instalacion,
-        turnos: lista,
+        turnos: turnosEnriquecidos,
         servicioFotos: servicioFotos,
+        stats: stats,
       );
       if (!context.mounted) return;
       await Printing.layoutPdf(

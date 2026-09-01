@@ -308,7 +308,22 @@ class TurnoAdmin {
     this.fotoUrl,
     this.geoLat,
     this.geoLng,
+    this.actividad,
   });
+
+  /// Devuelve una copia con la actividad agregada (para no romper inmutabilidad).
+  TurnoAdmin conActividad(ActividadTurno act) => TurnoAdmin(
+        id: id,
+        inicio: inicio,
+        guardia: guardia,
+        cerradoEn: cerradoEn,
+        puesto: puesto,
+        notas: notas,
+        fotoUrl: fotoUrl,
+        geoLat: geoLat,
+        geoLng: geoLng,
+        actividad: act,
+      );
 
   final String id;
   final DateTime inicio;
@@ -325,6 +340,9 @@ class TurnoAdmin {
   /// tenía el GPS apagado o sin señal.
   final double? geoLat;
   final double? geoLng;
+
+  /// Contadores calculados aparte (14. actividad por turno).
+  final ActividadTurno? actividad;
 
   bool get tieneFoto => fotoUrl != null && fotoUrl!.isNotEmpty;
   bool get tieneUbicacion => geoLat != null && geoLng != null;
@@ -713,4 +731,159 @@ class EncomiendaDelInforme {
       fotoEntregaUrl: m['foto_entrega_url'] as String?,
     );
   }
+}
+
+// ============================================================================
+// ESTADÍSTICAS PARA EL INFORME DE TURNOS
+// ============================================================================
+// Todo lo que va en la PORTADA del PDF del informe de turnos, calculado en el
+// servidor antes de generar el PDF. Los siete "widgets" del Sprint 1:
+//
+//   1. KpiCumplimiento         → % con selfie / GPS / rondas completas
+//   3. accesosPorHora          → array de 24 (para el gráfico horario)
+//   4. alertas                 → lista de anomalías detectadas
+//   6. encomiendasPendientes   → paquetes viejos sin entregar
+//   10. rankingGuardias        → tabla ordenada por cumplimiento
+//   14. actividadPorTurno      → ya viene dentro de cada TurnoAdmin
+//   15. notasEntregaTurno      → ya viene dentro de cada TurnoAdmin
+// ============================================================================
+
+class EstadisticasTurnos {
+  const EstadisticasTurnos({
+    required this.desde,
+    required this.hasta,
+    required this.kpi,
+    required this.accesosPorHora,
+    required this.alertas,
+    required this.encomiendasPendientes,
+    required this.ranking,
+  });
+
+  final DateTime desde;
+  final DateTime hasta;
+  final KpiCumplimiento kpi;
+  final List<int> accesosPorHora; // 24 valores (0-23)
+  final List<AlertaTurno> alertas;
+  final List<EncomiendaPendiente> encomiendasPendientes;
+  final List<RankingGuardia> ranking;
+
+  int get totalAccesos => accesosPorHora.fold(0, (a, b) => a + b);
+  int get horaPico {
+    if (accesosPorHora.every((v) => v == 0)) return -1;
+    var maxIdx = 0;
+    for (var i = 1; i < 24; i++) {
+      if (accesosPorHora[i] > accesosPorHora[maxIdx]) maxIdx = i;
+    }
+    return maxIdx;
+  }
+}
+
+class KpiCumplimiento {
+  const KpiCumplimiento({
+    required this.totalTurnos,
+    required this.turnosConSelfie,
+    required this.turnosConGps,
+    required this.totalRondas,
+    required this.rondasCompletas,
+    required this.horasCubiertas,
+  });
+
+  final int totalTurnos;
+  final int turnosConSelfie;
+  final int turnosConGps;
+  final int totalRondas;
+  final int rondasCompletas;
+  final double horasCubiertas;
+
+  int get pctSelfie =>
+      totalTurnos == 0 ? 0 : (turnosConSelfie * 100 ~/ totalTurnos);
+  int get pctGps =>
+      totalTurnos == 0 ? 0 : (turnosConGps * 100 ~/ totalTurnos);
+  int get pctRondasCompletas =>
+      totalRondas == 0 ? 0 : (rondasCompletas * 100 ~/ totalRondas);
+}
+
+/// Una anomalía detectada en el período.
+class AlertaTurno {
+  const AlertaTurno({
+    required this.tipo,
+    required this.descripcion,
+    this.cuando,
+    this.guardia,
+  });
+
+  final TipoAlerta tipo;
+  final String descripcion;
+  final DateTime? cuando;
+  final String? guardia;
+}
+
+enum TipoAlerta {
+  rondaSospechosa, // menos de 5 minutos
+  gapCobertura,    // período sin ningún turno abierto
+  turnoSinSelfie,
+  turnoSinGps;
+
+  String get etiqueta => switch (this) {
+        TipoAlerta.rondaSospechosa => 'Ronda muy rápida',
+        TipoAlerta.gapCobertura => 'Sin cobertura',
+        TipoAlerta.turnoSinSelfie => 'Turno sin selfie',
+        TipoAlerta.turnoSinGps => 'Turno sin GPS',
+      };
+}
+
+class EncomiendaPendiente {
+  const EncomiendaPendiente({
+    required this.id,
+    required this.recibidoEn,
+    required this.descripcion,
+    this.residente,
+    this.unidad,
+    this.empresaCourier,
+  });
+
+  final String id;
+  final DateTime recibidoEn;
+  final String descripcion;
+  final String? residente;
+  final String? unidad;
+  final String? empresaCourier;
+
+  int get diasEsperando => DateTime.now().difference(recibidoEn).inDays;
+}
+
+class RankingGuardia {
+  const RankingGuardia({
+    required this.guardia,
+    required this.totalTurnos,
+    required this.horasTrabajadas,
+    required this.pctSelfie,
+    required this.pctGps,
+    required this.rondasHechas,
+  });
+
+  final String guardia;
+  final int totalTurnos;
+  final double horasTrabajadas;
+  final int pctSelfie;
+  final int pctGps;
+  final int rondasHechas;
+
+  /// Puntaje 0-100 combinando cumplimiento de selfie + GPS.
+  int get puntaje => ((pctSelfie + pctGps) / 2).round();
+}
+
+/// Contadores por turno individual (14. actividad por turno).
+class ActividadTurno {
+  const ActividadTurno({
+    required this.accesos,
+    required this.encomiendas,
+    required this.rondas,
+  });
+
+  final int accesos;
+  final int encomiendas;
+  final int rondas;
+
+  bool get vacio => accesos == 0 && encomiendas == 0 && rondas == 0;
 }
