@@ -68,17 +68,30 @@ jobs:
         working-directory: app
         run: flutter analyze
 
-      # 6 · Compilar el APK de prueba (el que se instala a mano en un celular)
+      # 6 · Compilar el APK en modo RELEASE.
+      #
+      #     Antes usábamos --debug, y eso tenía dos problemas graves:
+      #
+      #       a) La app corría 3 a 5 veces más lenta y usaba más memoria.
+      #       b) Cualquier tropiezo del framework mostraba una PANTALLA ROJA
+      #          con texto amarillo y un stack trace de Flutter en vez de
+      #          seguir andando. En un celular en manos de un guardia, eso se
+      #          ve como si la app se hubiera roto.
+      #
+      #     En release la app es rápida, y si algo falla se muestra un aviso
+      #     manejado por nosotros. La firma ya está configurada en
+      #     android/app/build.gradle.kts apuntando a firma-pruebas.jks, así
+      #     que Gradle firma el APK sin secretos adicionales.
       - name: Compilar el APK
         working-directory: app
-        run: flutter build apk --debug
+        run: flutter build apk --release
 
       # 7 · Dejar el APK disponible para descargar
       - name: Publicar el APK
         uses: actions/upload-artifact@v4
         with:
           name: tomass-seguridad-apk
-          path: app/build/app/outputs/flutter-apk/app-debug.apk
+          path: app/build/app/outputs/flutter-apk/app-release.apk
           # Se guarda 30 días. Después se borra solo para no ocupar espacio.
           retention-days: 30
           if-no-files-found: error

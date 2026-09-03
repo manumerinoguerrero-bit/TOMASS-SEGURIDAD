@@ -203,56 +203,16 @@ class _EstadoSectores extends ConsumerState<PantallaAdminSectores> {
   // ==========================================================================
 
   Future<String?> _pedirNombre({String? actual}) async {
-    final campo = TextEditingController(text: actual ?? '');
-    final palabras = ref.read(palabrasProvider);
-
-    final ok = await showDialog<bool>(
+    // ⚠️ El controller del TextField vive DENTRO del State del diálogo, no
+    //    afuera. Antes lo creábamos acá y lo disponíamos después del await, y
+    //    eso volaba la app con "_dependents.isEmpty is not true": Flutter
+    //    anima la salida del AlertDialog, y mientras la animación corre el
+    //    TextField todavía está en el árbol referenciando el controller. Si lo
+    //    disponés en ese momento, el próximo frame revienta.
+    return showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(actual == null ? 'Sector nuevo' : 'Cambiar el nombre'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              actual == null
-                  ? 'Ponele un nombre que el guardia reconozca de noche, '
-                      'caminando. "Portón del fondo" sirve; "Punto 3" no.'
-                  : 'El código del cartel no cambia: si ya está impreso y '
-                      'pegado, sigue funcionando igual.',
-              style: const TextStyle(fontSize: 13, height: 1.45),
-            ),
-            const SizedBox(height: 14),
-            TextField(
-              controller: campo,
-              autofocus: true,
-              textCapitalization: TextCapitalization.sentences,
-              decoration: InputDecoration(
-                labelText: 'Nombre del sector',
-                hintText: palabras.tipo == 'colegio'
-                    ? 'Ej: Patio de básica'
-                    : 'Ej: Portón del fondo',
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: FilledButton.styleFrom(backgroundColor: Colores.grafito),
-            child: Text(actual == null ? 'Siguiente' : 'Guardar'),
-          ),
-        ],
-      ),
+      builder: (_) => _DialogoNombre(actual: actual),
     );
-
-    final texto = campo.text.trim();
-    campo.dispose();
-    return (ok == true && texto.length >= 3) ? texto : null;
   }
 
   Future<bool?> _preguntar({
@@ -396,6 +356,91 @@ class _EstadoSectores extends ConsumerState<PantallaAdminSectores> {
           );
         },
       ),
+    );
+  }
+}
+
+// ============================================================================
+// EL DIÁLOGO DEL NOMBRE
+// ============================================================================
+// Es un StatefulWidget solo para que el TextEditingController viva junto al
+// TextField, y se disponga cuando el propio diálogo se desmonta. Cualquier
+// otra forma (crear el controller afuera y disponerlo después del await)
+// hace que Flutter estalle con "_dependents.isEmpty is not true", porque el
+// controller queda muerto mientras el TextField todavía se está animando fuera
+// del árbol.
+// ============================================================================
+
+class _DialogoNombre extends ConsumerStatefulWidget {
+  const _DialogoNombre({this.actual});
+
+  final String? actual;
+
+  @override
+  ConsumerState<_DialogoNombre> createState() => _EstadoDialogoNombre();
+}
+
+class _EstadoDialogoNombre extends ConsumerState<_DialogoNombre> {
+  late final TextEditingController _campo =
+      TextEditingController(text: widget.actual ?? '');
+
+  @override
+  void dispose() {
+    _campo.dispose();
+    super.dispose();
+  }
+
+  void _aceptar() {
+    final texto = _campo.text.trim();
+    if (texto.length < 3) return;
+    Navigator.pop(context, texto);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final actual = widget.actual;
+    final palabras = ref.watch(palabrasProvider);
+
+    return AlertDialog(
+      title: Text(actual == null ? 'Sector nuevo' : 'Cambiar el nombre'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            actual == null
+                ? 'Ponele un nombre que el guardia reconozca de noche, '
+                    'caminando. "Portón del fondo" sirve; "Punto 3" no.'
+                : 'El código del cartel no cambia: si ya está impreso y '
+                    'pegado, sigue funcionando igual.',
+            style: const TextStyle(fontSize: 13, height: 1.45),
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            controller: _campo,
+            autofocus: true,
+            textCapitalization: TextCapitalization.sentences,
+            onSubmitted: (_) => _aceptar(),
+            decoration: InputDecoration(
+              labelText: 'Nombre del sector',
+              hintText: palabras.tipo == 'colegio'
+                  ? 'Ej: Patio de básica'
+                  : 'Ej: Portón del fondo',
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: _aceptar,
+          style: FilledButton.styleFrom(backgroundColor: Colores.grafito),
+          child: Text(actual == null ? 'Siguiente' : 'Guardar'),
+        ),
+      ],
     );
   }
 }

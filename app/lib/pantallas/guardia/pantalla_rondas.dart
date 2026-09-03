@@ -106,13 +106,48 @@ class _EstadoRondas extends ConsumerState<PantallaRondas> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            r.yaEstaba
-                ? '${r.punto} ya lo habías marcado en esta ronda.'
-                : '${r.punto} · ${r.marcados} de ${r.total}',
+          content: Row(
+            children: [
+              Icon(
+                r.yaEstaba
+                    ? Icons.replay_rounded
+                    : Icons.directions_walk_rounded,
+                color: Colors.white,
+                size: 22,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'ESCANEO PARA RONDA',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.1,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      r.yaEstaba
+                          ? '${r.punto} · ya lo habías marcado'
+                          : '${r.punto} · ${r.marcados} de ${r.total}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
           backgroundColor: r.yaEstaba ? Colores.naranjaOscuro : Colores.verde,
-          duration: const Duration(seconds: 2),
+          duration: const Duration(seconds: 3),
         ),
       );
     } catch (falla) {
@@ -586,6 +621,46 @@ class _EstadoLector extends State<_LectorDeCartel> {
           ),
           Container(color: Colors.black.withValues(alpha: 0.45)),
           const Center(child: MarcoDeEscaneo(lado: 250)),
+
+          // Banner arriba: deja claro que este escaneo es para la ronda, no
+          // para dar acceso a un residente ni a una visita. Antes el guardia
+          // usaba el mismo aspecto para las dos cosas y no era obvio cuál era
+          // cuál.
+          Positioned(
+            top: MediaQuery.paddingOf(context).top + 62,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 18, vertical: 10),
+                decoration: BoxDecoration(
+                  color: Colores.grafito.withValues(alpha: 0.92),
+                  borderRadius: BorderRadius.circular(30),
+                  border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.25), width: 1.2),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.directions_walk_rounded,
+                        color: Colors.white, size: 20),
+                    SizedBox(width: 9),
+                    Text(
+                      'ESCANEO PARA RONDA',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
           Positioned(
             left: 0,
             right: 0,
