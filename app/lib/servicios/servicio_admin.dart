@@ -642,6 +642,43 @@ class ServicioAdmin {
     }
   }
 
+  // ==========================================================================
+  // NOVEDADES / INCIDENTES DEL PERÍODO (para el informe)
+  // ==========================================================================
+  // Devuelve todas las novedades ocurridas entre dos fechas, con quién las
+  // reportó, la unidad afectada (si aplica) y las fotos que quedaron
+  // adjuntas. Se usa para armar el PDF de "Informe de Incidentes".
+  // ==========================================================================
+
+  Future<List<IncidenteAdmin>> incidentesDelPeriodo({
+    required DateTime desde,
+    required DateTime hasta,
+  }) async {
+    try {
+      final filas = await _supabase
+          .from('incidentes')
+          .select('''
+            id, tipo, gravedad, titulo, descripcion, fotos,
+            patente, ubicacion_texto, estado,
+            ocurrido_en, resuelto_en, nota_resolucion,
+            usuarios!incidentes_reportado_por_fkey ( nombre_completo ),
+            unidades ( numero, torre )
+          ''')
+          .gte('ocurrido_en', desde.toIso8601String())
+          .lte('ocurrido_en', hasta.toIso8601String())
+          .order('ocurrido_en', ascending: false)
+          .limit(500)
+          .timeout(Entorno.esperaMaxima);
+
+      return (filas as List)
+          .map((f) =>
+              IncidenteAdmin.desdeMapa(Map<String, dynamic>.from(f)))
+          .toList();
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+
   /// Borra las fotos de las encomiendas que ya quedaron impresas en un
   /// informe. El texto (quién retiró, cuándo, quién entregó) y la firma NUNCA
   /// se tocan acá: eso es lo que sigue sirviendo como constancia después.

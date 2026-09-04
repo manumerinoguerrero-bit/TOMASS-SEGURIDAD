@@ -887,3 +887,91 @@ class ActividadTurno {
 
   bool get vacio => accesos == 0 && encomiendas == 0 && rondas == 0;
 }
+
+// ============================================================================
+// UNA NOVEDAD/INCIDENTE DEL HISTORIAL
+// ============================================================================
+// En la base de datos la tabla se llama "incidentes"; en la UI le decimos
+// "novedades". Este modelo abarca lo que el administrador ve al armar el
+// informe: qué pasó, cuándo, quién lo reportó, con qué gravedad y con qué
+// fotos si tiene.
+// ============================================================================
+
+class IncidenteAdmin {
+  const IncidenteAdmin({
+    required this.id,
+    required this.tipo,
+    required this.titulo,
+    required this.ocurridoEn,
+    required this.estado,
+    this.gravedad,
+    this.descripcion,
+    this.ubicacion,
+    this.patente,
+    this.unidadTexto,
+    this.reportadoPor,
+    this.notaResolucion,
+    this.resueltoEn,
+    this.fotos = const [],
+  });
+
+  final String id;
+  final String tipo;
+  final String titulo;
+  final DateTime ocurridoEn;
+
+  /// 'abierta', 'resuelta', etc. — cómo viene en la base.
+  final String estado;
+  final String? gravedad;
+  final String? descripcion;
+  final String? ubicacion;
+  final String? patente;
+  final String? unidadTexto;
+  final String? reportadoPor;
+  final String? notaResolucion;
+  final DateTime? resueltoEn;
+  final List<String> fotos;
+
+  bool get abierta => estado != 'resuelta';
+  bool get tieneFotos => fotos.isNotEmpty;
+
+  factory IncidenteAdmin.desdeMapa(Map<String, dynamic> m) {
+    final u = m['unidades'];
+    final r = m['usuarios'];
+
+    List<String> parseFotos(dynamic v) {
+      if (v is List) return v.whereType<String>().toList();
+      return const [];
+    }
+
+    String? unidadTexto;
+    if (u is Map) {
+      final numero = u['numero']?.toString();
+      final torre = u['torre']?.toString();
+      unidadTexto = [
+        if (torre != null && torre.isNotEmpty) torre,
+        if (numero != null && numero.isNotEmpty) numero,
+      ].join(' ');
+      if (unidadTexto.isEmpty) unidadTexto = null;
+    }
+
+    return IncidenteAdmin(
+      id: m['id'] as String,
+      tipo: (m['tipo'] ?? 'otra') as String,
+      titulo: (m['titulo'] ?? 'Sin título') as String,
+      ocurridoEn: DateTime.parse(m['ocurrido_en'] as String),
+      estado: (m['estado'] ?? 'abierta') as String,
+      gravedad: m['gravedad'] as String?,
+      descripcion: m['descripcion'] as String?,
+      ubicacion: m['ubicacion_texto'] as String?,
+      patente: m['patente'] as String?,
+      unidadTexto: unidadTexto,
+      reportadoPor: r is Map ? r['nombre_completo'] as String? : null,
+      notaResolucion: m['nota_resolucion'] as String?,
+      resueltoEn: m['resuelto_en'] == null
+          ? null
+          : DateTime.parse(m['resuelto_en'] as String),
+      fotos: parseFotos(m['fotos']),
+    );
+  }
+}

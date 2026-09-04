@@ -100,6 +100,17 @@ final turnosAdminProvider = FutureProvider<List<TurnoAdmin>>((ref) {
   return ref.watch(servicioAdminProvider).turnos();
 });
 
+/// Todas las novedades del período seleccionado (usa diasDelInformeProvider).
+final incidentesAdminProvider =
+    FutureProvider<List<IncidenteAdmin>>((ref) {
+  final dias = ref.watch(diasDelInformeProvider);
+  final desde = DateTime.now().subtract(Duration(days: dias));
+  return ref.watch(servicioAdminProvider).incidentesDelPeriodo(
+        desde: desde,
+        hasta: DateTime.now(),
+      );
+});
+
 // ============================================================================
 // REFRESCAR TODO DE UNA
 // ============================================================================
@@ -118,6 +129,7 @@ void refrescarPanel(WidgetRef ref) {
   ref.invalidate(espaciosProvider);
   ref.invalidate(movimientosAdminProvider);
   ref.invalidate(turnosAdminProvider);
+  ref.invalidate(incidentesAdminProvider);
   ref.invalidate(encomiendasDelInformeProvider);
 }
 

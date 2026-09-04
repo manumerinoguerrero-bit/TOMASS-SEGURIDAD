@@ -31,6 +31,8 @@ import '../../nucleo/errores.dart';
 import '../../nucleo/formato.dart';
 import '../../servicios/servicio_fotos.dart';
 import '../comunes/componentes.dart';
+import '../../servicios/informe_incidentes_pdf.dart';
+import '../../servicios/informe_ingresos_pdf.dart';
 import '../../servicios/informe_turnos_pdf.dart';
 import 'acciones_admin.dart';
 import 'informe_de_encomiendas.dart';
@@ -42,7 +44,7 @@ class PantallaAdminInformes extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return DefaultTabController(
-      length: 4,
+      length: 5,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Informes'),
@@ -56,6 +58,7 @@ class PantallaAdminInformes extends ConsumerWidget {
             tabs: [
               Tab(text: 'Accesos'),
               Tab(text: 'Turnos'),
+              Tab(text: 'Novedades'),
               Tab(text: 'Rondas'),
               Tab(text: 'Encomiendas'),
             ],
@@ -65,6 +68,7 @@ class PantallaAdminInformes extends ConsumerWidget {
           children: [
             _PestanaAccesos(),
             _PestanaTurnos(),
+            _PestanaNovedades(),
             PestanaRondas(),
             PestanaEncomiendas(),
           ],
@@ -134,11 +138,31 @@ class _PestanaAccesos extends ConsumerWidget {
                 child: ListView.builder(
                   padding: const EdgeInsets.fromLTRB(
                       Medidas.margen, 0, Medidas.margen, Medidas.margen),
-                  itemCount: lista.length + 1,
+                  itemCount: lista.length + 2,
                   itemBuilder: (_, i) {
                     if (i == 0) {
                       return Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: SizedBox(
+                          width: double.infinity,
+                          child: FilledButton.icon(
+                            onPressed: () =>
+                                _descargarPdfIngresos(context, ref, lista, dias),
+                            icon: const Icon(
+                                Icons.picture_as_pdf_rounded, size: 18),
+                            label:
+                                const Text('Descargar informe en PDF'),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: Colores.grafito,
+                              minimumSize: const Size(0, 42),
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+                    if (i == 1) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12, top: 4),
                         child: Text(
                           '${lista.length} '
                           '${lista.length == 1 ? "movimiento" : "movimientos"}'
@@ -147,7 +171,7 @@ class _PestanaAccesos extends ConsumerWidget {
                         ),
                       );
                     }
-                    return _FilaAcceso(movimiento: lista[i - 1]);
+                    return _FilaAcceso(movimiento: lista[i - 2]);
                   },
                 ),
               );
@@ -156,6 +180,37 @@ class _PestanaAccesos extends ConsumerWidget {
         ),
       ],
     );
+  }
+
+  Future<void> _descargarPdfIngresos(
+    BuildContext context,
+    WidgetRef ref,
+    List<MovimientoAdmin> lista,
+    int dias,
+  ) async {
+    final perfil = ref.read(perfilProvider).valueOrNull;
+    final instalacion = perfil?.nombreCondominio ?? 'Instalación';
+    final desde = DateTime.now().subtract(Duration(days: dias));
+    try {
+      final bytes = await InformeDeIngresosPdf.armar(
+        instalacion: instalacion,
+        desde: desde,
+        hasta: DateTime.now(),
+        movimientos: lista,
+      );
+      await Printing.layoutPdf(
+        name: 'ingresos-${desde.toIso8601String().substring(0, 10)}.pdf',
+        onLayout: (_) => bytes,
+      );
+    } catch (falla) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(Traductor.traducir(falla).mensaje),
+          backgroundColor: Colores.rojo,
+        ),
+      );
+    }
   }
 }
 
@@ -752,6 +807,306 @@ class _SelfieGrande extends ConsumerWidget {
                   size: 60, color: Colores.textoTenue),
             )
           : Image.network(enlace, fit: BoxFit.cover),
+    );
+  }
+}
+
+// ============================================================================
+// PESTAÑA 3 · NOVEDADES DEL PERÍODO
+// ============================================================================
+// Lista las novedades (incidentes) que reportaron los guardias durante el
+// período seleccionado. Se puede filtrar por 1/7/30 días con el mismo
+// selector que Accesos y bajar un PDF con todo el detalle.
+// ============================================================================
+
+class _PestanaNovedades extends ConsumerWidget {
+  const _PestanaNovedades();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final incidentes = ref.watch(incidentesAdminProvider);
+    final dias = ref.watch(diasDelInformeProvider);
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(Medidas.margen),
+          child: SegmentedButton<int>(
+            segments: const [
+              ButtonSegment(value: 1, label: Text('Hoy')),
+              ButtonSegment(value: 7, label: Text('7 días')),
+              ButtonSegment(value: 30, label: Text('30 días')),
+            ],
+            selected: {dias},
+            onSelectionChanged: (s) =>
+                ref.read(diasDelInformeProvider.notifier).state = s.first,
+            showSelectedIcon: false,
+          ),
+        ),
+        Expanded(
+          child: incidentes.when(
+            loading: () => const Center(
+              child: CircularProgressIndicator(color: Colores.grafito),
+            ),
+            error: (falla, _) => Padding(
+              padding: const EdgeInsets.all(Medidas.margen),
+              child: AvisoDeError(
+                problema: Traductor.traducir(falla),
+                alReintentar: () => ref.invalidate(incidentesAdminProvider),
+              ),
+            ),
+            data: (lista) {
+              if (lista.isEmpty) {
+                return const ListaVacia(
+                  icono: Icons.report_gmailerrorred_outlined,
+                  titulo: 'Sin novedades en este período',
+                  explicacion:
+                      'Cuando los guardias reporten una novedad, va a aparecer '
+                      'acá con foto y detalle.',
+                );
+              }
+
+              final abiertas = lista.where((i) => i.abierta).length;
+
+              return RefreshIndicator(
+                onRefresh: () async =>
+                    ref.invalidate(incidentesAdminProvider),
+                child: ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(
+                      Medidas.margen, 0, Medidas.margen, Medidas.margen),
+                  itemCount: lista.length + 2,
+                  itemBuilder: (_, i) {
+                    if (i == 0) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: SizedBox(
+                          width: double.infinity,
+                          child: FilledButton.icon(
+                            onPressed: () =>
+                                _descargarPdf(context, ref, lista, dias),
+                            icon: const Icon(
+                                Icons.picture_as_pdf_rounded, size: 18),
+                            label: const Text(
+                                'Descargar informe de novedades en PDF'),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: Colores.grafito,
+                              minimumSize: const Size(0, 42),
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+                    if (i == 1) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12, top: 4),
+                        child: Text(
+                          '${lista.length} '
+                          '${lista.length == 1 ? "novedad" : "novedades"}'
+                          '${abiertas > 0 ? " · $abiertas abierta${abiertas == 1 ? "" : "s"}" : ""}',
+                          style: Theme.of(context).textTheme.labelSmall,
+                        ),
+                      );
+                    }
+                    return _FilaNovedad(incidente: lista[i - 2]);
+                  },
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _descargarPdf(
+    BuildContext context,
+    WidgetRef ref,
+    List<IncidenteAdmin> lista,
+    int dias,
+  ) async {
+    final perfil = ref.read(perfilProvider).valueOrNull;
+    final instalacion = perfil?.nombreCondominio ?? 'Instalación';
+    final servicioFotos = ref.read(servicioFotosProvider);
+    final desde = DateTime.now().subtract(Duration(days: dias));
+
+    final cuantasFotos = lista.fold<int>(0, (t, i) => t + i.fotos.length);
+    if (cuantasFotos > 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Armando informe y bajando $cuantasFotos '
+              '${cuantasFotos == 1 ? "foto" : "fotos"}…'),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+
+    try {
+      final bytes = await InformeDeIncidentesPdf.armar(
+        instalacion: instalacion,
+        desde: desde,
+        hasta: DateTime.now(),
+        incidentes: lista,
+        servicioFotos: servicioFotos,
+      );
+      await Printing.layoutPdf(
+        name: 'novedades-${desde.toIso8601String().substring(0, 10)}.pdf',
+        onLayout: (_) => bytes,
+      );
+    } catch (falla) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(Traductor.traducir(falla).mensaje),
+          backgroundColor: Colores.rojo,
+        ),
+      );
+    }
+  }
+}
+
+class _FilaNovedad extends StatelessWidget {
+  const _FilaNovedad({required this.incidente});
+
+  final IncidenteAdmin incidente;
+
+  @override
+  Widget build(BuildContext context) {
+    final i = incidente;
+    final color = switch ((i.gravedad ?? 'baja').toLowerCase()) {
+      'critica' || 'critico' || 'alta' => Colores.rojo,
+      'media' => Colores.naranja,
+      _ => Colores.verde,
+    };
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: color,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    (i.gravedad ?? 'baja').toUpperCase(),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  i.tipo.toUpperCase(),
+                  style: const TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                    color: Colores.textoSuave,
+                    letterSpacing: 0.6,
+                  ),
+                ),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: (i.abierta ? Colores.naranja : Colores.verde)
+                        .withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    i.abierta ? 'ABIERTA' : 'RESUELTA',
+                    style: TextStyle(
+                      color: i.abierta
+                          ? Colores.naranjaOscuro
+                          : Colores.verdeOscuro,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              i.titulo,
+              style: const TextStyle(
+                fontSize: 14.5,
+                fontWeight: FontWeight.w700,
+                color: Colores.texto,
+              ),
+            ),
+            if (i.descripcion != null && i.descripcion!.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                i.descripcion!,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  color: Colores.textoSuave,
+                  height: 1.4,
+                ),
+              ),
+            ],
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(Icons.schedule_rounded,
+                    size: 13, color: Colores.textoTenue),
+                const SizedBox(width: 4),
+                Text(
+                  Formato.fechaYHora(i.ocurridoEn),
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    color: Colores.textoTenue,
+                  ),
+                ),
+                if (i.reportadoPor != null) ...[
+                  const SizedBox(width: 12),
+                  Icon(Icons.person_outline_rounded,
+                      size: 13, color: Colores.textoTenue),
+                  const SizedBox(width: 4),
+                  Flexible(
+                    child: Text(
+                      i.reportadoPor!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        color: Colores.textoTenue,
+                      ),
+                    ),
+                  ),
+                ],
+                if (i.tieneFotos) ...[
+                  const Spacer(),
+                  Icon(Icons.photo_library_outlined,
+                      size: 14, color: Colores.dorado),
+                  const SizedBox(width: 3),
+                  Text(
+                    '${i.fotos.length}',
+                    style: const TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                      color: Colores.dorado,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
