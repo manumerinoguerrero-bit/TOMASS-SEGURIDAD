@@ -144,6 +144,11 @@ dependencies:
   intl: ^0.20.1
   cupertino_icons: ^1.0.8
 
+  # ---- Tipografía Inter (Google Fonts) -----------------------------------
+  # La fuente Inter da a la app el look profesional y limpio que pediste.
+  # Es la misma que usa Merlyn Seguridad.
+  google_fonts: ^6.2.1
+
 # ============================================================================
 # UN EMPATE FORZADO, SOLO PARA QUE LA APP ARME EN IPHONE
 # ============================================================================

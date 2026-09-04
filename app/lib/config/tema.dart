@@ -4,48 +4,65 @@
 // Todos los colores del sistema salen de acá. Si algún día hay que cambiar un
 // color, se cambia en este archivo y cambia en todas las pantallas.
 //
-// LA REGLA MÁS IMPORTANTE DE ESTE ARCHIVO
+// PALETA CORPORATIVA (estilo Merlyn Seguridad)
 //
-//   El ROJO se usa ÚNICAMENTE para denegar o alertar. Nunca como decoración,
-//   nunca como color de marca dentro de la interfaz.
+//   La app usa el mismo lenguaje visual de Merlyn: azul marino corporativo
+//   como color principal + dorado como acento. Se abandonó el grafito
+//   industrial anterior porque el cliente prefiere el look más profesional
+//   y "de empresa de seguridad seria" que da el azul.
 //
-//   El motivo: el rojo está en el logo de Tomass, así que si además fuera el
-//   color de base de la app, el guardia lo vería todo el día y "ACCESO DENEGADO"
-//   perdería fuerza justo cuando más importa. Con el grafito de base, el rojo en
-//   pantalla significa siempre una sola cosa.
+//   Los nombres de las constantes (Colores.grafito, Colores.grafitoClaro)
+//   se mantienen a propósito, aunque los valores ahora son azul marino:
+//   así el resto del código sigue funcionando sin tocar una sola pantalla.
+//   Pensalo como "grafito" = "el color principal de la marca", sea cual sea.
+//
+// LA REGLA DEL ROJO
+//
+//   El ROJO se usa ÚNICAMENTE para denegar o alertar. Nunca como decoración.
+//   Con el azul de base, el rojo en pantalla significa siempre una sola cosa.
 // ============================================================================
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class Colores {
   const Colores._();
 
   // ---- Base: encabezados, botones principales, barra lateral --------------
-  static const Color grafito = Color(0xFF1C1E24);
-  static const Color grafitoClaro = Color(0xFF2B2F39);
-  static const Color grafitoSuave = Color(0xFF3A3F4C);
+  // Azul marino corporativo estilo Merlyn.
+  static const Color grafito = Color(0xFF0D2B5E);
+  static const Color grafitoClaro = Color(0xFF1A4080);
+  static const Color grafitoSuave = Color(0xFF2A5AB0);
+
+  /// Azul marino más oscuro, para gradientes y sombras.
+  static const Color azulOscuro = Color(0xFF071A3E);
+
+  /// Dorado corporativo, acento y detalles decorativos.
+  static const Color dorado = Color(0xFFC9A24E);
+  static const Color doradoOscuro = Color(0xFFA08234);
+  static const Color doradoClaro = Color(0xFFE5C988);
 
   // ---- Señales. Cada una significa UNA sola cosa --------------------------
   /// Solo para acceso aprobado.
-  static const Color verde = Color(0xFF2E7D32);
-  static const Color verdeOscuro = Color(0xFF1B5E20);
+  static const Color verde = Color(0xFF27AE60);
+  static const Color verdeOscuro = Color(0xFF1E7D45);
 
   /// Solo para acceso denegado o peligro.
-  static const Color rojo = Color(0xFFD32F2F);
-  static const Color rojoOscuro = Color(0xFF8E1616);
+  static const Color rojo = Color(0xFFE74C3C);
+  static const Color rojoOscuro = Color(0xFFB03225);
 
   /// Solo para algo que espera atención: autos en la barrera, paquetes viejos.
-  static const Color naranja = Color(0xFFEF6C00);
-  static const Color naranjaOscuro = Color(0xFF8A3D00);
+  static const Color naranja = Color(0xFFF39C12);
+  static const Color naranjaOscuro = Color(0xFFB47409);
 
   // ---- Fondos y textos ----------------------------------------------------
-  static const Color fondo = Color(0xFFF4F5F6);
+  static const Color fondo = Color(0xFFF4F6FA);
   static const Color superficie = Colors.white;
-  static const Color texto = Color(0xFF1B1D22);
-  static const Color textoSuave = Color(0xFF6B6F78);
-  static const Color textoTenue = Color(0xFF9AA0A8);
-  static const Color linea = Color(0xFFE2E4E8);
+  static const Color texto = Color(0xFF1A1A2E);
+  static const Color textoSuave = Color(0xFF6B7280);
+  static const Color textoTenue = Color(0xFF9CA3AF);
+  static const Color linea = Color(0xFFE5E7EB);
 
   /// El rojo del aro del logo. Se usa SOLO al dibujar el logo, en ningún otro
   /// lugar de la interfaz.
@@ -57,12 +74,16 @@ class Medidas {
 
   static const double margen = 16;
   static const double margenChico = 10;
-  static const double redondeo = 12;
-  static const double redondeoChico = 8;
+
+  /// Radio grande, para cards y bottom sheets (estilo Merlyn).
+  static const double redondeo = 18;
+
+  /// Radio mediano, para botones e inputs.
+  static const double redondeoChico = 14;
 
   /// Alto mínimo de un botón que el guardia toca con guantes o el residente
   /// desde el auto. Más grande que el mínimo recomendado, a propósito.
-  static const double altoBoton = 54;
+  static const double altoBoton = 52;
   static const double altoBotonGigante = 72;
 }
 
@@ -75,44 +96,49 @@ class Tema {
       brightness: Brightness.light,
       primary: Colores.grafito,
       onPrimary: Colors.white,
-      secondary: Colores.grafitoClaro,
+      secondary: Colores.dorado,
+      onSecondary: Colors.white,
       surface: Colores.superficie,
       onSurface: Colores.texto,
       error: Colores.rojo,
       onError: Colors.white,
     );
 
+    final tipografia = GoogleFonts.interTextTheme();
+
     return ThemeData(
       useMaterial3: true,
       colorScheme: base,
       scaffoldBackgroundColor: Colores.fondo,
 
-      // Los textos en español no llevan mayúsculas forzadas: se lee peor.
-      appBarTheme: const AppBarTheme(
+      // AppBar azul marino, título centrado, estilo Merlyn.
+      appBarTheme: AppBarTheme(
         backgroundColor: Colores.grafito,
         foregroundColor: Colors.white,
         elevation: 0,
-        centerTitle: false,
-        systemOverlayStyle: SystemUiOverlayStyle(
+        centerTitle: true,
+        systemOverlayStyle: const SystemUiOverlayStyle(
           statusBarColor: Colores.grafito,
           statusBarIconBrightness: Brightness.light,
           statusBarBrightness: Brightness.dark,
         ),
-        titleTextStyle: TextStyle(
+        titleTextStyle: GoogleFonts.inter(
           fontSize: 18,
           fontWeight: FontWeight.w700,
           letterSpacing: -0.2,
           color: Colors.white,
         ),
+        iconTheme: const IconThemeData(color: Colors.white),
       ),
 
       cardTheme: CardThemeData(
         color: Colores.superficie,
         elevation: 0,
         margin: EdgeInsets.zero,
+        shadowColor: Colors.black.withValues(alpha: 0.08),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(Medidas.redondeo),
-          side: const BorderSide(color: Colores.linea),
+          side: BorderSide(color: Colors.black.withValues(alpha: 0.04)),
         ),
       ),
 
@@ -122,14 +148,15 @@ class Tema {
           foregroundColor: Colors.white,
           disabledBackgroundColor: Colores.textoTenue,
           minimumSize: const Size.fromHeight(Medidas.altoBoton),
-          elevation: 0,
+          elevation: 2,
+          shadowColor: Colores.grafito.withValues(alpha: 0.4),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(Medidas.redondeoChico),
           ),
-          textStyle: const TextStyle(
-            fontSize: 16,
+          textStyle: GoogleFonts.inter(
+            fontSize: 15,
             fontWeight: FontWeight.w700,
-            letterSpacing: 0.1,
+            letterSpacing: 0.3,
           ),
         ),
       ),
@@ -142,9 +169,32 @@ class Tema {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(Medidas.redondeoChico),
           ),
-          textStyle: const TextStyle(
-            fontSize: 16,
+          textStyle: GoogleFonts.inter(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          minimumSize: const Size.fromHeight(Medidas.altoBoton),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(Medidas.redondeoChico),
+          ),
+          textStyle: GoogleFonts.inter(
+            fontSize: 15,
             fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: Colores.grafito,
+          textStyle: GoogleFonts.inter(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
           ),
         ),
       ),
@@ -152,7 +202,8 @@ class Tema {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: Colores.superficie,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(Medidas.redondeoChico),
           borderSide: const BorderSide(color: Colores.linea),
@@ -163,7 +214,7 @@ class Tema {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(Medidas.redondeoChico),
-          borderSide: const BorderSide(color: Colores.grafito, width: 1.8),
+          borderSide: const BorderSide(color: Colores.grafito, width: 2),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(Medidas.redondeoChico),
@@ -171,20 +222,22 @@ class Tema {
         ),
         focusedErrorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(Medidas.redondeoChico),
-          borderSide: const BorderSide(color: Colores.rojo, width: 1.8),
+          borderSide: const BorderSide(color: Colores.rojo, width: 2),
         ),
-        labelStyle: const TextStyle(color: Colores.textoSuave),
+        labelStyle: GoogleFonts.inter(color: Colores.textoSuave),
+        hintStyle: GoogleFonts.inter(color: Colores.textoTenue),
       ),
 
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: Colores.superficie,
-        indicatorColor: Colores.grafito.withValues(alpha: 0.10),
-        elevation: 0,
+        indicatorColor: Colores.grafito.withValues(alpha: 0.12),
+        elevation: 4,
+        shadowColor: Colors.black.withValues(alpha: 0.05),
         height: 68,
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
         labelTextStyle: WidgetStateProperty.resolveWith((estados) {
           final activo = estados.contains(WidgetState.selected);
-          return TextStyle(
+          return GoogleFonts.inter(
             fontSize: 11,
             fontWeight: FontWeight.w700,
             color: activo ? Colores.grafito : Colores.textoSuave,
@@ -199,43 +252,116 @@ class Tema {
         }),
       ),
 
+      drawerTheme: const DrawerThemeData(
+        backgroundColor: Colores.grafito,
+        width: 290,
+      ),
+
+      chipTheme: ChipThemeData(
+        backgroundColor: Colores.grafito.withValues(alpha: 0.08),
+        labelStyle: GoogleFonts.inter(
+          fontSize: 12,
+          color: Colores.grafito,
+          fontWeight: FontWeight.w600,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+        side: BorderSide.none,
+      ),
+
       dividerTheme: const DividerThemeData(
         color: Colores.linea,
         thickness: 1,
         space: 1,
       ),
 
-      snackBarTheme: SnackBarThemeData(
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: Colores.grafito,
-        contentTextStyle: const TextStyle(color: Colors.white, fontSize: 14),
+      dialogTheme: DialogThemeData(
+        backgroundColor: Colores.superficie,
+        surfaceTintColor: Colores.superficie,
+        elevation: 10,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(Medidas.redondeoChico),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        titleTextStyle: GoogleFonts.inter(
+          color: Colores.grafito,
+          fontSize: 18,
+          fontWeight: FontWeight.w700,
+        ),
+        contentTextStyle: GoogleFonts.inter(
+          color: Colores.texto,
+          fontSize: 14,
+          height: 1.45,
         ),
       ),
 
-      textTheme: const TextTheme(
-        headlineLarge: TextStyle(
+      bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: Colores.superficie,
+        surfaceTintColor: Colores.superficie,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+      ),
+
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: Colores.grafito,
+        contentTextStyle: GoogleFonts.inter(
+          color: Colors.white,
+          fontSize: 14,
+          fontWeight: FontWeight.w500,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+
+      floatingActionButtonTheme: const FloatingActionButtonThemeData(
+        backgroundColor: Colores.grafito,
+        foregroundColor: Colors.white,
+        elevation: 4,
+      ),
+
+      textTheme: tipografia.copyWith(
+        headlineLarge: GoogleFonts.inter(
           fontSize: 30,
           fontWeight: FontWeight.w800,
           letterSpacing: -0.6,
-          color: Colores.texto,
+          color: Colores.grafito,
         ),
-        titleLarge: TextStyle(
+        headlineMedium: GoogleFonts.inter(
+          fontSize: 24,
+          fontWeight: FontWeight.w800,
+          letterSpacing: -0.4,
+          color: Colores.grafito,
+        ),
+        titleLarge: GoogleFonts.inter(
           fontSize: 19,
           fontWeight: FontWeight.w700,
           letterSpacing: -0.2,
           color: Colores.texto,
         ),
-        titleMedium: TextStyle(
+        titleMedium: GoogleFonts.inter(
           fontSize: 15,
           fontWeight: FontWeight.w700,
           color: Colores.texto,
         ),
-        bodyLarge: TextStyle(fontSize: 15, color: Colores.texto, height: 1.45),
-        bodyMedium: TextStyle(fontSize: 14, color: Colores.texto, height: 1.45),
-        bodySmall: TextStyle(fontSize: 12.5, color: Colores.textoSuave, height: 1.4),
-        labelSmall: TextStyle(
+        bodyLarge: GoogleFonts.inter(
+          fontSize: 15,
+          color: Colores.texto,
+          height: 1.45,
+        ),
+        bodyMedium: GoogleFonts.inter(
+          fontSize: 14,
+          color: Colores.texto,
+          height: 1.45,
+        ),
+        bodySmall: GoogleFonts.inter(
+          fontSize: 12.5,
+          color: Colores.textoSuave,
+          height: 1.4,
+        ),
+        labelSmall: GoogleFonts.inter(
           fontSize: 10.5,
           fontWeight: FontWeight.w800,
           letterSpacing: 1.0,
