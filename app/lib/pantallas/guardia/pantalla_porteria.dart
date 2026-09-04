@@ -197,7 +197,9 @@ class _EstadoRecibir extends ConsumerState<_PestanaRecibir> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Paquete guardado. Ya le avisamos a $nombre.'),
+          content: Text(
+              'Paquete guardado para $nombre. Queda en el inventario '
+              'de portería hasta que lo retire.'),
           backgroundColor: Colores.verde,
           duration: const Duration(seconds: 4),
         ),
@@ -429,15 +431,15 @@ class _EstadoRecibir extends ConsumerState<_PestanaRecibir> {
             color: Colores.grafito.withValues(alpha: 0.05),
             borderRadius: BorderRadius.circular(Medidas.redondeoChico),
           ),
-          child: Row(
+          child: const Row(
             children: [
-              Icon(Icons.notifications_rounded,
+              Icon(Icons.inventory_2_outlined,
                   size: 17, color: Colores.grafito),
               SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  'Al guardar, el ${ref.read(palabrasProvider).elHabitante} recibe el aviso en su celular con la '
-                  'foto del paquete.',
+                  'Al guardar, el paquete queda en el inventario de portería. '
+                  'Se entrega en persona cuando el residente lo retira.',
                   style: TextStyle(
                     fontSize: 12.5,
                     height: 1.4,
@@ -886,9 +888,10 @@ class _EstadoEntrega extends ConsumerState<_HojaDeEntrega> {
                     borderRadius: BorderRadius.circular(Medidas.redondeoChico),
                   ),
                   child: Text(
-                    'Queda registrado que no lo retiró el ${ref.read(palabrasProvider).elHabitante}. Conviene '
-                    'que él lo sepa: le llega el aviso igual.',
-                    style: TextStyle(
+                    'Queda registrado que la entrega la recibió otra persona, '
+                    'con su nombre. Sirve como respaldo si después el '
+                    '${ref.read(palabrasProvider).elHabitante} reclama.',
+                    style: const TextStyle(
                       fontSize: 12,
                       height: 1.4,
                       color: Colores.naranjaOscuro,
