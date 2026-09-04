@@ -49,38 +49,25 @@ class _EstadoContenedorGuardia extends ConsumerState<ContenedorGuardia> {
     ref.read(rastreadorGuardiaProvider);
   }
 
-  /// El menú se arma según el puesto del guardia.
+  /// El menú del guardia. Cambió al nuevo modelo de empresa de seguridad:
   ///
-  /// POR QUÉ NO ES UNA LISTA FIJA
+  ///   Antes había pestañas de "Autos" (cola de barrera), "Escanear" (QR de
+  ///   residente) y "Visitas" (esperando autorización del residente), que
+  ///   servían al modelo condominio-autogestionado. En el modelo Tomass eso
+  ///   no aplica: la administradora del edificio no atiende el sistema en
+  ///   vivo, y los guardias registran los ingresos ellos mismos.
   ///
-  ///   En los colegios hay barrera y portones que abre el guardia: no hay nada
-  ///   que escanear. Mostrarle el lector de códigos sería darle un botón que en
-  ///   su puesto no sirve para nada, y esconderle el que sí necesita.
+  ///   Por eso el menú actual es más corto y directo: Inicio + Registrar
+  ///   ingreso + Rondas + Encomiendas + Novedades.
   ///
-  ///   Al revés, en los condominios no hace falta el formulario a mano: la
-  ///   gente escanea el cartel del muro.
-  ///
-  ///   Un guardia que cubre todo puede necesitar los dos.
-  List<_Opcion> _opcionesDe({
-    required bool anota,
-    required bool escanea,
-    required bool rondas,
-    required bool visitas,
-  }) =>
-      [
+  ///   La opción "anota" sigue existiendo pero se muestra como "Registrar":
+  ///   es el formulario a mano para dar entrada/salida a personas y
+  ///   vehículos (con foto de patente y datos básicos).
+  List<_Opcion> _opcionesDe({required bool rondas}) => [
         const _Opcion(
             Rutas.panel, 'Inicio', Icons.home_outlined, Icons.home_rounded),
-        const _Opcion(Rutas.autosEsperando, 'Autos',
-            Icons.directions_car_outlined, Icons.directions_car_rounded),
-        if (escanea)
-          const _Opcion(Rutas.escanerGuardia, 'Escanear',
-              Icons.qr_code_scanner_outlined, Icons.qr_code_scanner_rounded),
-        if (anota)
-          const _Opcion(Rutas.accesoManual, 'Anotar',
-              Icons.edit_note_outlined, Icons.edit_note_rounded),
-        if (visitas)
-          const _Opcion(Rutas.visitasGuardia, 'Visitas',
-              Icons.person_add_alt_1_outlined, Icons.person_add_alt_1_rounded),
+        const _Opcion(Rutas.accesoManual, 'Registrar',
+            Icons.edit_note_outlined, Icons.edit_note_rounded),
         if (rondas)
           const _Opcion(Rutas.rondas, 'Rondas', Icons.route_outlined,
               Icons.route_rounded),
@@ -113,24 +100,21 @@ class _EstadoContenedorGuardia extends ConsumerState<ContenedorGuardia> {
     final ancho = MediaQuery.sizeOf(context).width;
     final esTablet = ancho >= 720;
 
-    // El menú se arma según lo que necesita ESTE guardia en SU puesto
+    // El menú se arma según lo que necesita ESTE guardia en SU puesto.
+    // Solo miramos si hay rondas configuradas: el resto (Registrar,
+    // Portería, Novedades) aparece siempre en el nuevo modelo.
     final opciones = _opcionesDe(
-      anota: ref.watch(anotaAManoProvider),
-      escanea: ref.watch(escaneaCodigosProvider),
       rondas: ref.watch(hayRondasProvider),
-      visitas: ref.watch(pideAutorizacionProvider),
     );
     final indiceActual = _indiceActualDe(opciones);
 
-    final autos = ref.watch(cuantosAutosEsperandoProvider);
-    final paquetes = ref.watch(resumenProvider).valueOrNull?.paquetesEnPorteria ?? 0;
+    final paquetes =
+        ref.watch(resumenProvider).valueOrNull?.paquetesEnPorteria ?? 0;
     final novedades = ref.watch(incidentesAbiertosProvider);
 
     final avisos = <String, int>{
-      Rutas.autosEsperando: autos,
       Rutas.paquetesGuardia: paquetes,
       Rutas.incidentes: novedades,
-      Rutas.visitasGuardia: ref.watch(cuantasVisitasEsperandoProvider),
     };
 
     if (esTablet) {
@@ -161,12 +145,12 @@ class _EstadoContenedorGuardia extends ConsumerState<ContenedorGuardia> {
             NavigationDestination(
               icon: _ConGlobito(
                 cuantos: avisos[o.ruta] ?? 0,
-                urgente: o.ruta == Rutas.autosEsperando,
+                urgente: false,
                 child: Icon(o.iconoApagado),
               ),
               selectedIcon: _ConGlobito(
                 cuantos: avisos[o.ruta] ?? 0,
-                urgente: o.ruta == Rutas.autosEsperando,
+                urgente: false,
                 child: Icon(o.iconoEncendido),
               ),
               label: o.nombre,
@@ -290,7 +274,7 @@ class _MenuLateral extends ConsumerWidget {
                       opcion: opciones[i],
                       activa: i == indiceActual,
                       cuantos: avisos[opciones[i].ruta] ?? 0,
-                      urgente: opciones[i].ruta == Rutas.autosEsperando,
+                      urgente: false,
                       alTocar: () => alElegir(i),
                     ),
                 ],
