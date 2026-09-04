@@ -14,6 +14,7 @@
 // ============================================================================
 
 import 'dart:io';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -28,6 +29,20 @@ import '../../nucleo/formato.dart';
 import '../../servicios/servicio_fotos.dart';
 import '../comunes/componentes.dart';
 import 'acciones_de_turno.dart';
+
+/// Genera un UUID v4 válido (formato 8-4-4-4-12 con guiones y los bits
+/// de versión/variant fijos). Se usa para el id_local de paquetes y
+/// novedades, que Postgres exige de tipo uuid.
+String _nuevoUuidV4() {
+  final azar = Random.secure();
+  String b(int n) => List.generate(
+        n,
+        (_) => azar.nextInt(256).toRadixString(16).padLeft(2, '0'),
+      ).join();
+  return '${b(4)}-${b(2)}-4${b(2).substring(1)}-'
+      '${(8 + azar.nextInt(4)).toRadixString(16)}${b(2).substring(1)}-'
+      '${b(6)}';
+}
 
 class PantallaPorteria extends ConsumerWidget {
   const PantallaPorteria({super.key});
@@ -209,8 +224,12 @@ class _EstadoRecibir extends ConsumerState<_PestanaRecibir> {
                 ? _unidadAMano.text.trim()
                 : null,
             foto: _foto!,
-            idLocal: UniqueKey().toString().hashCode.toRadixString(16) +
-                DateTime.now().microsecondsSinceEpoch.toRadixString(16),
+            // Antes se armaba un hex a mano concatenando hashCode +
+            // microseconds. El campo id_local en la tabla paquetes es de
+            // tipo uuid, así que Postgres lo rechazaba con
+            // "invalid input for type uuid". Ahora se genera un UUID v4
+            // real (formato 8-4-4-4-12 con guiones y bits fijos).
+            idLocal: _nuevoUuidV4(),
             numeroSeguimiento: _seguimiento.text,
             empresaCourier: _courier.text,
             descripcion: _descripcion.text,

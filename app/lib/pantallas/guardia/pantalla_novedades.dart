@@ -15,6 +15,7 @@
 // ============================================================================
 
 import 'dart:io';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -28,6 +29,20 @@ import '../../nucleo/formato.dart';
 import '../../servicios/servicio_fotos.dart';
 import '../comunes/componentes.dart';
 import 'acciones_de_turno.dart';
+
+/// Genera un UUID v4 válido (formato 8-4-4-4-12 con guiones y los bits
+/// de versión/variant fijos). El campo id_local en la tabla incidentes
+/// es de tipo uuid, así que necesita este formato.
+String _nuevoUuidV4() {
+  final azar = Random.secure();
+  String b(int n) => List.generate(
+        n,
+        (_) => azar.nextInt(256).toRadixString(16).padLeft(2, '0'),
+      ).join();
+  return '${b(4)}-${b(2)}-4${b(2).substring(1)}-'
+      '${(8 + azar.nextInt(4)).toRadixString(16)}${b(2).substring(1)}-'
+      '${b(6)}';
+}
 
 class PantallaNovedades extends ConsumerWidget {
   const PantallaNovedades({super.key});
@@ -381,8 +396,10 @@ class _EstadoFormulario extends ConsumerState<_FormularioNovedad> {
     try {
       await ref.read(servicioGuardiaProvider).reportarIncidente(
             condominioId: perfil.condominioId,
-            idLocal: '${DateTime.now().microsecondsSinceEpoch.toRadixString(16)}'
-                '-${UniqueKey().hashCode.toRadixString(16)}',
+            // El campo id_local en incidentes es de tipo uuid; antes se
+            // armaba a mano concatenando hex, y Postgres rechazaba con
+            // "invalid input for type uuid". Ahora es UUID v4 real.
+            idLocal: _nuevoUuidV4(),
             tipo: _tipo,
             gravedad: _gravedad,
             titulo: _titulo.text,
