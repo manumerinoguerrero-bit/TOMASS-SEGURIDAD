@@ -497,12 +497,18 @@ class _Estadisticas {
     for (final m in movs) {
       if (m.esEntrada) {
         entradas++;
-        if (m.esVehicular) autoE++;
-        else peatonE++;
+        if (m.esVehicular) {
+          autoE++;
+        } else {
+          peatonE++;
+        }
       } else {
         salidas++;
-        if (m.esVehicular) autoS++;
-        else peatonS++;
+        if (m.esVehicular) {
+          autoS++;
+        } else {
+          peatonS++;
+        }
       }
       if (!m.aprobado) denegados++;
       if (m.entrada != null) {
