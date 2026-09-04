@@ -643,6 +643,47 @@ class ServicioAdmin {
   }
 
   // ==========================================================================
+  // MARCAS DE RONDA POR TURNO (para el mini-mapa del PDF)
+  // ==========================================================================
+  // Devuelve todas las marcas de ronda hechas dentro de un turno, con la
+  // ubicación GPS del guardia al momento de escanear y la ubicación del
+  // cartel. Se usa para dibujar el recorrido en el informe PDF de turnos.
+  // ==========================================================================
+
+  Future<List<MarcaDeRondaAdmin>> marcasDeRondaPorTurno(String turnoId) async {
+    try {
+      // Primero traemos las rondas de ese turno; después las marcas de esas
+      // rondas. Split para no explotar la query con demasiados joins.
+      final rondasFilas = await _supabase
+          .from('rondas')
+          .select('id')
+          .eq('turno_id', turnoId)
+          .timeout(Entorno.esperaMaxima);
+
+      final rondaIds =
+          (rondasFilas as List).map((r) => r['id'] as String).toList();
+      if (rondaIds.isEmpty) return const [];
+
+      final filas = await _supabase
+          .from('marcas_de_ronda')
+          .select('''
+            id, ronda_id, marcado_en, novedad, geo_lat, geo_lng,
+            puntos_control ( nombre, latitud, longitud )
+          ''')
+          .inFilter('ronda_id', rondaIds)
+          .order('marcado_en', ascending: true)
+          .timeout(Entorno.esperaMaxima);
+
+      return (filas as List)
+          .map((f) =>
+              MarcaDeRondaAdmin.desdeMapa(Map<String, dynamic>.from(f)))
+          .toList();
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+
+  // ==========================================================================
   // NOVEDADES / INCIDENTES DEL PERÍODO (para el informe)
   // ==========================================================================
   // Devuelve todas las novedades ocurridas entre dos fechas, con quién las

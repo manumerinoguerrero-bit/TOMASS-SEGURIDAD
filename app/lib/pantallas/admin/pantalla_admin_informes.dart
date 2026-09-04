@@ -398,11 +398,27 @@ class _PestanaTurnos extends ConsumerWidget {
       final (stats, turnosEnriquecidos) =
           await servicio.estadisticasTurnos(desde: desde, hasta: hasta);
 
+      // Marcas de ronda por turno — se usa para dibujar el mini-mapa OSM
+      // y el timeline dentro de cada tarjeta del PDF. Se pide de a 4
+      // turnos en paralelo para no saturar la red.
+      final rondasPorTurno = <String, List<MarcaDeRondaAdmin>>{};
+      for (var i = 0; i < turnosEnriquecidos.length; i += 4) {
+        final tanda = turnosEnriquecidos.skip(i).take(4);
+        final resultados = await Future.wait(
+          tanda.map((t) => servicio.marcasDeRondaPorTurno(t.id)),
+        );
+        var j = 0;
+        for (final t in tanda) {
+          rondasPorTurno[t.id] = resultados[j++];
+        }
+      }
+
       final bytes = await InformeDeTurnosPdf.armar(
         instalacion: instalacion,
         turnos: turnosEnriquecidos,
         servicioFotos: servicioFotos,
         stats: stats,
+        rondasPorTurno: rondasPorTurno,
       );
       if (!context.mounted) return;
       await Printing.layoutPdf(

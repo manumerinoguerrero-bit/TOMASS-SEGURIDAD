@@ -149,6 +149,11 @@ dependencies:
   # Es la misma que usa Merlyn Seguridad.
   google_fonts: ^6.2.1
 
+  # ---- Peticiones HTTP genéricas -----------------------------------------
+  # Se usa para bajar mapas estáticos de OpenStreetMap para los PDFs de
+  # informe de turnos (ronda por turno) y para el pin del inicio de turno.
+  http: ^1.2.2
+
 # ============================================================================
 # UN EMPATE FORZADO, SOLO PARA QUE LA APP ARME EN IPHONE
 # ============================================================================

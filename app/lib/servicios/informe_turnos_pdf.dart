@@ -34,6 +34,7 @@ import 'package:pdf/widgets.dart' as pw;
 import '../modelos/admin.dart';
 import '../nucleo/formato.dart';
 import 'servicio_fotos.dart';
+import 'servicio_mapa_estatico.dart';
 
 abstract class _Tinta {
   // Azul marino corporativo (paleta Merlyn), el mismo que usa la app.
@@ -62,8 +63,9 @@ class InformeDeTurnosPdf {
     required List<TurnoAdmin> turnos,
     required ServicioFotos servicioFotos,
     EstadisticasTurnos? stats,
+    Map<String, List<MarcaDeRondaAdmin>>? rondasPorTurno,
   }) async {
-    // Bajamos todas las fotos en paralelo (limitando de a 6 para no saturar)
+    // Bajamos todas las selfies en paralelo (limitando de a 6 para no saturar)
     final fotos = <String, Uint8List?>{};
     for (var i = 0; i < turnos.length; i += 6) {
       final tanda = turnos.skip(i).take(6);
@@ -79,6 +81,29 @@ class InformeDeTurnosPdf {
       );
       for (final entry in resultados) {
         fotos[entry.key] = entry.value;
+      }
+    }
+
+    // Bajamos mapas OSM para los turnos que tienen marcas de ronda con GPS.
+    // Va secuencial a propósito: el rate-limit del servidor público es
+    // estricto y en paralelo empieza a devolver blanco/errores.
+    final mapas = <String, Uint8List?>{};
+    if (rondasPorTurno != null) {
+      for (final entry in rondasPorTurno.entries) {
+        final marcasConGps = entry.value
+            .where((m) => m.tieneGpsGuardia)
+            .toList();
+        if (marcasConGps.isEmpty) continue;
+        mapas[entry.key] = await ServicioMapaEstatico.conRecorrido(
+          puntos: [
+            for (var i = 0; i < marcasConGps.length; i++)
+              (
+                lat: marcasConGps[i].geoLat!,
+                lng: marcasConGps[i].geoLng!,
+                numero: i + 1,
+              ),
+          ],
+        );
       }
     }
 
@@ -98,7 +123,12 @@ class InformeDeTurnosPdf {
         ),
         build: (_) => [
           if (stats != null) ..._portadaStats(stats),
-          ...turnos.map((t) => _tarjetaDeTurno(t, fotos[t.id])),
+          ...turnos.map((t) => _tarjetaDeTurno(
+                t,
+                fotos[t.id],
+                rondasPorTurno?[t.id] ?? const [],
+                mapas[t.id],
+              )),
         ],
       ),
     );
@@ -564,7 +594,12 @@ class InformeDeTurnosPdf {
   // UNA TARJETA POR TURNO
   // ==========================================================================
 
-  static pw.Widget _tarjetaDeTurno(TurnoAdmin t, Uint8List? fotoBytes) {
+  static pw.Widget _tarjetaDeTurno(
+    TurnoAdmin t,
+    Uint8List? fotoBytes,
+    List<MarcaDeRondaAdmin> marcas,
+    Uint8List? mapaBytes,
+  ) {
     return pw.Container(
       margin: const pw.EdgeInsets.only(bottom: 12),
       padding: const pw.EdgeInsets.all(10),
@@ -685,9 +720,133 @@ class InformeDeTurnosPdf {
                     ),
                   ),
                 ],
+
+                // ---- Ronda: mapa + timeline (Fase C) ----
+                if (marcas.isNotEmpty) ...[
+                  pw.SizedBox(height: 10),
+                  _seccionRonda(marcas, mapaBytes),
+                ],
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  // ==========================================================================
+  // Sección de recorrido de ronda: mapa OSM + timeline con los sectores
+  // ==========================================================================
+
+  static pw.Widget _seccionRonda(
+      List<MarcaDeRondaAdmin> marcas, Uint8List? mapaBytes) {
+    return pw.Container(
+      padding: const pw.EdgeInsets.all(8),
+      decoration: pw.BoxDecoration(
+        color: const PdfColor.fromInt(0xFFF0F4FA),
+        borderRadius: pw.BorderRadius.circular(6),
+        border: pw.Border.all(
+            color: const PdfColor.fromInt(0xFFD9E2F1), width: 0.8),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Row(
+            children: [
+              pw.Text(
+                'RECORRIDO DE RONDA',
+                style: pw.TextStyle(
+                  fontSize: 9,
+                  fontWeight: pw.FontWeight.bold,
+                  color: _Tinta.grafito,
+                  letterSpacing: 0.8,
+                ),
+              ),
+              pw.SizedBox(width: 6),
+              pw.Text(
+                '· ${marcas.length} '
+                '${marcas.length == 1 ? "sector marcado" : "sectores marcados"}',
+                style: const pw.TextStyle(
+                  fontSize: 9,
+                  color: _Tinta.suave,
+                ),
+              ),
+            ],
+          ),
+          pw.SizedBox(height: 6),
+
+          if (mapaBytes != null) ...[
+            pw.ClipRRect(
+              horizontalRadius: 5,
+              verticalRadius: 5,
+              child: pw.Image(
+                pw.MemoryImage(mapaBytes),
+                width: double.infinity,
+                height: 160,
+                fit: pw.BoxFit.cover,
+              ),
+            ),
+            pw.SizedBox(height: 6),
+          ],
+
+          // Timeline compacto
+          pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              for (var i = 0; i < marcas.length; i++)
+                _filaMarcaRonda(marcas[i], i + 1),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  static pw.Widget _filaMarcaRonda(MarcaDeRondaAdmin m, int numero) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(vertical: 2),
+      child: pw.Row(
+        children: [
+          pw.Container(
+            width: 18,
+            height: 18,
+            alignment: pw.Alignment.center,
+            decoration: const pw.BoxDecoration(
+              color: _Tinta.grafito,
+              shape: pw.BoxShape.circle,
+            ),
+            child: pw.Text(
+              '$numero',
+              style: const pw.TextStyle(
+                color: PdfColors.white,
+                fontSize: 9,
+                fontWeight: pw.FontWeight.bold,
+              ),
+            ),
+          ),
+          pw.SizedBox(width: 8),
+          pw.Text(
+            Formato.hora(m.marcadoEn),
+            style: pw.TextStyle(
+              fontSize: 9.5,
+              fontWeight: pw.FontWeight.bold,
+              color: _Tinta.grafito,
+            ),
+          ),
+          pw.SizedBox(width: 8),
+          pw.Expanded(
+            child: pw.Text(
+              m.puntoNombre,
+              style: const pw.TextStyle(fontSize: 9.5, color: _Tinta.grafito),
+              overflow: pw.TextOverflow.clip,
+              maxLines: 1,
+            ),
+          ),
+          if (!m.tieneGpsGuardia)
+            pw.Text(
+              'sin GPS',
+              style: const pw.TextStyle(fontSize: 8, color: _Tinta.naranja),
+            ),
         ],
       ),
     );

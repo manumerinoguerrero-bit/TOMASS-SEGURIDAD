@@ -889,6 +889,62 @@ class ActividadTurno {
 }
 
 // ============================================================================
+// UNA MARCA DE RONDA (un sector escaneado durante un turno)
+// ============================================================================
+// Sirve para dibujar el mini-mapa de ronda por turno y contar cuántos puntos
+// marcó el guardia con GPS del propio celular (para detectar escaneos
+// hechos lejos del cartel).
+// ============================================================================
+
+class MarcaDeRondaAdmin {
+  const MarcaDeRondaAdmin({
+    required this.id,
+    required this.rondaId,
+    required this.marcadoEn,
+    required this.puntoNombre,
+    this.geoLat,
+    this.geoLng,
+    this.puntoLat,
+    this.puntoLng,
+    this.novedad,
+  });
+
+  final String id;
+  final String rondaId;
+  final DateTime marcadoEn;
+  final String puntoNombre;
+
+  /// Dónde estaba el celular del guardia cuando escaneó.
+  final double? geoLat;
+  final double? geoLng;
+
+  /// Dónde estaba el cartel (según lo cargó el admin).
+  final double? puntoLat;
+  final double? puntoLng;
+
+  final String? novedad;
+
+  bool get tieneGpsGuardia => geoLat != null && geoLng != null;
+  bool get tieneGpsPunto => puntoLat != null && puntoLng != null;
+
+  factory MarcaDeRondaAdmin.desdeMapa(Map<String, dynamic> m) {
+    final p = m['puntos_control'];
+    return MarcaDeRondaAdmin(
+      id: m['id'] as String,
+      rondaId: m['ronda_id'] as String,
+      marcadoEn: DateTime.parse(m['marcado_en'] as String),
+      puntoNombre:
+          (p is Map ? p['nombre'] as String? : null) ?? 'Sector sin nombre',
+      geoLat: (m['geo_lat'] as num?)?.toDouble(),
+      geoLng: (m['geo_lng'] as num?)?.toDouble(),
+      puntoLat: p is Map ? (p['latitud'] as num?)?.toDouble() : null,
+      puntoLng: p is Map ? (p['longitud'] as num?)?.toDouble() : null,
+      novedad: m['novedad'] as String?,
+    );
+  }
+}
+
+// ============================================================================
 // UNA NOVEDAD/INCIDENTE DEL HISTORIAL
 // ============================================================================
 // En la base de datos la tabla se llama "incidentes"; en la UI le decimos
