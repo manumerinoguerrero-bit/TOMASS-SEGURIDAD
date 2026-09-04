@@ -69,9 +69,17 @@ class _EstadoLogin extends ConsumerState<PantallaLogin> {
       _nombreBiometria = nombre;
     });
 
-    // Si puede entrar con huella, se le ofrece de entrada sin que tenga que
-    // tocar nada: es el camino más rápido y el más común.
-    if (puedeHuella) _entrarConHuella();
+    // ⚠️ NO se dispara huella automáticamente al abrir la pantalla.
+    //
+    //    Antes se lanzaba solo, con la idea de que era el camino más
+    //    rápido. Pero en muchos celulares el prompt del sistema aparece y
+    //    se cierra en menos de un segundo (por race con la construcción de
+    //    la pantalla), y al usuario le queda solo el login con el correo
+    //    prefill y sin poder hacer nada. Peor, si la huella falla dos
+    //    veces, Android bloquea el sensor 30 segundos.
+    //
+    //    Ahora la huella SOLO se dispara cuando el usuario toca el botón
+    //    "Ingresar con {nombre}". Es un toque más, pero previsible.
   }
 
   Future<void> _entrarConCorreo() async {
@@ -89,8 +97,17 @@ class _EstadoLogin extends ConsumerState<PantallaLogin> {
             contrasena: _contrasena.text,
           );
 
-      // La navegación la maneja sola el vigilante de sesión de rutas.dart
-      if (mounted) await _ofrecerActivarHuella();
+      // La navegación la maneja sola el vigilante de sesión de rutas.dart.
+      //
+      // ⚠️ NO se ofrece acá activar la huella. El vigilante navega al home
+      //    apenas detecta sesión válida, y si acá abrimos un diálogo, se
+      //    cierra en el aire porque la pantalla ya se está desmontando —
+      //    el usuario ve la pantalla del login por medio segundo antes de
+      //    llegar al home. Confuso.
+      //
+      //    La activación de huella vive en la pantalla de perfil, con un
+      //    switch, donde el usuario puede prenderla y apagarla cuando
+      //    quiera sin sorpresas.
     } catch (falla) {
       if (!mounted) return;
       setState(() => _problema = Traductor.traducir(falla));
@@ -119,47 +136,6 @@ class _EstadoLogin extends ConsumerState<PantallaLogin> {
       setState(() => _problema = Traductor.traducir(falla));
     } finally {
       if (mounted) setState(() => _cargando = false);
-    }
-  }
-
-  /// Después de entrar con contraseña por primera vez, se le ofrece el atajo.
-  Future<void> _ofrecerActivarHuella() async {
-    final sesion = ref.read(servicioSesionProvider);
-    if (!await sesion.biometriaDisponible()) return;
-    if (await Preferencias.usaBiometria()) return;
-    if (!mounted) return;
-
-    final nombre = await sesion.nombreDeLaBiometria();
-    if (!mounted) return;
-
-    final quiere = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('¿Querés entrar con $nombre?'),
-        content: Text(
-          'La próxima vez que abras la app te alcanza con tu $nombre, '
-          'sin escribir la contraseña.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('No, gracias'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: FilledButton.styleFrom(backgroundColor: Colores.grafito),
-            child: const Text('Sí, activar'),
-          ),
-        ],
-      ),
-    );
-
-    if (quiere == true) {
-      try {
-        await sesion.configurarBiometria(true);
-      } catch (_) {
-        // Si falla, no pasa nada: sigue pudiendo entrar con la contraseña.
-      }
     }
   }
 
