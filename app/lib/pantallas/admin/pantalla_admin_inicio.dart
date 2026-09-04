@@ -34,7 +34,6 @@ class PantallaAdminInicio extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final resumen = ref.watch(resumenAdminProvider);
     final perfil = ref.watch(perfilProvider).valueOrNull;
-    final palabras = ref.watch(palabrasProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -83,7 +82,7 @@ class PantallaAdminInicio extends ConsumerWidget {
               const _TituloSeccion('CÓMO VA TODO'),
               const SizedBox(height: 12),
 
-              _KpiGrid(resumen: r, palabras: palabras),
+              _KpiGrid(resumen: r),
 
               const SizedBox(height: 24),
               const _TituloSeccion('MONITOREO EN VIVO'),
@@ -99,7 +98,7 @@ class PantallaAdminInicio extends ConsumerWidget {
               ),
 
               const SizedBox(height: 24),
-              const _TituloSeccion('ADMINISTRAR'),
+              const _TituloSeccion('REGISTROS DEL DÍA'),
               const SizedBox(height: 12),
 
               // ⚠️ ACÁ VA push Y NO go. NO LO CAMBIES.
@@ -109,36 +108,52 @@ class PantallaAdminInicio extends ConsumerWidget {
               //    con "go" quedaría encerrado sin flecha de volver.
 
               _Acceso(
-                icono: Icons.directions_car_rounded,
-                titulo: 'Vehículos',
-                detalle: r.vehiculosPorAprobar == 0
-                    ? 'No hay ninguno esperando'
-                    : '${r.vehiculosPorAprobar} esperando tu aprobación',
-                urgente: r.vehiculosPorAprobar > 0,
-                alTocar: () => context.push(Rutas.adminVehiculos),
+                icono: Icons.login_rounded,
+                titulo: 'Ingresos de personas y vehículos',
+                detalle: 'Historial de accesos, con quién entró, cuándo '
+                    'y por dónde',
+                alTocar: () => context.push('${Rutas.adminInformes}?tab=0'),
               ),
               _Acceso(
-                icono: Icons.people_alt_rounded,
-                titulo: palabras.losHabitantesConMayuscula,
-                detalle: 'Dar de alta, editar y desactivar personas',
-                alTocar: () => context.push(Rutas.adminPersonas),
+                icono: Icons.inventory_2_rounded,
+                titulo: 'Encomiendas',
+                detalle: r.paquetesEnPorteria == 0
+                    ? 'Sin encomiendas pendientes de entrega'
+                    : '${r.paquetesEnPorteria} pendientes de entrega',
+                urgente: r.paquetesEnPorteria > 0,
+                alTocar: () => context.push('${Rutas.adminInformes}?tab=4'),
               ),
               _Acceso(
-                icono: Icons.meeting_room_rounded,
-                titulo: palabras.losEspaciosConMayuscula,
-                detalle: '${r.espacios} registrados',
-                alTocar: () => context.push(Rutas.adminEspacios),
+                icono: Icons.report_gmailerrorred_rounded,
+                titulo: 'Novedades',
+                detalle: r.novedadesAbiertas == 0
+                    ? 'Sin novedades abiertas'
+                    : '${r.novedadesAbiertas} novedades sin resolver',
+                urgente: r.novedadesAbiertas > 0,
+                alTocar: () => context.push('${Rutas.adminInformes}?tab=2'),
+              ),
+
+              const SizedBox(height: 24),
+              const _TituloSeccion('GESTIÓN'),
+              const SizedBox(height: 12),
+
+              _Acceso(
+                icono: Icons.shield_rounded,
+                titulo: 'Guardias',
+                detalle: 'Dar de alta, editar y desactivar guardias',
+                alTocar: () => context.push(Rutas.adminGuardias),
               ),
               _Acceso(
                 icono: Icons.add_location_alt_rounded,
-                titulo: 'Sectores de la ronda',
+                titulo: 'Sectores de ronda',
                 detalle: 'Los carteles que marca el guardia al recorrer',
                 alTocar: () => context.push(Rutas.adminSectores),
               ),
               _Acceso(
                 icono: Icons.assessment_rounded,
-                titulo: 'Informes',
-                detalle: 'Quién entró y salió, y los turnos de los guardias',
+                titulo: 'Informes en PDF',
+                detalle: 'Descargar informes de accesos, turnos, rondas '
+                    'y novedades',
                 alTocar: () => context.push(Rutas.adminInformes),
               ),
 
@@ -318,10 +333,9 @@ class _TodoAlDia extends StatelessWidget {
 // ============================================================================
 
 class _KpiGrid extends StatelessWidget {
-  const _KpiGrid({required this.resumen, required this.palabras});
+  const _KpiGrid({required this.resumen});
 
   final ResumenAdmin resumen;
-  final dynamic palabras;
 
   @override
   Widget build(BuildContext context) {
@@ -334,15 +348,9 @@ class _KpiGrid extends StatelessWidget {
       childAspectRatio: 1.4,
       children: [
         _KpiCard(
-          etiqueta: 'Personas activas',
-          numero: '${resumen.personasActivas}',
-          icono: Icons.people_alt_outlined,
-          color: Colores.grafito,
-        ),
-        _KpiCard(
           etiqueta: resumen.guardiasDeTurno == 1
-              ? 'Guardia de turno'
-              : 'Guardias de turno',
+              ? 'Guardia en turno'
+              : 'Guardias en turno',
           numero: '${resumen.guardiasDeTurno}',
           icono: Icons.shield_outlined,
           color: resumen.guardiasDeTurno == 0
@@ -350,15 +358,23 @@ class _KpiGrid extends StatelessWidget {
               : Colores.verde,
         ),
         _KpiCard(
-          etiqueta: 'Paquetes en portería',
+          etiqueta: 'Novedades abiertas',
+          numero: '${resumen.novedadesAbiertas}',
+          icono: Icons.report_gmailerrorred_outlined,
+          color: resumen.novedadesAbiertas == 0
+              ? Colores.grafito
+              : Colores.rojo,
+        ),
+        _KpiCard(
+          etiqueta: 'Encomiendas en portería',
           numero: '${resumen.paquetesEnPorteria}',
           icono: Icons.inventory_2_outlined,
           color: Colores.naranja,
         ),
         _KpiCard(
-          etiqueta: palabras.losEspacios as String,
-          numero: '${resumen.espacios}',
-          icono: Icons.meeting_room_outlined,
+          etiqueta: 'Personas dentro',
+          numero: '${resumen.personasActivas}',
+          icono: Icons.people_alt_outlined,
           color: Colores.dorado,
         ),
       ],

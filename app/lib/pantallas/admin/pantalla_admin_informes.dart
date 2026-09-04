@@ -39,12 +39,18 @@ import 'informe_de_encomiendas.dart';
 import 'informe_de_rondas.dart';
 
 class PantallaAdminInformes extends ConsumerWidget {
-  const PantallaAdminInformes({super.key});
+  const PantallaAdminInformes({super.key, this.tabInicial = 0});
+
+  /// Índice de pestaña con la que abre. 0=Accesos, 1=Turnos, 2=Novedades,
+  /// 3=Rondas, 4=Encomiendas. Sirve para que los accesos rápidos del panel
+  /// (Ingresos, Encomiendas, Novedades) abran directo la pestaña correcta.
+  final int tabInicial;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return DefaultTabController(
       length: 5,
+      initialIndex: tabInicial.clamp(0, 4),
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Informes'),

@@ -50,6 +50,7 @@ import '../pantallas/vehiculos/pantalla_vehiculos.dart';
 import '../pantallas/visitas/pantalla_visitas.dart';
 import '../pantallas/admin/pantalla_admin_espacios.dart';
 import '../pantallas/admin/pantalla_admin_informes.dart';
+import '../pantallas/admin/pantalla_admin_guardias.dart';
 import '../pantallas/admin/pantalla_admin_mapa_vivo.dart';
 import '../pantallas/admin/pantalla_admin_inicio.dart';
 import '../pantallas/admin/pantalla_admin_personas.dart';
@@ -92,6 +93,7 @@ class Rutas {
   static const adminSectores = '/administracion/sectores';
   static const adminInformes = '/administracion/informes';
   static const adminMapaVivo = '/administracion/mapa-vivo';
+  static const adminGuardias = '/administracion/guardias';
 }
 
 final rutasProvider = Provider<GoRouter>((ref) {
@@ -242,11 +244,20 @@ final rutasProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: Rutas.adminInformes,
-        builder: (context, estado) => const PantallaAdminInformes(),
+        builder: (context, estado) {
+          final tab = int.tryParse(
+                  estado.uri.queryParameters['tab'] ?? '') ??
+              0;
+          return PantallaAdminInformes(tabInicial: tab);
+        },
       ),
       GoRoute(
         path: Rutas.adminMapaVivo,
         builder: (context, estado) => const PantallaAdminMapaVivo(),
+      ),
+      GoRoute(
+        path: Rutas.adminGuardias,
+        builder: (context, estado) => const PantallaAdminGuardias(),
       ),
 
       ShellRoute(
@@ -338,6 +349,7 @@ const _deAdministracion = {
   Rutas.adminSectores,
   Rutas.adminInformes,
   Rutas.adminMapaVivo,
+  Rutas.adminGuardias,
 };
 
 /// Las pantallas que puede ver el personal de portería.
