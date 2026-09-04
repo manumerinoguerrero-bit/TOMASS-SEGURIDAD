@@ -643,6 +643,24 @@ class ServicioAdmin {
   }
 
   // ==========================================================================
+  // MAPA EN VIVO: guardias con turno abierto y su última ubicación
+  // ==========================================================================
+
+  Future<List<GuardiaEnVivo>> guardiasActivosEnVivo() async {
+    try {
+      final filas = await _supabase
+          .rpc('guardias_activos_en_vivo')
+          .timeout(Entorno.esperaMaxima);
+
+      return (filas as List)
+          .map((f) => GuardiaEnVivo.desdeMapa(Map<String, dynamic>.from(f)))
+          .toList();
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+
+  // ==========================================================================
   // MARCAS DE RONDA POR TURNO (para el mini-mapa del PDF)
   // ==========================================================================
   // Devuelve todas las marcas de ronda hechas dentro de un turno, con la

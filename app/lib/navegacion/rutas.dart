@@ -50,6 +50,7 @@ import '../pantallas/vehiculos/pantalla_vehiculos.dart';
 import '../pantallas/visitas/pantalla_visitas.dart';
 import '../pantallas/admin/pantalla_admin_espacios.dart';
 import '../pantallas/admin/pantalla_admin_informes.dart';
+import '../pantallas/admin/pantalla_admin_mapa_vivo.dart';
 import '../pantallas/admin/pantalla_admin_inicio.dart';
 import '../pantallas/admin/pantalla_admin_personas.dart';
 import '../pantallas/admin/pantalla_admin_sectores.dart';
@@ -90,6 +91,7 @@ class Rutas {
   static const adminEspacios = '/administracion/espacios';
   static const adminSectores = '/administracion/sectores';
   static const adminInformes = '/administracion/informes';
+  static const adminMapaVivo = '/administracion/mapa-vivo';
 }
 
 final rutasProvider = Provider<GoRouter>((ref) {
@@ -242,6 +244,10 @@ final rutasProvider = Provider<GoRouter>((ref) {
         path: Rutas.adminInformes,
         builder: (context, estado) => const PantallaAdminInformes(),
       ),
+      GoRoute(
+        path: Rutas.adminMapaVivo,
+        builder: (context, estado) => const PantallaAdminMapaVivo(),
+      ),
 
       ShellRoute(
         builder: (context, estado, hijo) => ContenedorGuardia(hijo: hijo),
@@ -331,6 +337,7 @@ const _deAdministracion = {
   Rutas.adminEspacios,
   Rutas.adminSectores,
   Rutas.adminInformes,
+  Rutas.adminMapaVivo,
 };
 
 /// Las pantallas que puede ver el personal de portería.

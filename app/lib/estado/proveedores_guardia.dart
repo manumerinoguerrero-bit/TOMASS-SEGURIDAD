@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../modelos/admin.dart';
 import '../modelos/modelos.dart';
+import '../servicios/rastreador_guardia.dart';
 import '../servicios/servicio_guardia.dart';
 import 'proveedores.dart';
 
@@ -18,6 +19,25 @@ final servicioGuardiaProvider = Provider<ServicioGuardia>((ref) {
     ref.watch(supabaseProvider),
     ref.watch(servicioFotosProvider),
   );
+});
+
+/// Rastreador que manda GPS cada 3 minutos mientras hay turno abierto.
+/// Se prende y apaga automáticamente al escuchar cambios en miTurnoProvider.
+final rastreadorGuardiaProvider = Provider<RastreadorGuardia>((ref) {
+  final rastreador = RastreadorGuardia(ref.watch(servicioGuardiaProvider));
+
+  // Cuando hay un turno abierto, arranca el rastreo; cuando se cierra,
+  // se detiene. Si el guardia cierra sesión, ref.onDispose lo apaga.
+  ref.listen<AsyncValue<Turno?>>(miTurnoProvider, (_, actual) {
+    if (actual.valueOrNull != null) {
+      rastreador.iniciar();
+    } else {
+      rastreador.detener();
+    }
+  });
+
+  ref.onDispose(rastreador.detener);
+  return rastreador;
 });
 
 // ============================================================================

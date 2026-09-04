@@ -456,6 +456,30 @@ class ServicioGuardia {
   /// llegan los avisos de todas las entradas. Ese es el caso normal: en la
   /// mayoría de los condominios hay un solo guardia y tiene que atender la
   /// entrada peatonal y la vehicular al mismo tiempo.
+  // ==========================================================================
+  // MAPA EN VIVO: el guardia manda su posición cada 2-3 minutos
+  // ==========================================================================
+  // Se llama desde un Timer periódico mientras haya turno abierto. El RPC
+  // del backend actualiza SOLO el turno abierto del guardia; si no tiene
+  // ninguno, no hace nada (para no molestar entre cerrar y abrir).
+  // ==========================================================================
+
+  Future<void> actualizarMiUbicacion({
+    required double lat,
+    required double lng,
+  }) async {
+    try {
+      await _supabase.rpc('actualizar_mi_ubicacion', params: {
+        'p_lat': lat,
+        'p_lng': lng,
+      }).timeout(const Duration(seconds: 8));
+    } catch (_) {
+      // A propósito: NO propagamos el error. El envío periódico de GPS es
+      // un "best effort": si falla porque el guardia perdió señal, no
+      // conviene interrumpirle nada; en el próximo tick vuelve a intentar.
+    }
+  }
+
   Future<Turno> abrirTurno({
     required String condominioId,
     String? puntoAccesoId,

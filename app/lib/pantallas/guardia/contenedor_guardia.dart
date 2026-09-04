@@ -43,6 +43,10 @@ class _EstadoContenedorGuardia extends ConsumerState<ContenedorGuardia> {
     // El guardia puede usar tablet en horizontal, así que acá NO se bloquea la
     // orientación. (Las pantallas del residente sí la bloquean en vertical.)
     SystemChrome.setPreferredOrientations(DeviceOrientation.values);
+    // Al armarse el shell del guardia se instancia el rastreador GPS. El
+    // rastreador se enciende SOLO cuando hay turno abierto (escucha
+    // miTurnoProvider) y se apaga automáticamente cuando se cierra.
+    ref.read(rastreadorGuardiaProvider);
   }
 
   /// El menú se arma según el puesto del guardia.

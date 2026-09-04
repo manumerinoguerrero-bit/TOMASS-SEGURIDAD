@@ -889,6 +889,75 @@ class ActividadTurno {
 }
 
 // ============================================================================
+// UN GUARDIA EN VIVO (turno abierto + última posición conocida)
+// ============================================================================
+// Lo que ve el admin en la pantalla del mapa en vivo: por cada guardia con
+// turno abierto, dónde está ahora (o la última posición reportada) y hace
+// cuántos minutos mandó su ubicación.
+// ============================================================================
+
+class GuardiaEnVivo {
+  const GuardiaEnVivo({
+    required this.turnoId,
+    required this.guardiaId,
+    required this.guardiaNombre,
+    required this.inicio,
+    this.fotoUrl,
+    this.puntoAccesoNombre,
+    this.ultimaLat,
+    this.ultimaLng,
+    this.ultimaUbicacionEn,
+    this.minutosDesdeUltima,
+  });
+
+  final String turnoId;
+  final String guardiaId;
+  final String guardiaNombre;
+  final DateTime inicio;
+  final String? fotoUrl;
+  final String? puntoAccesoNombre;
+  final double? ultimaLat;
+  final double? ultimaLng;
+  final DateTime? ultimaUbicacionEn;
+  final int? minutosDesdeUltima;
+
+  bool get tieneUbicacion => ultimaLat != null && ultimaLng != null;
+
+  /// true si la última posición es "fresca" (menos de 10 minutos).
+  bool get esReciente =>
+      minutosDesdeUltima != null && minutosDesdeUltima! < 10;
+
+  /// Estado semántico para pintar el pin:
+  /// 'vivo' = ubicación fresca; 'demorado' = 10-30 min sin señal;
+  /// 'frio' = >30 min o nunca.
+  String get estado {
+    if (minutosDesdeUltima == null) return 'frio';
+    if (minutosDesdeUltima! < 10) return 'vivo';
+    if (minutosDesdeUltima! < 30) return 'demorado';
+    return 'frio';
+  }
+
+  factory GuardiaEnVivo.desdeMapa(Map<String, dynamic> m) {
+    return GuardiaEnVivo(
+      turnoId: m['turno_id'] as String,
+      guardiaId: m['guardia_id'] as String,
+      guardiaNombre:
+          (m['guardia_nombre'] as String?) ?? 'Guardia sin nombre',
+      inicio: DateTime.parse(m['inicio'] as String),
+      fotoUrl: m['foto_url'] as String?,
+      puntoAccesoNombre: m['punto_acceso_nombre'] as String?,
+      ultimaLat: (m['ultima_geo_lat'] as num?)?.toDouble(),
+      ultimaLng: (m['ultima_geo_lng'] as num?)?.toDouble(),
+      ultimaUbicacionEn: m['ultima_ubicacion_en'] == null
+          ? null
+          : DateTime.parse(m['ultima_ubicacion_en'] as String),
+      minutosDesdeUltima:
+          (m['minutos_desde_ultima_ubicacion'] as num?)?.toInt(),
+    );
+  }
+}
+
+// ============================================================================
 // UNA MARCA DE RONDA (un sector escaneado durante un turno)
 // ============================================================================
 // Sirve para dibujar el mini-mapa de ronda por turno y contar cuántos puntos

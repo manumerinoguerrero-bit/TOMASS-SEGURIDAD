@@ -86,6 +86,19 @@ class PantallaAdminInicio extends ConsumerWidget {
               _KpiGrid(resumen: r, palabras: palabras),
 
               const SizedBox(height: 24),
+              const _TituloSeccion('MONITOREO EN VIVO'),
+              const SizedBox(height: 12),
+
+              _Acceso(
+                icono: Icons.map_rounded,
+                titulo: 'Mapa en vivo',
+                detalle:
+                    'Ver dónde está cada guardia activo, con actualización '
+                    'automática cada 30 segundos',
+                alTocar: () => context.push(Rutas.adminMapaVivo),
+              ),
+
+              const SizedBox(height: 24),
               const _TituloSeccion('ADMINISTRAR'),
               const SizedBox(height: 12),
 

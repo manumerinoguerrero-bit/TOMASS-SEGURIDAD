@@ -154,6 +154,16 @@ dependencies:
   # informe de turnos (ronda por turno) y para el pin del inicio de turno.
   http: ^1.2.2
 
+  # ---- Mapa en vivo ------------------------------------------------------
+  # Muestra en el panel del administrador dónde está cada guardia activo,
+  # sobre un mapa de OpenStreetMap. flutter_map es gratuito, no requiere
+  # API key ni facturación (como Google Maps).
+  #
+  # latlong2 es la librería que la mayoría de plugins de mapas usan para
+  # representar coordenadas. Va explícita para poder crearlas desde código.
+  flutter_map: ^7.0.2
+  latlong2: ^0.9.1
+
 # ============================================================================
 # UN EMPATE FORZADO, SOLO PARA QUE LA APP ARME EN IPHONE
 # ============================================================================
