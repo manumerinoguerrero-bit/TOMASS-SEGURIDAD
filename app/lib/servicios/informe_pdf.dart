@@ -44,12 +44,14 @@ import '../nucleo/formato.dart';
 
 /// Los colores de la marca, en el formato que entiende el PDF.
 class _Tinta {
-  static const grafito = PdfColor.fromInt(0xFF1C1E24);
-  static const gris = PdfColor.fromInt(0xFF6B6F78);
-  static const grisClaro = PdfColor.fromInt(0xFFE2E4E8);
-  static const verde = PdfColor.fromInt(0xFF2E7D32);
-  static const naranja = PdfColor.fromInt(0xFFEF6C00);
-  static const rojo = PdfColor.fromInt(0xFFC62828);
+  // Paleta Merlyn: azul marino corporativo + dorado.
+  static const grafito = PdfColor.fromInt(0xFF0D2B5E);
+  static const dorado = PdfColor.fromInt(0xFFC9A24E);
+  static const gris = PdfColor.fromInt(0xFF6B7280);
+  static const grisClaro = PdfColor.fromInt(0xFFE5E7EB);
+  static const verde = PdfColor.fromInt(0xFF27AE60);
+  static const naranja = PdfColor.fromInt(0xFFF39C12);
+  static const rojo = PdfColor.fromInt(0xFFE74C3C);
   static const blanco = PdfColor.fromInt(0xFFFFFFFF);
 }
 

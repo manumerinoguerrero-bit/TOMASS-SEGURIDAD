@@ -31,10 +31,12 @@ import 'package:pdf/widgets.dart' as pw;
 import '../nucleo/formato.dart';
 
 class _Tinta {
-  static const grafito = PdfColor.fromInt(0xFF1C1E24);
-  static const gris = PdfColor.fromInt(0xFF6B6F78);
-  static const grisClaro = PdfColor.fromInt(0xFFE2E4E8);
-  static const naranja = PdfColor.fromInt(0xFFEF6C00);
+  // Paleta Merlyn: azul marino corporativo.
+  static const grafito = PdfColor.fromInt(0xFF0D2B5E);
+  static const dorado = PdfColor.fromInt(0xFFC9A24E);
+  static const gris = PdfColor.fromInt(0xFF6B7280);
+  static const grisClaro = PdfColor.fromInt(0xFFE5E7EB);
+  static const naranja = PdfColor.fromInt(0xFFF39C12);
   static const naranjaFondo = PdfColor.fromInt(0xFFFDF3E7);
   static const blanco = PdfColor.fromInt(0xFFFFFFFF);
 }

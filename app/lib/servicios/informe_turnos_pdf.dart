@@ -36,13 +36,15 @@ import '../nucleo/formato.dart';
 import 'servicio_fotos.dart';
 
 abstract class _Tinta {
-  static const grafito = PdfColor.fromInt(0xFF1C1E24);
+  // Azul marino corporativo (paleta Merlyn), el mismo que usa la app.
+  static const grafito = PdfColor.fromInt(0xFF0D2B5E);
+  static const dorado = PdfColor.fromInt(0xFFC9A24E);
   static const suave = PdfColor.fromInt(0xFF6B7280);
   static const tenue = PdfColor.fromInt(0xFF9CA3AF);
   static const linea = PdfColor.fromInt(0xFFE5E7EB);
-  static const verde = PdfColor.fromInt(0xFF16A34A);
-  static const naranja = PdfColor.fromInt(0xFFB45309);
-  static const rojo = PdfColor.fromInt(0xFFC1272D);
+  static const verde = PdfColor.fromInt(0xFF27AE60);
+  static const naranja = PdfColor.fromInt(0xFFF39C12);
+  static const rojo = PdfColor.fromInt(0xFFE74C3C);
 }
 
 class InformeDeTurnosPdf {

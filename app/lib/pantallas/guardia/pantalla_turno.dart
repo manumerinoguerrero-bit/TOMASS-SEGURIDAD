@@ -158,9 +158,14 @@ class _EstadoTurno extends ConsumerState<PantallaTurno> {
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Colores.grafito, Colores.grafitoClaro],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colores.azulOscuro,
+              Colores.grafito,
+              Colores.grafitoClaro,
+            ],
+            stops: [0.0, 0.5, 1.0],
           ),
         ),
         child: SafeArea(
@@ -254,8 +259,22 @@ class _Bienvenida extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const LogoTomass(tamano: 72),
-        const SizedBox(height: 18),
+        Container(
+          width: 96,
+          height: 96,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: Colores.dorado.withValues(alpha: 0.32),
+                blurRadius: 24,
+                spreadRadius: 3,
+              ),
+            ],
+          ),
+          child: const LogoTomass(tamano: 96),
+        ),
+        const SizedBox(height: 20),
         Text(
           'Inicio de turno',
           style: TextStyle(
@@ -433,30 +452,58 @@ class _Eleccion extends ConsumerWidget {
 
         const SizedBox(height: 8),
 
-        ElevatedButton(
-          onPressed: (elegido == null || trabajando) ? null : alEmpezar,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colores.verde,
-            foregroundColor: Colors.white,
-            disabledBackgroundColor: Colors.white.withValues(alpha: 0.22),
-            disabledForegroundColor: Colors.white.withValues(alpha: 0.5),
-            minimumSize: const Size.fromHeight(Medidas.altoBotonGigante),
-            textStyle: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.3,
-            ),
-          ),
-          child: trabajando
-              ? const SizedBox(
-                  width: 26,
-                  height: 26,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2.6,
-                    color: Colors.white,
+        // Botón grande con gradiente verde y sombra profunda, estilo Merlyn.
+        // Cuando no hay puesto elegido queda apagado (blanco semi-transparente).
+        DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(Medidas.redondeoChico),
+            gradient: (elegido == null || trabajando)
+                ? null
+                : LinearGradient(
+                    colors: [Colores.verde, Colores.verdeOscuro],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
-                )
-              : const Text('Comenzar turno'),
+            color: (elegido == null || trabajando)
+                ? Colors.white.withValues(alpha: 0.15)
+                : null,
+            boxShadow: (elegido == null || trabajando)
+                ? null
+                : [
+                    BoxShadow(
+                      color: Colores.verde.withValues(alpha: 0.42),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+          ),
+          child: ElevatedButton(
+            onPressed: (elegido == null || trabajando) ? null : alEmpezar,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.transparent,
+              shadowColor: Colors.transparent,
+              foregroundColor: Colors.white,
+              disabledBackgroundColor: Colors.transparent,
+              disabledForegroundColor: Colors.white.withValues(alpha: 0.5),
+              minimumSize: const Size.fromHeight(Medidas.altoBotonGigante),
+              elevation: 0,
+              textStyle: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.3,
+              ),
+            ),
+            child: trabajando
+                ? const SizedBox(
+                    width: 26,
+                    height: 26,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.6,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Text('COMENZAR TURNO'),
+          ),
         ),
 
         if (elegido == null) ...[

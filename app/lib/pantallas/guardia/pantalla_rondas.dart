@@ -330,34 +330,21 @@ class _EstadoRondas extends ConsumerState<PantallaRondas> {
               child: Padding(
                 padding: const EdgeInsets.all(Medidas.margen),
                 child: ronda == null
-                    ? FilledButton.icon(
-                        onPressed: _trabajando ? null : _empezar,
-                        style: FilledButton.styleFrom(
-                          backgroundColor: Colores.verde,
-                          minimumSize:
-                              const Size(double.infinity, Medidas.altoBotonGigante),
-                        ),
-                        icon: const Icon(Icons.play_arrow_rounded, size: 28),
-                        label: const Text('Empezar ronda',
-                            style: TextStyle(
-                                fontSize: 18, fontWeight: FontWeight.w800)),
+                    ? _BotonGradiente(
+                        colores: [Colores.verde, Colores.verdeOscuro],
+                        icono: Icons.play_arrow_rounded,
+                        etiqueta: 'EMPEZAR RONDA',
+                        alTocar: _trabajando ? null : _empezar,
                       )
                     : Row(
                         children: [
                           Expanded(
                             flex: 2,
-                            child: FilledButton.icon(
-                              onPressed: _trabajando ? null : _escanear,
-                              style: FilledButton.styleFrom(
-                                backgroundColor: Colores.grafito,
-                                minimumSize: const Size(0, Medidas.altoBotonGigante),
-                              ),
-                              icon: const Icon(Icons.qr_code_scanner_rounded,
-                                  size: 26),
-                              label: const Text('Marcar sector',
-                                  style: TextStyle(
-                                      fontSize: 16.5,
-                                      fontWeight: FontWeight.w800)),
+                            child: _BotonGradiente(
+                              colores: [Colores.grafito, Colores.grafitoSuave],
+                              icono: Icons.qr_code_scanner_rounded,
+                              etiqueta: 'MARCAR SECTOR',
+                              alTocar: _trabajando ? null : _escanear,
                             ),
                           ),
                           const SizedBox(width: 10),
@@ -366,7 +353,8 @@ class _EstadoRondas extends ConsumerState<PantallaRondas> {
                               onPressed:
                                   _trabajando ? null : () => _cerrar(ronda),
                               style: OutlinedButton.styleFrom(
-                                minimumSize: const Size(0, Medidas.altoBotonGigante),
+                                minimumSize:
+                                    const Size(0, Medidas.altoBotonGigante),
                                 foregroundColor: Colores.grafito,
                               ),
                               child: const Text('Terminar',
@@ -726,6 +714,71 @@ class _Redondo extends StatelessWidget {
         iconSize: 24,
         padding: const EdgeInsets.all(12),
         icon: Icon(icono, color: activo ? Colores.grafito : Colors.white),
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// Botón grande con gradiente y sombra profunda (estilo Merlyn).
+// ============================================================================
+
+class _BotonGradiente extends StatelessWidget {
+  const _BotonGradiente({
+    required this.colores,
+    required this.icono,
+    required this.etiqueta,
+    required this.alTocar,
+  });
+
+  final List<Color> colores;
+  final IconData icono;
+  final String etiqueta;
+  final VoidCallback? alTocar;
+
+  @override
+  Widget build(BuildContext context) {
+    final apagado = alTocar == null;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(Medidas.redondeoChico),
+        gradient: apagado
+            ? null
+            : LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: colores,
+              ),
+        color: apagado ? Colores.textoTenue : null,
+        boxShadow: apagado
+            ? null
+            : [
+                BoxShadow(
+                  color: colores.first.withValues(alpha: 0.42),
+                  blurRadius: 14,
+                  offset: const Offset(0, 5),
+                ),
+              ],
+      ),
+      child: FilledButton.icon(
+        onPressed: alTocar,
+        style: FilledButton.styleFrom(
+          backgroundColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+          foregroundColor: Colors.white,
+          minimumSize: const Size(double.infinity, Medidas.altoBotonGigante),
+          elevation: 0,
+        ),
+        icon: Icon(icono, size: 26, color: Colors.white),
+        label: Text(
+          etiqueta,
+          style: const TextStyle(
+            fontSize: 16.5,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.6,
+            color: Colors.white,
+          ),
+        ),
       ),
     );
   }

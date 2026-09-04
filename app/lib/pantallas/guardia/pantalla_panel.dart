@@ -16,13 +16,11 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../config/tema.dart';
 import '../../estado/proveedores.dart';
 import '../../estado/proveedores_guardia.dart';
 import '../../modelos/modelos.dart';
-import '../../navegacion/rutas.dart';
 import '../../nucleo/errores.dart';
 import '../../nucleo/formato.dart';
 import '../comunes/componentes.dart';
@@ -35,7 +33,6 @@ class PantallaPanel extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final resumen = ref.watch(resumenProvider);
     final turno = ref.watch(miTurnoProvider).valueOrNull;
-    final autos = ref.watch(cuantosAutosEsperandoProvider);
     final esAncho = MediaQuery.sizeOf(context).width >= 720;
 
     return Scaffold(
@@ -79,13 +76,11 @@ class PantallaPanel extends ConsumerWidget {
         child: ListView(
           padding: const EdgeInsets.all(Medidas.margen),
           children: [
-            // ---- 1. Lo urgente. Solo aparece si hay algo ----
-            if (autos > 0) ...[
-              _AlertaAutos(cuantos: autos),
-              const SizedBox(height: 14),
-            ],
-
-            // ---- 2. Los números ----
+            // ---- Los números ----
+            //
+            // La alerta de autos esperando se quitó del panel a pedido:
+            // los autos se atienden desde la pestaña dedicada y no hace
+            // falta que el panel llame la atención sobre eso.
             resumen.when(
               loading: () => const SizedBox(
                 height: 120,
@@ -121,91 +116,6 @@ class PantallaPanel extends ConsumerWidget {
 
             const SizedBox(height: 26),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-// ============================================================================
-// La alerta de autos esperando
-// ============================================================================
-
-class _AlertaAutos extends StatelessWidget {
-  const _AlertaAutos({required this.cuantos});
-
-  final int cuantos;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(Medidas.redondeo),
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Colores.rojo, Colores.rojoOscuro],
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colores.rojo.withValues(alpha: 0.4),
-            blurRadius: 14,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(Medidas.redondeo),
-        child: InkWell(
-          onTap: () => context.go(Rutas.autosEsperando),
-          borderRadius: BorderRadius.circular(Medidas.redondeo),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Container(
-                  width: 54,
-                  height: 54,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.22),
-                    borderRadius: BorderRadius.circular(13),
-                  ),
-                  child: const Icon(Icons.directions_car_rounded,
-                      size: 28, color: Colors.white),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        cuantos == 1
-                            ? 'Hay 1 auto esperando la barrera'
-                            : 'Hay $cuantos autos esperando la barrera',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 17,
-                          fontWeight: FontWeight.w800,
-                          height: 1.2,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        'Tocá para verlos y abrir el acceso',
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.9),
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const Icon(Icons.chevron_right_rounded,
-                    color: Colors.white, size: 30),
-              ],
-            ),
-          ),
         ),
       ),
     );
