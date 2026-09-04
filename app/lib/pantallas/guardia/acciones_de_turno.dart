@@ -236,20 +236,10 @@ class MenuDelGuardia extends ConsumerWidget {
               contentPadding: EdgeInsets.zero,
               dense: true,
               leading: Icon(Icons.logout_rounded, size: 20),
-              title: Text('Cerrar turno'),
+              title: Text('Terminar turno'),
               subtitle: Text('Para entregarle el puesto al que entra'),
             ),
           ),
-        const PopupMenuItem<String>(
-          value: 'sesion',
-          child: ListTile(
-            contentPadding: EdgeInsets.zero,
-            dense: true,
-            leading: Icon(Icons.power_settings_new_rounded, size: 20),
-            title: Text('Cerrar sesión'),
-            subtitle: Text('Para que entre otro guardia'),
-          ),
-        ),
       ],
     );
   }
