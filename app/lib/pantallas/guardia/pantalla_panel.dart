@@ -115,9 +115,68 @@ class PantallaPanel extends ConsumerWidget {
             const _UltimosAccesos(),
 
             const SizedBox(height: 26),
+
+            // ---- 5. Los dos botones grandes de fin de jornada ----
+            // A pedido del cliente: el guardia debe poder terminar su turno
+            // y cerrar sesión sin tener que buscar el menú de los tres
+            // puntitos arriba a la derecha.
+            const _AccionesDeFin(),
+
+            const SizedBox(height: 20),
           ],
         ),
       ),
+    );
+  }
+}
+
+// ============================================================================
+// Las dos acciones de fin de jornada, siempre a mano
+// ============================================================================
+
+class _AccionesDeFin extends ConsumerWidget {
+  const _AccionesDeFin();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Column(
+      children: [
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: () => AccionesDeTurno.cerrarTurno(context, ref),
+            icon: const Icon(Icons.logout_rounded, size: 20),
+            label: const Text('TERMINAR TURNO'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colores.rojo,
+              side: const BorderSide(color: Colores.rojo, width: 1.5),
+              minimumSize: const Size.fromHeight(Medidas.altoBoton),
+              textStyle: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.6,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          width: double.infinity,
+          child: TextButton.icon(
+            onPressed: () => AccionesDeTurno.cerrarSesion(context, ref),
+            icon: const Icon(Icons.exit_to_app_rounded, size: 19),
+            label: const Text('Cerrar sesión'),
+            style: TextButton.styleFrom(
+              foregroundColor: Colores.textoSuave,
+              minimumSize: const Size.fromHeight(44),
+              textStyle: const TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

@@ -643,6 +643,64 @@ class ServicioAdmin {
   }
 
   // ==========================================================================
+  // GESTIÓN DE GUARDIAS: alta, listado, cerrar sesión remoto
+  // ==========================================================================
+
+  /// Todos los guardias asignados a la instalación activa, con turno abierto
+  /// o no. Se ordena por nombre.
+  Future<List<Map<String, dynamic>>> listarGuardias() async {
+    try {
+      final filas = await _supabase
+          .from('usuarios')
+          .select('id, nombre_completo, email, telefono, estado, condominio_id')
+          .eq('rol', 'guardia')
+          .order('nombre_completo')
+          .timeout(Entorno.esperaMaxima);
+      return (filas as List)
+          .map((f) => Map<String, dynamic>.from(f))
+          .toList();
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+
+  /// Da de alta un guardia nuevo con email + contraseña. Devuelve el id.
+  Future<String> crearGuardia({
+    required String email,
+    required String password,
+    required String nombreCompleto,
+    required String condominioId,
+    String? telefono,
+  }) async {
+    try {
+      final id = await _supabase.rpc('crear_guardia_nuevo', params: {
+        'p_email': email.trim().toLowerCase(),
+        'p_password': password,
+        'p_nombre_completo': nombreCompleto.trim(),
+        'p_condominio_id': condominioId,
+        if (telefono != null && telefono.trim().isNotEmpty)
+          'p_telefono': telefono.trim(),
+      }).timeout(Entorno.esperaMaxima);
+      return id as String;
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+
+  /// Revoca los refresh tokens del guardia y cierra su turno si tenía uno
+  /// abierto. La app del guardia va a mandarlo al login la próxima vez que
+  /// intente hacer algo con el servidor.
+  Future<void> cerrarSesionGuardia(String guardiaId) async {
+    try {
+      await _supabase.rpc('cerrar_sesion_guardia', params: {
+        'p_guardia_id': guardiaId,
+      }).timeout(Entorno.esperaMaxima);
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+
+  // ==========================================================================
   // MAPA EN VIVO: guardias con turno abierto y su última ubicación
   // ==========================================================================
 
