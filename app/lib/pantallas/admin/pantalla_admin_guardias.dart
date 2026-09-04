@@ -14,7 +14,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../config/tema.dart';
-import '../../estado/proveedores_admin.dart';
 import '../../modelos/admin.dart';
 import '../../nucleo/errores.dart';
 import '../../nucleo/formato.dart';
