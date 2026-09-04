@@ -79,21 +79,16 @@ class PantallaNovedades extends ConsumerWidget {
         ),
         data: (lista) {
           if (lista.isEmpty) {
-            return ListaVacia(
+            // Antes había un botón "Anotar la primera" acá adentro que
+            // duplicaba al FAB flotante. Se quitó a pedido: alcanza con
+            // el FAB que ya está siempre visible abajo a la derecha.
+            return const ListaVacia(
               icono: Icons.event_note_outlined,
               titulo: 'No hay novedades anotadas',
               explicacion:
                   'Anotá lo que pasa en tu turno: autos mal estacionados, '
-                  'ruidos, daños, cualquier cosa que convenga dejar registrada.',
-              accion: ElevatedButton.icon(
-                onPressed: () => _abrirFormulario(context),
-                icon: const Icon(Icons.add_rounded, size: 20),
-                label: const Text('Anotar la primera'),
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(0, Medidas.altoBoton),
-                  padding: const EdgeInsets.symmetric(horizontal: 22),
-                ),
-              ),
+                  'ruidos, daños, cualquier cosa que convenga dejar '
+                  'registrada. Tocá el botón "+ Anotar novedad" abajo.',
             );
           }
 

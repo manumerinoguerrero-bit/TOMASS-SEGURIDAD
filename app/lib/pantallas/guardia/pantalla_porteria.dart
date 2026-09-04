@@ -151,8 +151,28 @@ class _EstadoRecibir extends ConsumerState<_PestanaRecibir> {
     }
     setState(() => _buscando = true);
     try {
-      final r = await ref.read(servicioGuardiaProvider).buscarResidentes(texto);
-      if (mounted) setState(() => _encontrados = r);
+      // Se buscan las dos cosas en paralelo:
+      //   1) residentes formales dados de alta en el sistema
+      //   2) destinatarios que el guardia (o el anterior) ya escribió
+      //      a mano en paquetes previos — quedaron en paquetes.destinatario_texto
+      // Los resultados se mezclan en una sola lista. Los de a mano quedan al
+      // final y se marcan con la bandera `es_a_mano` para pintarlos distinto.
+      final servicio = ref.read(servicioGuardiaProvider);
+      final resultados = await Future.wait([
+        servicio.buscarResidentes(texto),
+        servicio.sugerenciasDestinatariosAMano(empezandoCon: texto),
+      ]);
+      final registrados = resultados[0]
+          .map((r) => {...r, 'es_a_mano': false})
+          .toList();
+      final aMano = resultados[1]
+          .map((s) => {
+                'nombre_completo': s['nombre'],
+                'unidad_texto': s['unidad'],
+                'es_a_mano': true,
+              })
+          .toList();
+      if (mounted) setState(() => _encontrados = [...registrados, ...aMano]);
     } catch (_) {
       // Una búsqueda que falla no vale un cartel de error: se reintenta al
       // escribir la próxima letra.
@@ -429,16 +449,21 @@ class _EstadoRecibir extends ConsumerState<_PestanaRecibir> {
         else if (_aMano) ...[
           // Modo "a mano": campos abiertos + sugerencias de nombres ya usados
           // + botón para volver a la lista.
+          //
+          // Ojo con los labels: acá NO se usa el vocabulario de la
+          // instalación (habitante/espacio, que en colegio dan "apoderado"
+          // y "curso"). Para las encomiendas siempre hablamos de "residente"
+          // y "casa/departamento/sitio", que es como el guardia escribe.
           TextField(
             controller: _nombreAMano,
             enabled: !_guardando,
             autofocus: true,
             textCapitalization: TextCapitalization.words,
             onChanged: _buscarSugerenciasAMano,
-            decoration: InputDecoration(
-              labelText: 'Nombre del ${ref.read(palabrasProvider).elHabitante}',
+            decoration: const InputDecoration(
+              labelText: 'Nombre del residente',
               hintText: 'Ej: María Fernández',
-              prefixIcon: const Icon(Icons.person_outline_rounded),
+              prefixIcon: Icon(Icons.person_outline_rounded),
             ),
           ),
           // Sugerencias basadas en nombres que este mismo guardia (o el
@@ -509,11 +534,10 @@ class _EstadoRecibir extends ConsumerState<_PestanaRecibir> {
             controller: _unidadAMano,
             enabled: !_guardando,
             textCapitalization: TextCapitalization.words,
-            decoration: InputDecoration(
-              labelText:
-                  '${ref.read(palabrasProvider).elEspacioConMayuscula} (opcional)',
-              hintText: 'Ej: Casa 12 · Torre B 401',
-              prefixIcon: const Icon(Icons.location_on_outlined),
+            decoration: const InputDecoration(
+              labelText: 'Casa, departamento o sitio (opcional)',
+              hintText: 'Ej: Casa 12 · Depto 401 · Sitio 8',
+              prefixIcon: Icon(Icons.location_on_outlined),
             ),
           ),
           const SizedBox(height: 6),
@@ -561,29 +585,82 @@ class _EstadoRecibir extends ConsumerState<_PestanaRecibir> {
                 children: [
                   for (var i = 0; i < _encontrados.length; i++) ...[
                     if (i > 0) const Divider(height: 1),
-                    ListTile(
-                      dense: true,
-                      leading: Avatar(
-                        iniciales: _iniciales(
-                          _encontrados[i]['nombre_completo']?.toString() ?? '?',
+                    Builder(builder: (_) {
+                      final r = _encontrados[i];
+                      final esAMano = r['es_a_mano'] == true;
+                      final nombre =
+                          r['nombre_completo']?.toString() ?? '';
+                      // Subtítulo: si es "a mano" mostramos la unidad
+                      // escrita a mano; si es residente formal, la unidad
+                      // del sistema.
+                      final subtitulo = esAMano
+                          ? ((r['unidad_texto'] as String?)?.isEmpty ?? true
+                              ? 'Escrito antes'
+                              : 'Escrito antes · ${r['unidad_texto']}')
+                          : (_unidadDe(r, ref.read(palabrasProvider)) ??
+                              'Sin ${ref.read(palabrasProvider).elEspacio}');
+                      return ListTile(
+                        dense: true,
+                        leading: Avatar(
+                          iniciales: _iniciales(nombre.isEmpty ? '?' : nombre),
+                          tamano: 34,
                         ),
-                        tamano: 34,
-                      ),
-                      title: Text(
-                        _encontrados[i]['nombre_completo']?.toString() ?? '',
-                        style: const TextStyle(
-                            fontSize: 13.5, fontWeight: FontWeight.w600),
-                      ),
-                      subtitle: Text(
-                        _unidadDe(_encontrados[i], ref.read(palabrasProvider)) ??
-                            'Sin ${ref.read(palabrasProvider).elEspacio}',
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                      onTap: () => setState(() {
-                        _residente = _encontrados[i];
-                        _encontrados = const [];
-                      }),
-                    ),
+                        title: Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                nombre,
+                                style: const TextStyle(
+                                    fontSize: 13.5,
+                                    fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                            if (esAMano) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 6, vertical: 1),
+                                decoration: BoxDecoration(
+                                  color: Colores.dorado
+                                      .withValues(alpha: 0.18),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: const Text(
+                                  'A MANO',
+                                  style: TextStyle(
+                                    fontSize: 8.5,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.6,
+                                    color: Colores.doradoOscuro,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        subtitle: Text(
+                          subtitulo,
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                        onTap: () => setState(() {
+                          if (esAMano) {
+                            // Se activa el modo a mano y se precargan
+                            // los datos, así el guardia solo confirma
+                            // y guarda.
+                            _aMano = true;
+                            _nombreAMano.text = nombre;
+                            _unidadAMano.text =
+                                r['unidad_texto']?.toString() ?? '';
+                            _busqueda.clear();
+                            _encontrados = const [];
+                            _sugerenciasAMano = const [];
+                          } else {
+                            _residente = r;
+                            _encontrados = const [];
+                          }
+                        }),
+                      );
+                    }),
                   ],
                 ],
               ),
