@@ -138,56 +138,73 @@ class _AlertaAutos extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colores.rojo,
-      borderRadius: BorderRadius.circular(Medidas.redondeo),
-      child: InkWell(
-        onTap: () => context.go(Rutas.autosEsperando),
+    return Container(
+      decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(Medidas.redondeo),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(11),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Colores.rojo, Colores.rojoOscuro],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colores.rojo.withValues(alpha: 0.4),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(Medidas.redondeo),
+        child: InkWell(
+          onTap: () => context.go(Rutas.autosEsperando),
+          borderRadius: BorderRadius.circular(Medidas.redondeo),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  width: 54,
+                  height: 54,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.22),
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                  child: const Icon(Icons.directions_car_rounded,
+                      size: 28, color: Colors.white),
                 ),
-                child: const Icon(Icons.directions_car_rounded,
-                    size: 27, color: Colors.white),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      cuantos == 1
-                          ? 'Hay 1 auto esperando la barrera'
-                          : 'Hay $cuantos autos esperando la barrera',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 17,
-                        fontWeight: FontWeight.w800,
-                        height: 1.2,
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        cuantos == 1
+                            ? 'Hay 1 auto esperando la barrera'
+                            : 'Hay $cuantos autos esperando la barrera',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800,
+                          height: 1.2,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      'Tocá para verlos y abrir el acceso',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.9),
-                        fontSize: 13,
+                      const SizedBox(height: 3),
+                      Text(
+                        'Tocá para verlos y abrir el acceso',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.9),
+                          fontSize: 13,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              const Icon(Icons.chevron_right_rounded,
-                  color: Colors.white, size: 30),
-            ],
+                const Icon(Icons.chevron_right_rounded,
+                    color: Colors.white, size: 30),
+              ],
+            ),
           ),
         ),
       ),
@@ -212,16 +229,19 @@ class _Numeros extends StatelessWidget {
         valor: '${resumen.accesosHoy}',
         etiqueta: 'Accesos hoy',
         icono: Icons.login_rounded,
+        color: Colores.grafito,
       ),
       _Numero(
         valor: '${resumen.personasDentro}',
         etiqueta: 'Personas dentro',
         icono: Icons.groups_rounded,
+        color: Colores.verde,
       ),
       _Numero(
         valor: '${resumen.paquetesEnPorteria}',
         etiqueta: 'Paquetes',
         icono: Icons.inventory_2_rounded,
+        color: Colores.naranja,
         alerta: resumen.paquetesAtrasados > 0,
         nota: resumen.paquetesAtrasados > 0
             ? '${resumen.paquetesAtrasados} atrasados'
@@ -231,6 +251,7 @@ class _Numeros extends StatelessWidget {
         valor: '${resumen.incidentesAbiertos}',
         etiqueta: 'Novedades',
         icono: Icons.report_rounded,
+        color: resumen.incidentesAbiertos > 0 ? Colores.rojo : Colores.dorado,
         alerta: resumen.incidentesAbiertos > 0,
       ),
     ];
@@ -250,9 +271,9 @@ class _Numeros extends StatelessWidget {
       crossAxisCount: 2,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 10,
-      crossAxisSpacing: 10,
-      childAspectRatio: 1.55,
+      mainAxisSpacing: 12,
+      crossAxisSpacing: 12,
+      childAspectRatio: 1.4,
       children: tarjetas,
     );
   }
@@ -263,6 +284,7 @@ class _Numero extends StatelessWidget {
     required this.valor,
     required this.etiqueta,
     required this.icono,
+    required this.color,
     this.alerta = false,
     this.nota,
   });
@@ -270,59 +292,69 @@ class _Numero extends StatelessWidget {
   final String valor;
   final String etiqueta;
   final IconData icono;
+  final Color color;
   final bool alerta;
   final String? nota;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(13),
-      decoration: BoxDecoration(
-        color: Colores.superficie,
+    return Card(
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(Medidas.redondeo),
-        border: Border.all(
-          color: alerta ? Colores.naranja : Colores.linea,
+        side: BorderSide(
+          color: alerta
+              ? color.withValues(alpha: 0.5)
+              : Colors.black.withValues(alpha: 0.04),
           width: alerta ? 1.5 : 1,
         ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Icon(icono, size: 19,
-              color: alerta ? Colores.naranjaOscuro : Colores.textoSuave),
-          const SizedBox(height: 8),
-          Text(
-            valor,
-            style: TextStyle(
-              fontSize: 27,
-              fontWeight: FontWeight.w800,
-              height: 1,
-              letterSpacing: -1,
-              color: alerta ? Colores.naranjaOscuro : Colores.texto,
-              fontFeatures: const [FontFeature.tabularFigures()],
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Icon(icono, size: 24, color: color),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  valor,
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w800,
+                    height: 1.1,
+                    letterSpacing: -0.5,
+                    color: color,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  etiqueta,
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    color: Colores.textoSuave,
+                    height: 1.25,
+                  ),
+                ),
+                if (nota != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      nota!,
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w700,
+                        color: color,
+                      ),
+                    ),
+                  ),
+              ],
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            etiqueta.toUpperCase(),
-            style: const TextStyle(
-              fontSize: 9.5,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.7,
-              color: Colores.textoSuave,
-            ),
-          ),
-          if (nota != null)
-            Text(
-              nota!,
-              style: const TextStyle(
-                fontSize: 10.5,
-                fontWeight: FontWeight.w700,
-                color: Colores.naranjaOscuro,
-              ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
