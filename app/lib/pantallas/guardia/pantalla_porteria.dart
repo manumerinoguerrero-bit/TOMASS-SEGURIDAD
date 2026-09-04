@@ -88,6 +88,14 @@ class _EstadoRecibir extends ConsumerState<_PestanaRecibir> {
   final _courier = TextEditingController();
   final _descripcion = TextEditingController();
   final _busqueda = TextEditingController();
+  // Campos para escribir el destinatario a mano cuando no está registrado
+  // en el sistema (por ejemplo la primera semana de uso o alguien que se
+  // muda hoy). Si el modo a mano está activo, se usan estos en lugar del
+  // residente elegido de la lista.
+  final _nombreAMano = TextEditingController();
+  final _unidadAMano = TextEditingController();
+  bool _aMano = false;
+  List<Map<String, dynamic>> _sugerenciasAMano = const [];
 
   File? _foto;
   Map<String, dynamic>? _residente;
@@ -102,6 +110,8 @@ class _EstadoRecibir extends ConsumerState<_PestanaRecibir> {
     _courier.dispose();
     _descripcion.dispose();
     _busqueda.dispose();
+    _nombreAMano.dispose();
+    _unidadAMano.dispose();
     super.dispose();
   }
 
@@ -136,6 +146,19 @@ class _EstadoRecibir extends ConsumerState<_PestanaRecibir> {
     }
   }
 
+  /// Busca destinatarios que ya se escribieron a mano en paquetes anteriores.
+  /// Se dispara cuando el guardia está en modo "a mano" y escribe algo.
+  Future<void> _buscarSugerenciasAMano(String texto) async {
+    try {
+      final r = await ref
+          .read(servicioGuardiaProvider)
+          .sugerenciasDestinatariosAMano(empezandoCon: texto);
+      if (mounted) setState(() => _sugerenciasAMano = r);
+    } catch (_) {
+      // Silencioso: si no hay sugerencias, se escribe a mano y ya.
+    }
+  }
+
   Future<void> _guardar() async {
     if (_foto == null) {
       setState(() => _problema = const ErrorAmigable(
@@ -146,10 +169,21 @@ class _EstadoRecibir extends ConsumerState<_PestanaRecibir> {
           ));
       return;
     }
-    if (_residente == null) {
+    if (_aMano) {
+      if (_nombreAMano.text.trim().length < 2) {
+        setState(() => _problema = const ErrorAmigable(
+              'Falta el nombre del destinatario.',
+              detalle: 'Escribí al menos 2 letras.',
+              sePuedeReintentar: false,
+            ));
+        return;
+      }
+    } else if (_residente == null) {
       setState(() => _problema = ErrorAmigable(
             'Falta elegir a quién va el paquete.',
-            detalle: 'Buscalo por nombre o por número de ${ref.read(palabrasProvider).elEspacio}.',
+            detalle:
+                'Buscalo por nombre o por número de ${ref.read(palabrasProvider).elEspacio}, '
+                'o tocá "Escribir a mano" si todavía no está registrado.',
             sePuedeReintentar: false,
           ));
       return;
@@ -168,8 +202,12 @@ class _EstadoRecibir extends ConsumerState<_PestanaRecibir> {
     try {
       await ref.read(servicioGuardiaProvider).recibirPaquete(
             condominioId: perfil.condominioId,
-            residenteId: _residente!['id'] as String,
-            unidadId: _residente!['unidad_id'] as String?,
+            residenteId: _aMano ? null : _residente!['id'] as String,
+            unidadId: _aMano ? null : _residente!['unidad_id'] as String?,
+            destinatarioTexto: _aMano ? _nombreAMano.text.trim() : null,
+            unidadTexto: _aMano && _unidadAMano.text.trim().isNotEmpty
+                ? _unidadAMano.text.trim()
+                : null,
             foto: _foto!,
             idLocal: UniqueKey().toString().hashCode.toRadixString(16) +
                 DateTime.now().microsecondsSinceEpoch.toRadixString(16),
@@ -183,7 +221,9 @@ class _EstadoRecibir extends ConsumerState<_PestanaRecibir> {
       ref.invalidate(resumenProvider);
 
       if (!mounted) return;
-      final nombre = _residente!['nombre_completo'];
+      final nombre = _aMano
+          ? _nombreAMano.text.trim()
+          : _residente!['nombre_completo'];
       setState(() {
         _foto = null;
         _residente = null;
@@ -192,6 +232,9 @@ class _EstadoRecibir extends ConsumerState<_PestanaRecibir> {
         _courier.clear();
         _descripcion.clear();
         _busqueda.clear();
+        _nombreAMano.clear();
+        _unidadAMano.clear();
+        _aMano = false;
         _guardando = false;
       });
 
@@ -364,7 +407,113 @@ class _EstadoRecibir extends ConsumerState<_PestanaRecibir> {
               ),
             ),
           )
-        else ...[
+        else if (_aMano) ...[
+          // Modo "a mano": campos abiertos + sugerencias de nombres ya usados
+          // + botón para volver a la lista.
+          TextField(
+            controller: _nombreAMano,
+            enabled: !_guardando,
+            autofocus: true,
+            textCapitalization: TextCapitalization.words,
+            onChanged: _buscarSugerenciasAMano,
+            decoration: InputDecoration(
+              labelText: 'Nombre del ${ref.read(palabrasProvider).elHabitante}',
+              hintText: 'Ej: María Fernández',
+              prefixIcon: const Icon(Icons.person_outline_rounded),
+            ),
+          ),
+          // Sugerencias basadas en nombres que este mismo guardia (o el
+          // anterior) ya escribió a mano en paquetes previos. Al tocar una
+          // se completan nombre + unidad de una sola vez.
+          if (_sugerenciasAMano.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Card(
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 8),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.history_rounded,
+                            size: 15, color: Colores.textoSuave),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Escritos antes',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.8,
+                            color: Colores.textoSuave,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  for (var i = 0; i < _sugerenciasAMano.length; i++) ...[
+                    if (i > 0) const Divider(height: 1),
+                    ListTile(
+                      dense: true,
+                      leading: Avatar(
+                        iniciales: _iniciales(
+                            _sugerenciasAMano[i]['nombre'] as String),
+                        tamano: 32,
+                      ),
+                      title: Text(
+                        _sugerenciasAMano[i]['nombre'] as String,
+                        style: const TextStyle(
+                            fontSize: 13.5, fontWeight: FontWeight.w600),
+                      ),
+                      subtitle: (_sugerenciasAMano[i]['unidad'] as String)
+                              .isEmpty
+                          ? null
+                          : Text(
+                              _sugerenciasAMano[i]['unidad'] as String,
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                      onTap: () => setState(() {
+                        _nombreAMano.text =
+                            _sugerenciasAMano[i]['nombre'] as String;
+                        _unidadAMano.text =
+                            _sugerenciasAMano[i]['unidad'] as String;
+                        _sugerenciasAMano = const [];
+                      }),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 10),
+          TextField(
+            controller: _unidadAMano,
+            enabled: !_guardando,
+            textCapitalization: TextCapitalization.words,
+            decoration: InputDecoration(
+              labelText:
+                  '${ref.read(palabrasProvider).elEspacioConMayuscula} (opcional)',
+              hintText: 'Ej: Casa 12 · Torre B 401',
+              prefixIcon: const Icon(Icons.location_on_outlined),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: _guardando
+                  ? null
+                  : () => setState(() {
+                        _aMano = false;
+                        _nombreAMano.clear();
+                        _unidadAMano.clear();
+                        _sugerenciasAMano = const [];
+                      }),
+              icon: const Icon(Icons.search_rounded, size: 18),
+              label: const Text('Buscar de la lista'),
+            ),
+          ),
+        ] else ...[
           TextField(
             controller: _busqueda,
             enabled: !_guardando,
@@ -421,6 +570,29 @@ class _EstadoRecibir extends ConsumerState<_PestanaRecibir> {
               ),
             ),
           ],
+          const SizedBox(height: 6),
+          // Botón "Escribir a mano": indispensable cuando el destinatario
+          // todavía no está registrado en el sistema.
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: _guardando
+                  ? null
+                  : () {
+                      setState(() {
+                        _aMano = true;
+                        _busqueda.clear();
+                        _encontrados = const [];
+                      });
+                      // Cargar los últimos destinatarios ya escritos a mano,
+                      // sin filtro: así el guardia ve los frecuentes al toque
+                      // sin tener que empezar a escribir.
+                      _buscarSugerenciasAMano('');
+                    },
+              icon: const Icon(Icons.edit_outlined, size: 18),
+              label: const Text('Escribir el destinatario a mano'),
+            ),
+          ),
         ],
 
         const SizedBox(height: 20),

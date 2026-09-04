@@ -702,12 +702,71 @@ class ServicioGuardia {
   // PAQUETES
   // ==========================================================================
 
+  /// Sugerencias de destinatarios escritos a mano en paquetes anteriores.
+  ///
+  /// Cuando el guardia escribe el nombre a mano, se le van sugiriendo los
+  /// nombres que ya usó antes en otros paquetes. Así, la próxima vez que
+  /// venga un paquete para "María de la Casa 12" no tiene que reescribirlo:
+  /// alcanza con tocar la sugerencia.
+  ///
+  /// Devuelve una lista de {nombre, unidad, usos} ordenada por más usados.
+  Future<List<Map<String, dynamic>>> sugerenciasDestinatariosAMano({
+    String? empezandoCon,
+  }) async {
+    try {
+      var consulta = _supabase
+          .from('paquetes')
+          .select('destinatario_texto, unidad_texto')
+          .not('destinatario_texto', 'is', null);
+
+      if (empezandoCon != null && empezandoCon.trim().isNotEmpty) {
+        consulta = consulta.ilike('destinatario_texto',
+            '${empezandoCon.trim()}%');
+      }
+
+      final filas = await consulta.limit(80).timeout(Entorno.esperaMaxima);
+
+      // Agrupar por nombre+unidad para contar los usos y quedarnos con los
+      // más frecuentes. Se hace en el cliente porque son pocas filas.
+      final agrupado = <String, Map<String, dynamic>>{};
+      for (final f in (filas as List)) {
+        final nombre = (f['destinatario_texto'] as String?)?.trim() ?? '';
+        final unidad = (f['unidad_texto'] as String?)?.trim() ?? '';
+        if (nombre.isEmpty) continue;
+        final clave = '$nombre|$unidad';
+        agrupado.update(
+          clave,
+          (v) => {...v, 'usos': (v['usos'] as int) + 1},
+          ifAbsent: () => {'nombre': nombre, 'unidad': unidad, 'usos': 1},
+        );
+      }
+
+      final ordenado = agrupado.values.toList()
+        ..sort((a, b) => (b['usos'] as int).compareTo(a['usos'] as int));
+      return ordenado.take(10).toList();
+    } catch (_) {
+      // Una sugerencia que falla no vale un cartel de error: el guardia
+      // igual puede escribir el nombre completo a mano.
+      return const [];
+    }
+  }
+
   /// Recibe un paquete. La foto es obligatoria: es el respaldo si después
   /// alguien reclama que llegó dañado.
+  ///
+  /// Hay dos formas de decir para quién es:
+  ///   - [residenteId] si es alguien registrado en el sistema (lo normal)
+  ///   - [destinatarioTexto] si es alguien que todavía no está registrado,
+  ///     con [unidadTexto] opcional (por ejemplo "Casa 12" o "Torre B 401")
+  ///
+  /// Al menos uno de los dos tiene que venir; si vienen los dos, se guardan
+  /// los dos y prevalece el registrado.
   Future<void> recibirPaquete({
     required String condominioId,
-    required String residenteId,
-    required String? unidadId,
+    String? residenteId,
+    String? unidadId,
+    String? destinatarioTexto,
+    String? unidadTexto,
     required File foto,
     required String idLocal,
     String? numeroSeguimiento,
@@ -715,6 +774,16 @@ class ServicioGuardia {
     String? descripcion,
     String? turnoId,
   }) async {
+    if ((residenteId == null || residenteId.isEmpty) &&
+        (destinatarioTexto == null ||
+            destinatarioTexto.trim().length < 2)) {
+      throw const ErrorAmigable(
+        'Falta el destinatario del paquete.',
+        detalle: 'Elegí un residente de la lista o escribí el nombre a mano.',
+        sePuedeReintentar: false,
+      );
+    }
+
     String? rutaFoto;
     try {
       rutaFoto = await _fotos.subir(
@@ -727,8 +796,13 @@ class ServicioGuardia {
       await _supabase.from('paquetes').insert({
         'condominio_id': condominioId,
         'id_local': idLocal,
-        'residente_id': residenteId,
+        if (residenteId != null && residenteId.isNotEmpty)
+          'residente_id': residenteId,
         if (unidadId != null) 'unidad_id': unidadId,
+        if (destinatarioTexto != null && destinatarioTexto.trim().isNotEmpty)
+          'destinatario_texto': destinatarioTexto.trim(),
+        if (unidadTexto != null && unidadTexto.trim().isNotEmpty)
+          'unidad_texto': unidadTexto.trim(),
         'foto_url': rutaFoto,
         if (numeroSeguimiento != null && numeroSeguimiento.trim().isNotEmpty)
           'numero_seguimiento': numeroSeguimiento.trim(),
