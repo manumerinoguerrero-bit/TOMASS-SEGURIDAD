@@ -201,19 +201,19 @@ class _TarjetaGuardia extends StatelessWidget {
             const SizedBox(height: 12),
             const Divider(height: 1),
             const SizedBox(height: 10),
-            _linea(
+            _Linea(
               icono: Icons.location_on_outlined,
               etiqueta: 'Puesto',
               valor: g.puntoAccesoNombre ?? 'Cubre toda la instalación',
             ),
-            _linea(
+            _Linea(
               icono: Icons.schedule_rounded,
               etiqueta: 'Turno desde',
               valor: '${Formato.hora(g.inicio)} '
                   '(hace ${_haceCuanto(g.inicio)})',
             ),
             if (g.tieneUbicacion)
-              _linea(
+              _Linea(
                 icono: Icons.gps_fixed_rounded,
                 etiqueta: 'Última ubicación',
                 valor: '${g.ultimaLat!.toStringAsFixed(5)}, '
@@ -221,7 +221,7 @@ class _TarjetaGuardia extends StatelessWidget {
                 accion: _BotonMapa(lat: g.ultimaLat!, lng: g.ultimaLng!),
               )
             else
-              _linea(
+              _Linea(
                 icono: Icons.gps_off_rounded,
                 etiqueta: 'Ubicación',
                 valor: 'Sin GPS reportado todavía',
@@ -241,8 +241,8 @@ class _TarjetaGuardia extends StatelessWidget {
   }
 }
 
-class _linea extends StatelessWidget {
-  const _linea({
+class _Linea extends StatelessWidget {
+  const _Linea({
     required this.icono,
     required this.etiqueta,
     required this.valor,
