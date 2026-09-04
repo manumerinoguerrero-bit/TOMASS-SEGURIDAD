@@ -223,7 +223,7 @@ class _EstadoLogin extends ConsumerState<PantallaLogin> {
           ),
           const SizedBox(height: 6),
           Text(
-            'Control de acceso · MMG Seguridad SPA',
+            'Control de acceso · Creado por Merino',
             style: TextStyle(
               fontSize: 12,
               color: Colors.white.withValues(alpha: 0.68),
