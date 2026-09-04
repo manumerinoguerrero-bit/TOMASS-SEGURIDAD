@@ -36,7 +36,8 @@ abstract class _Tinta {
   static const fondoZebra = PdfColor.fromInt(0xFFF9FAFB);
   static const verde = PdfColor.fromInt(0xFF27AE60);
   static const rojo = PdfColor.fromInt(0xFFE74C3C);
-  static const naranja = PdfColor.fromInt(0xFFF39C12);
+  // `naranja` se quitó porque el informe de ingresos no lo usa: los
+  // ingresos solo tienen dos estados (aprobado/denegado), sin "en espera".
 }
 
 class InformeDeIngresosPdf {
@@ -376,7 +377,7 @@ class InformeDeIngresosPdf {
         _td(m.esEntrada ? 'Entrada' : 'Salida'),
         _td(m.quien ?? '—'),
         _td(m.espacio ?? '—'),
-        _td(m.patente ?? '—', mono: true),
+        _td(m.patente ?? '—'),
         _td(m.entrada ?? '—'),
         _td(
           m.aprobado ? 'OK' : 'NEG',
@@ -403,7 +404,6 @@ class InformeDeIngresosPdf {
   static pw.Widget _td(
     String texto, {
     bool bold = false,
-    bool mono = false,
     PdfColor tinta = _Tinta.grafito,
   }) =>
       pw.Padding(
@@ -414,7 +414,6 @@ class InformeDeIngresosPdf {
             fontSize: 8.5,
             fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal,
             color: tinta,
-            fontFeatures: mono ? const [pw.FontFeature.tabularFigures()] : null,
           ),
           maxLines: 2,
           overflow: pw.TextOverflow.clip,

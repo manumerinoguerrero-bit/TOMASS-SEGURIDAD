@@ -31,7 +31,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../config/tema.dart';
-import '../../estado/proveedores.dart';
 import '../../estado/proveedores_admin.dart';
 import '../../modelos/admin.dart';
 import '../../nucleo/errores.dart';

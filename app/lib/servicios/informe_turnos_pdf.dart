@@ -39,7 +39,6 @@ import 'servicio_mapa_estatico.dart';
 abstract class _Tinta {
   // Azul marino corporativo (paleta Merlyn), el mismo que usa la app.
   static const grafito = PdfColor.fromInt(0xFF0D2B5E);
-  static const dorado = PdfColor.fromInt(0xFFC9A24E);
   static const suave = PdfColor.fromInt(0xFF6B7280);
   static const tenue = PdfColor.fromInt(0xFF9CA3AF);
   static const linea = PdfColor.fromInt(0xFFE5E7EB);
@@ -817,7 +816,7 @@ class InformeDeTurnosPdf {
             ),
             child: pw.Text(
               '$numero',
-              style: const pw.TextStyle(
+              style: pw.TextStyle(
                 color: PdfColors.white,
                 fontSize: 9,
                 fontWeight: pw.FontWeight.bold,

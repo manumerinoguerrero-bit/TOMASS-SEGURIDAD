@@ -33,7 +33,6 @@ import '../nucleo/formato.dart';
 class _Tinta {
   // Paleta Merlyn: azul marino corporativo.
   static const grafito = PdfColor.fromInt(0xFF0D2B5E);
-  static const dorado = PdfColor.fromInt(0xFFC9A24E);
   static const gris = PdfColor.fromInt(0xFF6B7280);
   static const grisClaro = PdfColor.fromInt(0xFFE5E7EB);
   static const naranja = PdfColor.fromInt(0xFFF39C12);
