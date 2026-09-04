@@ -71,7 +71,7 @@ class _EstadoContenedorGuardia extends ConsumerState<ContenedorGuardia> {
         if (rondas)
           const _Opcion(Rutas.rondas, 'Rondas', Icons.route_outlined,
               Icons.route_rounded),
-        const _Opcion(Rutas.paquetesGuardia, 'Porteria',
+        const _Opcion(Rutas.paquetesGuardia, 'Paquetes',
             Icons.inventory_2_outlined, Icons.inventory_2_rounded),
         const _Opcion(Rutas.incidentes, 'Novedades', Icons.report_outlined,
             Icons.report_rounded),
