@@ -97,6 +97,21 @@ android {
             // pruebas, para poder compilarla y verla funcionar. Antes de subirla
             // a Google Play hay que cambiarla por una firma real.
             signingConfig = signingConfigs.getByName("debug")
+
+            // ⚠️ MINIFY (R8/ProGuard) APAGADO A PROPÓSITO
+            //
+            //    R8 borra clases y métodos que "no ve" usados desde Kotlin/Java,
+            //    pero muchos plugins de Flutter usan sus clases desde la capa
+            //    nativa via JNI o reflexión (mobile_scanner, geolocator, el
+            //    driver de Supabase, printing). Sin reglas ProGuard específicas,
+            //    R8 los borra y la app crashea con NoSuchMethodError en tiempo
+            //    de uso, no de compilación.
+            //
+            //    El APK termina un poco más grande (~2-3 MB), pero eso es un
+            //    intercambio buenísimo por evitar crashes silenciosos de
+            //    plugins.
+            isMinifyEnabled = false
+            isShrinkResources = false
         }
     }
 }
