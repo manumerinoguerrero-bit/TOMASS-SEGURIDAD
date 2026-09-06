@@ -426,11 +426,38 @@ class InformeDeRondasPdf {
           -(lat - latCentro) * metrosPorGradoLat, // el norte va hacia arriba
         );
 
-    // Todo lo que hay que mostrar, para calcular la escala
-    final puntos = <(double, double)>[
+    // Sectores en metros: siempre entran al cálculo de la escala.
+    final sectoresMetros = [
       for (final s in sectores) aMetros(s.latitud!, s.longitud!),
-      for (final m in marcas)
-        if (m.marcaLat != null) aMetros(m.marcaLat!, m.marcaLng!),
+    ];
+
+    // Filtro de outliers del GPS: una marca a kilómetros del sector más
+    // cercano es casi seguro un error del chip (rebote, "última posición
+    // conocida" vieja, etc.). Si esas marcas entran al cálculo de la escala,
+    // el plano se aplana y las marcas válidas quedan invisibles en el centro.
+    // Cortamos en 500 m — más que suficiente para el peor GPS urbano.
+    const toleranciaOutlierM = 500.0;
+    final marcasDentro = <MarcaDelInforme>[];
+    final marcasFuera = <MarcaDelInforme>[];
+    for (final m in marcas) {
+      if (m.marcaLat == null) continue;
+      final (mx, my) = aMetros(m.marcaLat!, m.marcaLng!);
+      var dMin = double.infinity;
+      for (final (sx, sy) in sectoresMetros) {
+        final d = math.sqrt((mx - sx) * (mx - sx) + (my - sy) * (my - sy));
+        if (d < dMin) dMin = d;
+      }
+      if (dMin <= toleranciaOutlierM) {
+        marcasDentro.add(m);
+      } else {
+        marcasFuera.add(m);
+      }
+    }
+
+    // Para calcular la escala, sólo lo que realmente vamos a dibujar
+    final puntos = <(double, double)>[
+      ...sectoresMetros,
+      for (final m in marcasDentro) aMetros(m.marcaLat!, m.marcaLng!),
     ];
 
     var maxDistancia = 30.0; // mínimo, para que no se vea vacío
@@ -499,8 +526,9 @@ class InformeDeRondasPdf {
         }
 
         // ---- Cada marcación ----
-        for (final m in marcas) {
-          if (m.marcaLat == null) continue;
+        // Sólo las que están cerca de algún sector. Las outliers (GPS a
+        // más de 500 m) se anotan al pie del plano en vez de dibujarlas.
+        for (final m in marcasDentro) {
           final (mx, my) = aMetros(m.marcaLat!, m.marcaLng!);
           canvas
             ..setFillColor(m.lejos ? _Tinta.rojo : _Tinta.verde)
@@ -531,6 +559,23 @@ class InformeDeRondasPdf {
           ..setFillColor(_Tinta.gris)
           ..drawString(negrita, 9, 'N', 18, size.y - 26)
           ..drawString(normal, 12, '^', 19, size.y - 40);
+
+        // ---- Aviso de outliers descartados ----
+        // Si algunas marcas venían con GPS defectuoso (a kilómetros del
+        // sector) las omitimos del plano para que las otras se vieran. Se
+        // lo contamos al lector, sin drama: se anota igual en el detalle.
+        if (marcasFuera.isNotEmpty) {
+          final n = marcasFuera.length;
+          final texto = n == 1
+              ? '1 marcación quedó fuera del plano: el GPS del teléfono la '
+                  'ubicó a kilómetros del cartel. Igual figura en el detalle.'
+              : '$n marcaciones quedaron fuera del plano: el GPS del '
+                  'teléfono las ubicó a kilómetros del cartel. Igual figuran '
+                  'en el detalle.';
+          canvas
+            ..setFillColor(_Tinta.gris)
+            ..drawString(normal, 7.5, texto, 18, 6);
+        }
       },
     );
   }
