@@ -233,6 +233,7 @@ class _PinGuardia extends StatelessWidget {
   Color get _color => switch (guardia.estado) {
         'vivo' => Colores.verde,
         'demorado' => Colores.naranja,
+        'esperando' => Colores.textoSuave,
         _ => Colores.rojo,
       };
 
@@ -298,6 +299,7 @@ class _TarjetaGuardia extends StatelessWidget {
     final color = switch (guardia.estado) {
       'vivo' => Colores.verde,
       'demorado' => Colores.naranja,
+      'esperando' => Colores.textoSuave,
       _ => Colores.rojo,
     };
 
@@ -366,7 +368,9 @@ class _TarjetaGuardia extends StatelessWidget {
   }
 
   String _subtitulo() {
-    if (guardia.minutosDesdeUltima == null) return 'Sin GPS';
+    if (guardia.minutosDesdeUltima == null) {
+      return guardia.estado == 'esperando' ? 'Buscando GPS…' : 'Sin GPS';
+    }
     final m = guardia.minutosDesdeUltima!;
     if (m < 1) return 'Hace instantes';
     if (m == 1) return 'Hace 1 min';
@@ -389,11 +393,13 @@ class _DetalleGuardia extends StatelessWidget {
     final color = switch (g.estado) {
       'vivo' => Colores.verde,
       'demorado' => Colores.naranja,
+      'esperando' => Colores.textoSuave,
       _ => Colores.rojo,
     };
     final estadoTexto = switch (g.estado) {
       'vivo' => 'En línea',
       'demorado' => 'Demorado',
+      'esperando' => 'Buscando GPS…',
       _ => 'Sin señal',
     };
 

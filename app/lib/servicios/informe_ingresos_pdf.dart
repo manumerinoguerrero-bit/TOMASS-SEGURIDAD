@@ -336,14 +336,15 @@ class InformeDeIngresosPdf {
     return pw.Table(
       border: pw.TableBorder.all(color: _Tinta.linea, width: 0.6),
       columnWidths: {
-        0: const pw.FixedColumnWidth(82),  // fecha
-        1: const pw.FixedColumnWidth(58),  // tipo
-        2: const pw.FixedColumnWidth(48),  // sentido
-        3: const pw.FlexColumnWidth(2.2),  // quién
-        4: const pw.FlexColumnWidth(1.0),  // unidad
-        5: const pw.FixedColumnWidth(62),  // patente
-        6: const pw.FlexColumnWidth(1.4),  // punto
-        7: const pw.FixedColumnWidth(52),  // estado
+        0: const pw.FixedColumnWidth(74),  // fecha
+        1: const pw.FixedColumnWidth(48),  // tipo
+        2: const pw.FixedColumnWidth(44),  // sentido
+        3: const pw.FlexColumnWidth(2.0),  // quién
+        4: const pw.FixedColumnWidth(62),  // rut
+        5: const pw.FlexColumnWidth(0.9),  // unidad
+        6: const pw.FixedColumnWidth(58),  // patente
+        7: const pw.FlexColumnWidth(1.2),  // punto
+        8: const pw.FixedColumnWidth(42),  // estado
       },
       children: [
         pw.TableRow(
@@ -353,6 +354,7 @@ class InformeDeIngresosPdf {
             _th('Tipo'),
             _th('Sentido'),
             _th('Quién'),
+            _th('RUT'),
             _th('Unidad'),
             _th('Patente'),
             _th('Punto'),
@@ -376,6 +378,7 @@ class InformeDeIngresosPdf {
         _td(m.esVehicular ? 'Vehículo' : 'Peatón'),
         _td(m.esEntrada ? 'Entrada' : 'Salida'),
         _td(m.quien ?? '—'),
+        _td(m.rut ?? '—'),
         _td(m.espacio ?? '—'),
         _td(m.patente ?? '—'),
         _td(m.entrada ?? '—'),

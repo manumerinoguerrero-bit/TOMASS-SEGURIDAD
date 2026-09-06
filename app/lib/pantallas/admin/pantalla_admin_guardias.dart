@@ -173,11 +173,13 @@ class _TarjetaEnTurno extends StatelessWidget {
   Color get _color => switch (guardia.estado) {
         'vivo' => Colores.verde,
         'demorado' => Colores.naranja,
+        'esperando' => Colores.textoSuave,
         _ => Colores.rojo,
       };
   String get _texto => switch (guardia.estado) {
         'vivo' => 'En línea',
         'demorado' => 'Demorado',
+        'esperando' => 'Buscando GPS…',
         _ => 'Sin señal',
       };
 

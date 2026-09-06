@@ -541,7 +541,8 @@ class ServicioAdmin {
       //    vez por este mismo motivo.
       var consulta = _supabase.from('movimientos_acceso').select('''
             id, tipo_acceso, sentido, estado, patente_snapshot,
-            nombre_snapshot, unidad_snapshot, ocurrido_en, motivo_denegacion,
+            nombre_snapshot, unidad_snapshot, rut_snapshot, ocurrido_en,
+            motivo_denegacion,
             usuarios!movimientos_acceso_residente_id_fkey ( nombre_completo ),
             puntos_acceso ( nombre )
           ''');

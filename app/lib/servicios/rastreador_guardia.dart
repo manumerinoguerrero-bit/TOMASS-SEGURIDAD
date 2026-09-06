@@ -29,15 +29,24 @@
 
 import 'dart:async';
 
+import 'package:flutter/widgets.dart';
+
 import '../nucleo/ubicacion.dart';
 import 'servicio_guardia.dart';
 
-class RastreadorGuardia {
+/// Rastreador de posición del guardia mientras tiene turno abierto.
+///
+/// Manda GPS al servidor cada [Duration cada] (3 min por defecto). Además
+/// se engancha al ciclo de vida de la app: cuando la persona vuelve al
+/// frente (por ejemplo desbloquea el celular), dispara un envío inmediato
+/// para que el admin vea la posición fresca sin esperar el próximo tick.
+class RastreadorGuardia with WidgetsBindingObserver {
   RastreadorGuardia(this._servicio);
 
   final ServicioGuardia _servicio;
   Timer? _timer;
   bool _enviando = false;
+  bool _observando = false;
 
   bool get activo => _timer != null && _timer!.isActive;
 
@@ -46,6 +55,10 @@ class RastreadorGuardia {
   /// aparecer en el mapa sin esperar el primer intervalo.
   void iniciar({Duration cada = const Duration(minutes: 3)}) {
     if (activo) return;
+    if (!_observando) {
+      WidgetsBinding.instance.addObserver(this);
+      _observando = true;
+    }
     _enviarUnaVez();
     _timer = Timer.periodic(cada, (_) => _enviarUnaVez());
   }
@@ -54,6 +67,22 @@ class RastreadorGuardia {
   void detener() {
     _timer?.cancel();
     _timer = null;
+    if (_observando) {
+      WidgetsBinding.instance.removeObserver(this);
+      _observando = false;
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Cuando la app vuelve al frente (el guardia desbloquea el celular o
+    // vuelve a abrir la app después de tenerla en background), disparamos
+    // un envío inmediato. Sin esto, si la app estuvo pausada 20 minutos, el
+    // admin ve "hace 20 min" durante los próximos 3 minutos hasta el
+    // siguiente tick.
+    if (state == AppLifecycleState.resumed) {
+      _enviarUnaVez();
+    }
   }
 
   Future<void> _enviarUnaVez() async {

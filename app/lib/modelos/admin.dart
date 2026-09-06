@@ -241,6 +241,7 @@ class MovimientoAdmin {
     required this.aprobado,
     required this.ocurridoEn,
     this.quien,
+    this.rut,
     this.espacio,
     this.patente,
     this.entrada,
@@ -258,6 +259,11 @@ class MovimientoAdmin {
   final bool aprobado;
   final DateTime ocurridoEn;
   final String? quien;
+
+  /// RUT chileno de la persona que entró/salió (viene de rut_snapshot).
+  /// Puede faltar si la visita entró sin cédula (raro pero pasa).
+  final String? rut;
+
   final String? espacio;
   final String? patente;
   final String? entrada;
@@ -285,6 +291,7 @@ class MovimientoAdmin {
       aprobado: m['estado'] == 'aprobado',
       ocurridoEn: DateTime.parse(m['ocurrido_en'] as String),
       quien: nombre,
+      rut: m['rut_snapshot'] as String?,
       espacio: m['unidad_snapshot'] as String?,
       patente: m['patente_snapshot'] as String?,
       entrada: p is Map ? p['nombre'] as String? : null,
@@ -928,10 +935,24 @@ class GuardiaEnVivo {
       minutosDesdeUltima != null && minutosDesdeUltima! < 10;
 
   /// Estado semántico para pintar el pin:
-  /// 'vivo' = ubicación fresca; 'demorado' = 10-30 min sin señal;
-  /// 'frio' = >30 min o nunca.
+  /// Estado semántico del guardia para pintar el pin y decidir el texto:
+  ///
+  ///   'esperando' — el turno recién arrancó (<5 min) y todavía no llegó
+  ///                 la primera medición GPS. NO es "sin señal", es que
+  ///                 el celular tarda 30-90 s en enganchar el GPS por
+  ///                 primera vez. Se pinta gris con "Buscando GPS…"
+  ///   'vivo'      — mandó GPS hace menos de 10 min. Verde, "En línea"
+  ///   'demorado'  — 10 a 30 min sin mandar. Naranja, "Demorado"
+  ///   'frio'      — >30 min o nunca (y turno viejo). Rojo, "Sin señal"
   String get estado {
-    if (minutosDesdeUltima == null) return 'frio';
+    final minutosDesdeInicio =
+        DateTime.now().difference(inicio).inMinutes;
+    if (minutosDesdeUltima == null) {
+      // Nunca reportó. Si el turno es nuevo (< 5 min), el celular
+      // todavía está buscando el GPS. Recién después se considera frío.
+      if (minutosDesdeInicio < 5) return 'esperando';
+      return 'frio';
+    }
     if (minutosDesdeUltima! < 10) return 'vivo';
     if (minutosDesdeUltima! < 30) return 'demorado';
     return 'frio';
