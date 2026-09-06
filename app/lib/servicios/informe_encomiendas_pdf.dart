@@ -262,8 +262,19 @@ class InformeDeEncomiendasPdf {
                   pw.Text(e.unidad!,
                       style: const pw.TextStyle(fontSize: 7, color: _Tinta.gris)),
                 pw.SizedBox(height: 2),
-                pw.Text(Formato.fechaYHora(e.entregadoEn),
-                    style: const pw.TextStyle(fontSize: 7, color: _Tinta.gris)),
+                pw.Text(
+                    e.fueEntregado
+                        ? 'Entregado ${Formato.fechaYHora(e.entregadoEn!)}'
+                        : 'Recibido ${Formato.fechaYHora(e.recibidoEn)} · '
+                            'aún en portería',
+                    style: pw.TextStyle(
+                      fontSize: 7,
+                      color:
+                          e.fueEntregado ? _Tinta.gris : _Tinta.naranja,
+                      fontWeight: e.fueEntregado
+                          ? pw.FontWeight.normal
+                          : pw.FontWeight.bold,
+                    )),
                 if (e.guardiaEntrega != null)
                   pw.Text('Entregó: ${e.guardiaEntrega}',
                       style: const pw.TextStyle(fontSize: 7, color: _Tinta.gris)),

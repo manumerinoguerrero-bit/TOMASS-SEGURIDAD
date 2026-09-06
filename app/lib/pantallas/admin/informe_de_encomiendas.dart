@@ -417,12 +417,35 @@ class _FilaEncomienda extends StatelessWidget {
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text(Formato.hora(e.entregadoEn),
+                // Muestra la fecha del ENTREGA si ya fue entregado,
+                // si no, la fecha en la que llegó a portería. Antes
+                // usaba entregadoEn sin null-check, y con paquetes
+                // pendientes crasheaba.
+                Text(Formato.hora(e.entregadoEn ?? e.recibidoEn),
                     style: const TextStyle(
                         fontSize: 13, fontWeight: FontWeight.w700)),
-                Text(Formato.diaYMes(e.entregadoEn),
+                Text(Formato.diaYMes(e.entregadoEn ?? e.recibidoEn),
                     style: const TextStyle(
                         fontSize: 10.5, color: Colores.textoTenue)),
+                if (!e.fueEntregado)
+                  Container(
+                    margin: const EdgeInsets.only(top: 4),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colores.naranja.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Text(
+                      'EN PORTERÍA',
+                      style: TextStyle(
+                        fontSize: 8.5,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.6,
+                        color: Colores.naranjaOscuro,
+                      ),
+                    ),
+                  ),
               ],
             ),
           ],

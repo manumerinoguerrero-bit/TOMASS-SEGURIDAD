@@ -617,11 +617,14 @@ class ServicioAdmin {
   // informe con la foto de cada encomienda entregada y la borra en el momento.
   // ==========================================================================
 
-  /// Las encomiendas entregadas en el período, que todavía tienen alguna foto.
+  /// Las encomiendas del período: recibidas + entregadas + pendientes.
   ///
-  /// Las que ya no tienen ninguna foto (porque se limpiaron antes, a mano o
-  /// por la limpieza automática de los 6 meses) no aparecen: no hay nada que
-  /// mostrar ni que borrar de ellas.
+  /// Antes solo traía las entregadas, y el admin abría el informe y veía
+  /// "no hay encomiendas" aunque el guardia acababa de recibir 3. Ahora
+  /// filtra por `recibido_en` (que siempre existe) y el PDF/pantalla las
+  /// separa según el estado.
+  ///
+  /// Se dejan afuera solo las que perdieron TODAS las fotos (limpiadas).
   Future<List<EncomiendaDelInforme>> encomiendasEntregadas({
     required DateTime desde,
     required DateTime hasta,
@@ -634,18 +637,19 @@ class ServicioAdmin {
       final filas = await _supabase
           .from('paquetes')
           .select('''
-            id, descripcion, numero_seguimiento, empresa_courier, entregado_en,
+            id, descripcion, numero_seguimiento, empresa_courier,
+            recibido_en, entregado_en, estado,
             retirado_por, foto_url, foto_entrega_url,
+            destinatario_texto, unidad_texto,
             usuarios!paquetes_residente_id_fkey ( nombre_completo ),
             unidades ( numero, torre ),
             guardia:usuarios!paquetes_guardia_entrega_id_fkey ( nombre_completo )
           ''')
-          .eq('estado', 'entregado')
           .isFilter('fotos_borradas_en', null)
           .or('foto_url.not.is.null,foto_entrega_url.not.is.null')
-          .gte('entregado_en', desde.toIso8601String())
-          .lte('entregado_en', hasta.toIso8601String())
-          .order('entregado_en', ascending: false)
+          .gte('recibido_en', desde.toIso8601String())
+          .lte('recibido_en', hasta.toIso8601String())
+          .order('recibido_en', ascending: false)
           .timeout(Entorno.esperaMaxima);
 
       return (filas as List)

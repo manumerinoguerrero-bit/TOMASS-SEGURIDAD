@@ -659,7 +659,9 @@ class SectorDelPlano {
 class EncomiendaDelInforme {
   const EncomiendaDelInforme({
     required this.id,
-    required this.entregadoEn,
+    required this.recibidoEn,
+    required this.estado,
+    this.entregadoEn,
     this.descripcion,
     this.numeroSeguimiento,
     this.empresaCourier,
@@ -672,7 +674,12 @@ class EncomiendaDelInforme {
   });
 
   final String id;
-  final DateTime entregadoEn;
+  final DateTime recibidoEn;
+  final DateTime? entregadoEn;
+
+  /// 'en_porteria', 'entregado' o 'devuelto'.
+  final String estado;
+
   final String? descripcion;
   final String? numeroSeguimiento;
   final String? empresaCourier;
@@ -688,6 +695,7 @@ class EncomiendaDelInforme {
   final String? fotoEntregaUrl;
 
   bool get tieneFoto => fotoUrl != null || fotoEntregaUrl != null;
+  bool get fueEntregado => estado == 'entregado';
 
   /// Con qué foto se arma la fila del informe.
   ///
@@ -708,6 +716,9 @@ class EncomiendaDelInforme {
     if (residenteMapa is Map) {
       residente = residenteMapa['nombre_completo'] as String?;
     }
+    // Si el destinatario se escribió a mano (no hay usuario registrado),
+    // usar destinatario_texto.
+    residente ??= m['destinatario_texto'] as String?;
 
     final unidadMapa = m['unidades'];
     String? unidad;
@@ -717,6 +728,7 @@ class EncomiendaDelInforme {
           .join(' ');
       if (unidad.isEmpty) unidad = null;
     }
+    unidad ??= m['unidad_texto'] as String?;
 
     final guardiaMapa = m['guardia'];
     String? guardia;
@@ -726,7 +738,11 @@ class EncomiendaDelInforme {
 
     return EncomiendaDelInforme(
       id: m['id'] as String,
-      entregadoEn: DateTime.parse(m['entregado_en'] as String),
+      recibidoEn: DateTime.parse(m['recibido_en'] as String),
+      entregadoEn: m['entregado_en'] == null
+          ? null
+          : DateTime.parse(m['entregado_en'] as String),
+      estado: (m['estado'] ?? 'en_porteria') as String,
       descripcion: m['descripcion'] as String?,
       numeroSeguimiento: m['numero_seguimiento'] as String?,
       empresaCourier: m['empresa_courier'] as String?,
