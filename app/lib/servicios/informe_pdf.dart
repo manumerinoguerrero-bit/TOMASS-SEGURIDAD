@@ -41,6 +41,7 @@ import 'package:pdf/widgets.dart' as pw;
 
 import '../modelos/admin.dart';
 import '../nucleo/formato.dart';
+import 'servicio_mapa_estatico.dart';
 
 /// Los colores de la marca, en el formato que entiende el PDF.
 class _Tinta {
@@ -79,6 +80,25 @@ class InformeDeRondasPdf {
     final hasta = DateTime.now();
     final desde = hasta.subtract(Duration(days: dias));
 
+    // Mapa real con calles (Geoapify) para acompañar al plano dibujado
+    // de la hoja 2. Marcadores: los sectores con su número, y las marcas
+    // del guardia en verde (si estuvo cerca) o rojo (si estuvo lejos).
+    // Si Geoapify no responde, mapaBytes queda null y la hoja 2 sólo
+    // muestra el plano CustomPaint.
+    Uint8List? mapaBytes;
+    final sectoresConUbicacion =
+        sectores.where((s) => s.tieneUbicacion).toList();
+    if (sectoresConUbicacion.isNotEmpty) {
+      mapaBytes = await ServicioMapaEstatico.conRecorrido(
+        puntos: [
+          for (final s in sectoresConUbicacion)
+            (lat: s.latitud!, lng: s.longitud!, numero: s.orden),
+        ],
+        ancho: 900,
+        alto: 550,
+      );
+    }
+
     // ---- Hoja 1: el resumen ----
     doc.addPage(
       pw.Page(
@@ -98,9 +118,11 @@ class InformeDeRondasPdf {
       ),
     );
 
-    // ---- Hoja 2: el plano ----
-    final conUbicacion = sectores.where((s) => s.tieneUbicacion).toList();
-    if (conUbicacion.isNotEmpty) {
+    // ---- Hoja 2: el mapa real (Geoapify) + el plano dibujado ----
+    // El mapa real de arriba ubica al cliente en su barrio: reconoce las
+    // calles, las manzanas y hasta el techo del edificio. El plano de
+    // abajo es más analítico: círculos de tolerancia y marcas OK/lejanas.
+    if (sectoresConUbicacion.isNotEmpty) {
       doc.addPage(
         pw.Page(
           pageFormat: PdfPageFormat.a4,
@@ -116,9 +138,23 @@ class InformeDeRondasPdf {
                 'teléfono al escanear.',
                 style: const pw.TextStyle(fontSize: 9.5, color: _Tinta.gris),
               ),
-              pw.SizedBox(height: 14),
+              pw.SizedBox(height: 10),
+              if (mapaBytes != null) ...[
+                pw.ClipRRect(
+                  horizontalRadius: 4,
+                  verticalRadius: 4,
+                  child: pw.Image(
+                    pw.MemoryImage(mapaBytes),
+                    width: double.infinity,
+                    height: 220,
+                    fit: pw.BoxFit.cover,
+                  ),
+                ),
+                pw.SizedBox(height: 10),
+              ],
               pw.Expanded(
-                  child: _plano(conUbicacion, marcas, normal, negrita)),
+                  child: _plano(
+                      sectoresConUbicacion, marcas, normal, negrita)),
               pw.SizedBox(height: 12),
               _leyendaDelPlano(),
               _pie(),
