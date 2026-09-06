@@ -279,8 +279,8 @@ class InformeDeGuardiaPdf {
           border: pw.Border.all(color: _Tinta.linea, width: 1.5),
         ),
         alignment: pw.Alignment.center,
-        child: const pw.Text('sin foto',
-            style: pw.TextStyle(fontSize: 8, color: _Tinta.tenue)),
+        child: pw.Text('sin foto',
+            style: const pw.TextStyle(fontSize: 8, color: _Tinta.tenue)),
       );
     }
     return pw.ClipOval(
