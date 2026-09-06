@@ -87,7 +87,11 @@ final espaciosProvider = FutureProvider<List<EspacioAdmin>>((ref) {
 // ============================================================================
 
 /// Cuántos días hacia atrás mira el informe.
-final diasDelInformeProvider = StateProvider<int>((ref) => 7);
+/// Cuántos días hacia atrás mira el informe (Accesos/Novedades).
+/// Default 30: si es muy corto, novedades viejas ("Auto ajeno" del mes
+/// pasado) no aparecen y el admin se confunde porque el badge del panel
+/// las cuenta pero la pestaña sale vacía.
+final diasDelInformeProvider = StateProvider<int>((ref) => 30);
 
 final movimientosAdminProvider = FutureProvider<List<MovimientoAdmin>>((ref) {
   final dias = ref.watch(diasDelInformeProvider);

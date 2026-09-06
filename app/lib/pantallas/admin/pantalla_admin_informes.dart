@@ -106,6 +106,7 @@ class _PestanaAccesos extends ConsumerWidget {
               ButtonSegment(value: 1, label: Text('Hoy')),
               ButtonSegment(value: 7, label: Text('7 días')),
               ButtonSegment(value: 30, label: Text('30 días')),
+              ButtonSegment(value: 90, label: Text('3 meses')),
             ],
             selected: {dias},
             onSelectionChanged: (s) =>
@@ -858,6 +859,7 @@ class _PestanaNovedades extends ConsumerWidget {
               ButtonSegment(value: 1, label: Text('Hoy')),
               ButtonSegment(value: 7, label: Text('7 días')),
               ButtonSegment(value: 30, label: Text('30 días')),
+              ButtonSegment(value: 90, label: Text('3 meses')),
             ],
             selected: {dias},
             onSelectionChanged: (s) =>

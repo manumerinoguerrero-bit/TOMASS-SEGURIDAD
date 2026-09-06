@@ -47,6 +47,77 @@ class PestanaRondas extends ConsumerStatefulWidget {
 class _EstadoPestanaRondas extends ConsumerState<PestanaRondas> {
   bool _armandoPdf = false;
 
+  /// Rango personalizado elegido con date+time pickers. Si no está null,
+  /// pisa al filtro de días. Sirve para responder a carabineros/mandante
+  /// con "las rondas de la noche del 15 al 16 de marzo entre 22:00 y 06:00".
+  DateTimeRange? _rangoPersonalizado;
+  TimeOfDay? _horaDesde;
+  TimeOfDay? _horaHasta;
+
+  Future<void> _elegirRango() async {
+    final ahora = DateTime.now();
+    final rango = await showDateRangePicker(
+      context: context,
+      firstDate: ahora.subtract(const Duration(days: 365)),
+      lastDate: ahora,
+      initialDateRange: _rangoPersonalizado ??
+          DateTimeRange(
+            start: ahora.subtract(const Duration(days: 7)),
+            end: ahora,
+          ),
+      locale: const Locale('es', 'CL'),
+      helpText: 'Elegí el rango de días',
+      cancelText: 'Cancelar',
+      confirmText: 'Siguiente',
+      saveText: 'Aplicar',
+    );
+    if (rango == null || !mounted) return;
+
+    // Después de elegir los días, pedir horas (opcional).
+    final desde = await showTimePicker(
+      context: context,
+      initialTime: _horaDesde ?? const TimeOfDay(hour: 0, minute: 0),
+      helpText: 'Desde qué hora del primer día',
+      cancelText: 'Cancelar',
+      confirmText: 'OK',
+    );
+    if (!mounted) return;
+    final hasta = await showTimePicker(
+      context: context,
+      initialTime: _horaHasta ?? const TimeOfDay(hour: 23, minute: 59),
+      helpText: 'Hasta qué hora del último día',
+      cancelText: 'Cancelar',
+      confirmText: 'OK',
+    );
+    if (!mounted) return;
+
+    setState(() {
+      _rangoPersonalizado = rango;
+      _horaDesde = desde;
+      _horaHasta = hasta;
+    });
+  }
+
+  void _limpiarRango() {
+    setState(() {
+      _rangoPersonalizado = null;
+      _horaDesde = null;
+      _horaHasta = null;
+    });
+  }
+
+  ({DateTime desde, DateTime hasta})? get _rangoResuelto {
+    if (_rangoPersonalizado == null) return null;
+    final r = _rangoPersonalizado!;
+    final hd = _horaDesde ?? const TimeOfDay(hour: 0, minute: 0);
+    final hh = _horaHasta ?? const TimeOfDay(hour: 23, minute: 59);
+    final desde = DateTime(
+        r.start.year, r.start.month, r.start.day, hd.hour, hd.minute);
+    final hasta = DateTime(
+        r.end.year, r.end.month, r.end.day, hh.hour, hh.minute);
+    return (desde: desde, hasta: hasta);
+  }
+
   // ==========================================================================
   // EL INFORME PARA EL CLIENTE
   // ==========================================================================
@@ -61,12 +132,21 @@ class _EstadoPestanaRondas extends ConsumerState<PestanaRondas> {
       final servicio = ref.read(servicioAdminProvider);
       final dias = ref.read(diasDelInformeDeRondasProvider);
       final perfil = ref.read(perfilProvider).valueOrNull;
+      final rangoP = _rangoResuelto; // null si no hay rango personalizado
 
       // Los tres pedidos van a la vez: el informe tarda lo que tarda el más
       // lento, y no la suma de los tres.
       final (rondas, marcas, sectores) = await (
-        servicio.informeDeRondas(dias: dias),
-        servicio.detalleDeRondas(dias: dias),
+        servicio.informeDeRondas(
+          dias: dias,
+          desde: rangoP?.desde,
+          hasta: rangoP?.hasta,
+        ),
+        servicio.detalleDeRondas(
+          dias: dias,
+          desde: rangoP?.desde,
+          hasta: rangoP?.hasta,
+        ),
         servicio.sectoresParaElPlano(),
       ).wait;
 
@@ -83,11 +163,18 @@ class _EstadoPestanaRondas extends ConsumerState<PestanaRondas> {
       if (!mounted) return;
       setState(() => _armandoPdf = false);
 
+      // Nombre de archivo: si hay rango personalizado, se pone la fecha
+      // en el archivo para que quede claro qué período contiene.
+      final nombreArchivo = rangoP == null
+          ? 'rondas-${_nombreDeArchivo(perfil?.nombreCondominio)}-${dias}dias.pdf'
+          : 'rondas-${_nombreDeArchivo(perfil?.nombreCondominio)}-'
+              '${rangoP.desde.toIso8601String().substring(0, 10)}-a-'
+              '${rangoP.hasta.toIso8601String().substring(0, 10)}.pdf';
+
       // Abre la hoja del teléfono para compartir, imprimir o guardar
       await Printing.sharePdf(
         bytes: pdf,
-        filename: 'rondas-${_nombreDeArchivo(perfil?.nombreCondominio)}-'
-            '${dias}dias.pdf',
+        filename: nombreArchivo,
       );
     } catch (falla) {
       if (!mounted) return;
@@ -133,11 +220,35 @@ class _EstadoPestanaRondas extends ConsumerState<PestanaRondas> {
                   ButtonSegment(value: 90, label: Text('3 meses')),
                 ],
                 selected: {dias},
-                onSelectionChanged: (s) => ref
-                    .read(diasDelInformeDeRondasProvider.notifier)
-                    .state = s.first,
+                onSelectionChanged: _rangoPersonalizado != null
+                    ? null
+                    : (s) => ref
+                        .read(diasDelInformeDeRondasProvider.notifier)
+                        .state = s.first,
                 showSelectedIcon: false,
               ),
+              const SizedBox(height: 8),
+
+              // Rango personalizado — para responder a carabineros o al
+              // mandante cuando piden "las rondas del 15 al 16 de marzo
+              // entre 22:00 y 06:00". Ver _elegirRango.
+              if (_rangoResuelto == null)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: _elegirRango,
+                    icon: const Icon(Icons.date_range_rounded, size: 18),
+                    label: const Text('Elegir rango de fechas y horas'),
+                  ),
+                )
+              else
+                _ChipRango(
+                  desde: _rangoResuelto!.desde,
+                  hasta: _rangoResuelto!.hasta,
+                  alCambiar: _elegirRango,
+                  alQuitar: _limpiarRango,
+                ),
+
               const SizedBox(height: 10),
               SizedBox(
                 width: double.infinity,
@@ -342,6 +453,83 @@ class _Alerta extends StatelessWidget {
                 color: Colores.naranjaOscuro,
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// Chip que muestra el rango personalizado elegido, con botones para cambiar
+// o quitarlo y volver al filtro de días fijos.
+// ============================================================================
+
+class _ChipRango extends StatelessWidget {
+  const _ChipRango({
+    required this.desde,
+    required this.hasta,
+    required this.alCambiar,
+    required this.alQuitar,
+  });
+
+  final DateTime desde;
+  final DateTime hasta;
+  final VoidCallback alCambiar;
+  final VoidCallback alQuitar;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colores.dorado.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+            color: Colores.dorado.withValues(alpha: 0.5), width: 1.2),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.date_range_rounded,
+              size: 17, color: Colores.doradoOscuro),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  "RANGO PERSONALIZADO",
+                  style: TextStyle(
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.8,
+                    color: Colores.doradoOscuro,
+                  ),
+                ),
+                Text(
+                  "${Formato.fecha(desde)} ${Formato.hora(desde)} → "
+                  "${Formato.fecha(hasta)} ${Formato.hora(hasta)}",
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: Colores.grafito,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.edit_rounded, size: 18),
+            tooltip: "Cambiar",
+            onPressed: alCambiar,
+            color: Colores.grafito,
+          ),
+          IconButton(
+            icon: const Icon(Icons.close_rounded, size: 18),
+            tooltip: "Quitar",
+            onPressed: alQuitar,
+            color: Colores.rojo,
           ),
         ],
       ),

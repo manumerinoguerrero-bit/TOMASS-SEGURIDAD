@@ -34,7 +34,6 @@ import 'package:pdf/widgets.dart' as pw;
 import '../modelos/admin.dart';
 import '../nucleo/formato.dart';
 import 'servicio_fotos.dart';
-import 'servicio_mapa_estatico.dart';
 
 abstract class _Tinta {
   // Azul marino corporativo (paleta Merlyn), el mismo que usa la app.
@@ -83,28 +82,17 @@ class InformeDeTurnosPdf {
       }
     }
 
-    // Bajamos mapas OSM para los turnos que tienen marcas de ronda con GPS.
-    // Va secuencial a propósito: el rate-limit del servidor público es
-    // estricto y en paralelo empieza a devolver blanco/errores.
+    // Antes intentábamos bajar mapas de staticmap.openstreetmap.de, pero
+    // ese servidor gratuito es notoriamente inestable: a veces devuelve
+    // 200 con imagen blanca, a veces se cae, a veces rate-limitea. El
+    // resultado era que la sección "Recorrido de ronda" salía con un
+    // rectángulo vacío la mitad de las veces.
+    //
+    // Ahora usamos SIEMPRE el esquema dibujado a mano (ver
+    // _esquemaDeRecorrido más abajo): rectángulo con los puntos GPS
+    // proyectados, numerados. No es un mapa satelital pero muestra la
+    // forma del recorrido, funciona offline y NUNCA queda en blanco.
     final mapas = <String, Uint8List?>{};
-    if (rondasPorTurno != null) {
-      for (final entry in rondasPorTurno.entries) {
-        final marcasConGps = entry.value
-            .where((m) => m.tieneGpsGuardia)
-            .toList();
-        if (marcasConGps.isEmpty) continue;
-        mapas[entry.key] = await ServicioMapaEstatico.conRecorrido(
-          puntos: [
-            for (var i = 0; i < marcasConGps.length; i++)
-              (
-                lat: marcasConGps[i].geoLat!,
-                lng: marcasConGps[i].geoLng!,
-                numero: i + 1,
-              ),
-          ],
-        );
-      }
-    }
 
     final pdf = pw.Document();
 

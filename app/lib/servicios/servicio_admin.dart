@@ -408,11 +408,18 @@ class ServicioAdmin {
   }
 
   /// El detalle de cada marcacion del periodo, para armar el informe en PDF.
-  Future<List<MarcaDelInforme>> detalleDeRondas({int dias = 7}) async {
+  /// Si vienen [desde] y [hasta], se usan como rango; si no, [dias] hacia atrás.
+  Future<List<MarcaDelInforme>> detalleDeRondas({
+    int dias = 7,
+    DateTime? desde,
+    DateTime? hasta,
+  }) async {
     try {
-      final filas = await _supabase
-          .rpc('detalle_de_rondas', params: {'p_dias': dias})
-          .timeout(Entorno.esperaMaxima);
+      final filas = await _supabase.rpc('detalle_de_rondas', params: {
+        'p_dias': dias,
+        if (desde != null) 'p_desde': desde.toIso8601String(),
+        if (hasta != null) 'p_hasta': hasta.toIso8601String(),
+      }).timeout(Entorno.esperaMaxima);
 
       return (filas as List)
           .map((f) => MarcaDelInforme.desdeMapa(Map<String, dynamic>.from(f)))
@@ -441,12 +448,19 @@ class ServicioAdmin {
   }
 
   /// El informe de rondas: cuantas hizo, si se paso de las 2 horas, y si marco
-  /// algun punto desde lejos.
-  Future<List<RondaDelInforme>> informeDeRondas({int dias = 7}) async {
+  /// algun punto desde lejos. Si vienen [desde] y [hasta], se usan como
+  /// rango; si no, [dias] hacia atrás.
+  Future<List<RondaDelInforme>> informeDeRondas({
+    int dias = 7,
+    DateTime? desde,
+    DateTime? hasta,
+  }) async {
     try {
-      final filas = await _supabase
-          .rpc('informe_de_rondas', params: {'p_dias': dias})
-          .timeout(Entorno.esperaMaxima);
+      final filas = await _supabase.rpc('informe_de_rondas', params: {
+        'p_dias': dias,
+        if (desde != null) 'p_desde': desde.toIso8601String(),
+        if (hasta != null) 'p_hasta': hasta.toIso8601String(),
+      }).timeout(Entorno.esperaMaxima);
 
       return (filas as List)
           .map((f) => RondaDelInforme.desdeMapa(Map<String, dynamic>.from(f)))
@@ -700,6 +714,19 @@ class ServicioAdmin {
       final desdeIso = desde.toIso8601String();
       final hastaIso = hasta.toIso8601String();
 
+      // Primero traemos los ids de rondas de este guardia, para después
+      // pedir las marcas usando inFilter. El filtro sobre columna joineada
+      // (rondas.guardia_id) no funciona confiablemente en supabase-dart.
+      final rondasFilas = await _supabase
+          .from('rondas')
+          .select('id')
+          .eq('guardia_id', guardiaId)
+          .gte('inicio', desdeIso)
+          .lte('inicio', hastaIso)
+          .timeout(Entorno.esperaMaxima);
+      final rondaIds =
+          (rondasFilas as List).map((r) => r['id'] as String).toList();
+
       // Cuatro queries en paralelo para no encadenar esperas.
       final resultados = await Future.wait([
         _supabase
@@ -715,19 +742,18 @@ class ServicioAdmin {
             .lte('inicio', hastaIso)
             .order('inicio', ascending: false)
             .timeout(Entorno.esperaMaxima),
-        _supabase
-            .from('marcas_de_ronda')
-            .select('''
-              id, marcado_en, novedad, geo_lat, geo_lng,
-              puntos_control ( nombre ),
-              rondas!inner ( guardia_id )
-            ''')
-            .eq('rondas.guardia_id', guardiaId)
-            .gte('marcado_en', desdeIso)
-            .lte('marcado_en', hastaIso)
-            .order('marcado_en', ascending: false)
-            .limit(500)
-            .timeout(Entorno.esperaMaxima),
+        rondaIds.isEmpty
+            ? Future.value(<Map<String, dynamic>>[])
+            : _supabase
+                .from('marcas_de_ronda')
+                .select('''
+                  id, marcado_en, novedad, geo_lat, geo_lng,
+                  puntos_control ( nombre )
+                ''')
+                .inFilter('ronda_id', rondaIds)
+                .order('marcado_en', ascending: false)
+                .limit(500)
+                .timeout(Entorno.esperaMaxima),
         _supabase
             .from('incidentes')
             .select('''
