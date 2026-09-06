@@ -13,6 +13,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:printing/printing.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../config/tema.dart';
@@ -21,6 +22,7 @@ import '../../estado/proveedores_admin.dart';
 import '../../modelos/admin.dart';
 import '../../nucleo/errores.dart';
 import '../../nucleo/formato.dart';
+import '../../servicios/informe_guardia_pdf.dart';
 import '../comunes/componentes.dart';
 import 'acciones_admin.dart';
 import 'pantalla_admin_mapa_vivo.dart' show guardiasEnVivoProvider;
@@ -330,6 +332,16 @@ class _TarjetaGuardia extends StatelessWidget {
           onSelected: (accion) => _hacer(context, accion),
           itemBuilder: (_) => const [
             PopupMenuItem(
+              value: 'informe',
+              child: ListTile(
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                leading: Icon(Icons.picture_as_pdf_rounded, size: 19),
+                title: Text('Descargar informe (30 días)'),
+              ),
+            ),
+            PopupMenuDivider(),
+            PopupMenuItem(
               value: 'cerrar_sesion',
               child: ListTile(
                 contentPadding: EdgeInsets.zero,
@@ -345,6 +357,10 @@ class _TarjetaGuardia extends StatelessWidget {
   }
 
   Future<void> _hacer(BuildContext context, String accion) async {
+    if (accion == 'informe') {
+      await _descargarInforme(context);
+      return;
+    }
     if (accion != 'cerrar_sesion') return;
 
     final ok = await showDialog<bool>(
@@ -384,6 +400,53 @@ class _TarjetaGuardia extends StatelessWidget {
       );
       ref.invalidate(guardiasEnVivoProvider);
       ref.invalidate(listaGuardiasProvider);
+    } catch (falla) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(Traductor.traducir(falla).mensaje),
+          backgroundColor: Colores.rojo,
+        ),
+      );
+    }
+  }
+
+  Future<void> _descargarInforme(BuildContext context) async {
+    final servicio = ref.read(servicioAdminProvider);
+    final servicioFotos = ref.read(servicioFotosProvider);
+    final instalacion =
+        ref.read(perfilProvider).valueOrNull?.nombreCondominio ?? 'Instalación';
+    final desde = DateTime.now().subtract(const Duration(days: 30));
+    final hasta = DateTime.now();
+    final nombre = guardia['nombre_completo'] as String? ?? 'guardia';
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Armando informe de $nombre…'),
+        backgroundColor: Colores.grafito,
+        duration: const Duration(seconds: 3),
+      ),
+    );
+    try {
+      final data = await servicio.dataInformeGuardia(
+        guardiaId: guardia['id'] as String,
+        desde: desde,
+        hasta: hasta,
+      );
+      final bytes = await InformeDeGuardiaPdf.armar(
+        instalacion: instalacion,
+        data: data,
+        servicioFotos: servicioFotos,
+      );
+      if (!context.mounted) return;
+      final apellido = nombre
+          .toLowerCase()
+          .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
+          .replaceAll(RegExp(r'^-|-$'), '');
+      await Printing.layoutPdf(
+        name: 'informe-$apellido-${DateTime.now().millisecondsSinceEpoch}.pdf',
+        onLayout: (_) async => bytes,
+      );
     } catch (falla) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

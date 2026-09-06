@@ -688,6 +688,121 @@ class ServicioAdmin {
     }
   }
 
+  /// Todo lo que un guardia hizo en un período: turnos, rondas, novedades y
+  /// paquetes recibidos. Sirve para el "informe de labor por guardia" que el
+  /// admin baja como PDF individual.
+  Future<Map<String, dynamic>> dataInformeGuardia({
+    required String guardiaId,
+    required DateTime desde,
+    required DateTime hasta,
+  }) async {
+    try {
+      final desdeIso = desde.toIso8601String();
+      final hastaIso = hasta.toIso8601String();
+
+      // Cuatro queries en paralelo para no encadenar esperas.
+      final resultados = await Future.wait([
+        _supabase
+            .from('turnos')
+            .select('''
+              id, inicio, cerrado_en, notas_entrega,
+              foto_url, geo_lat, geo_lng,
+              usuarios!turnos_guardia_id_fkey ( nombre_completo, email, telefono ),
+              puntos_acceso ( nombre )
+            ''')
+            .eq('guardia_id', guardiaId)
+            .gte('inicio', desdeIso)
+            .lte('inicio', hastaIso)
+            .order('inicio', ascending: false)
+            .timeout(Entorno.esperaMaxima),
+        _supabase
+            .from('marcas_de_ronda')
+            .select('''
+              id, marcado_en, novedad, geo_lat, geo_lng,
+              puntos_control ( nombre ),
+              rondas!inner ( guardia_id )
+            ''')
+            .eq('rondas.guardia_id', guardiaId)
+            .gte('marcado_en', desdeIso)
+            .lte('marcado_en', hastaIso)
+            .order('marcado_en', ascending: false)
+            .limit(500)
+            .timeout(Entorno.esperaMaxima),
+        _supabase
+            .from('incidentes')
+            .select('''
+              id, tipo, gravedad, titulo, descripcion, fotos,
+              patente, ubicacion_texto, estado,
+              ocurrido_en, resuelto_en, nota_resolucion,
+              unidades ( numero, torre )
+            ''')
+            .eq('reportado_por', guardiaId)
+            .gte('ocurrido_en', desdeIso)
+            .lte('ocurrido_en', hastaIso)
+            .order('ocurrido_en', ascending: false)
+            .timeout(Entorno.esperaMaxima),
+        _supabase
+            .from('paquetes')
+            .select('''
+              id, numero_seguimiento, empresa_courier, descripcion,
+              destinatario_texto, unidad_texto, recibido_en, estado,
+              usuarios!paquetes_residente_id_fkey ( nombre_completo ),
+              unidades ( numero, torre )
+            ''')
+            .eq('guardia_receptor_id', guardiaId)
+            .gte('recibido_en', desdeIso)
+            .lte('recibido_en', hastaIso)
+            .order('recibido_en', ascending: false)
+            .timeout(Entorno.esperaMaxima),
+      ]);
+
+      // Nombre del guardia sale del primer turno si hay alguno; si no, se
+      // hace una query extra al perfil.
+      String nombreGuardia = 'Guardia';
+      String? emailGuardia;
+      String? telGuardia;
+      final turnos = resultados[0] as List;
+      if (turnos.isNotEmpty && turnos[0]['usuarios'] is Map) {
+        final u = turnos[0]['usuarios'] as Map;
+        nombreGuardia = u['nombre_completo']?.toString() ?? 'Guardia';
+        emailGuardia = u['email']?.toString();
+        telGuardia = u['telefono']?.toString();
+      } else {
+        final fila = await _supabase
+            .from('usuarios')
+            .select('nombre_completo, email, telefono')
+            .eq('id', guardiaId)
+            .maybeSingle()
+            .timeout(Entorno.esperaMaxima);
+        if (fila != null) {
+          nombreGuardia = fila['nombre_completo']?.toString() ?? 'Guardia';
+          emailGuardia = fila['email']?.toString();
+          telGuardia = fila['telefono']?.toString();
+        }
+      }
+
+      return {
+        'guardia_nombre': nombreGuardia,
+        'guardia_email': emailGuardia,
+        'guardia_telefono': telGuardia,
+        'desde': desde,
+        'hasta': hasta,
+        'turnos': turnos.map((f) => Map<String, dynamic>.from(f)).toList(),
+        'rondas': (resultados[1] as List)
+            .map((f) => Map<String, dynamic>.from(f))
+            .toList(),
+        'novedades': (resultados[2] as List)
+            .map((f) => Map<String, dynamic>.from(f))
+            .toList(),
+        'paquetes': (resultados[3] as List)
+            .map((f) => Map<String, dynamic>.from(f))
+            .toList(),
+      };
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+
   /// Revoca los refresh tokens del guardia y cierra su turno si tenía uno
   /// abierto. La app del guardia va a mandarlo al login la próxima vez que
   /// intente hacer algo con el servidor.

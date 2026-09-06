@@ -774,6 +774,12 @@ class InformeDeTurnosPdf {
           ),
           pw.SizedBox(height: 6),
 
+          // Mapa: si el servidor OSM respondió con una imagen válida
+          // (mapaBytes != null), la mostramos. Si no respondió — que le
+          // pasa seguido al servidor gratuito de tiles — dibujamos un
+          // esquema con los puntos GPS proyectados a un rectángulo. No es
+          // un mapa real pero muestra el recorrido con puntos numerados y
+          // líneas entre ellos, sin depender de nada externo.
           if (mapaBytes != null) ...[
             pw.ClipRRect(
               horizontalRadius: 5,
@@ -785,6 +791,9 @@ class InformeDeTurnosPdf {
                 fit: pw.BoxFit.cover,
               ),
             ),
+            pw.SizedBox(height: 6),
+          ] else if (marcas.any((m) => m.tieneGpsGuardia)) ...[
+            _esquemaDeRecorrido(marcas),
             pw.SizedBox(height: 6),
           ],
 
@@ -845,6 +854,101 @@ class InformeDeTurnosPdf {
             pw.Text(
               'sin GPS',
               style: const pw.TextStyle(fontSize: 8, color: _Tinta.naranja),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // ==========================================================================
+  // Esquema del recorrido cuando no hay mapa del servidor
+  // ==========================================================================
+  // Dibuja los puntos GPS del guardia en un rectángulo con la relación de
+  // aspecto correcta. No es un mapa real (sin calles), pero muestra la
+  // forma del recorrido con puntos numerados y líneas entre ellos.
+  // Se calcula un bounding box con margen y se proyecta cada punto.
+
+  static pw.Widget _esquemaDeRecorrido(List<MarcaDeRondaAdmin> marcas) {
+    final conGps =
+        marcas.where((m) => m.tieneGpsGuardia).toList();
+    if (conGps.isEmpty) return pw.SizedBox();
+
+    // Bounding box con un margen del 15% para que los puntos no queden
+    // pegados a los bordes.
+    double minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
+    for (final m in conGps) {
+      if (m.geoLat! < minLat) minLat = m.geoLat!;
+      if (m.geoLat! > maxLat) maxLat = m.geoLat!;
+      if (m.geoLng! < minLng) minLng = m.geoLng!;
+      if (m.geoLng! > maxLng) maxLng = m.geoLng!;
+    }
+    var rangoLat = maxLat - minLat;
+    var rangoLng = maxLng - minLng;
+    if (rangoLat < 0.0002) rangoLat = 0.0002;
+    if (rangoLng < 0.0002) rangoLng = 0.0002;
+    minLat -= rangoLat * 0.15;
+    maxLat += rangoLat * 0.15;
+    minLng -= rangoLng * 0.15;
+    maxLng += rangoLng * 0.15;
+    final anchoLat = maxLat - minLat;
+    final anchoLng = maxLng - minLng;
+
+    const alto = 160.0;
+    const ancho = 500.0;
+
+    return pw.Container(
+      width: double.infinity,
+      height: alto,
+      decoration: pw.BoxDecoration(
+        color: const PdfColor.fromInt(0xFFF4F6FA),
+        borderRadius: pw.BorderRadius.circular(5),
+        border: pw.Border.all(color: _Tinta.linea, width: 0.8),
+      ),
+      child: pw.Stack(
+        children: [
+          // Marca de agua para indicar que es esquema, no mapa
+          pw.Positioned(
+            top: 6,
+            left: 8,
+            child: pw.Text(
+              'ESQUEMA DEL RECORRIDO',
+              style: pw.TextStyle(
+                fontSize: 8,
+                color: _Tinta.tenue,
+                letterSpacing: 0.6,
+                fontWeight: pw.FontWeight.bold,
+              ),
+            ),
+          ),
+          // Puntos numerados. En Y invertida porque en PDF Y crece hacia
+          // abajo, pero en lat crece hacia arriba.
+          for (var i = 0; i < conGps.length; i++)
+            pw.Positioned(
+              left: ((conGps[i].geoLng! - minLng) / anchoLng * ancho)
+                  .clamp(0, ancho - 20)
+                  .toDouble(),
+              top: ((maxLat - conGps[i].geoLat!) / anchoLat * (alto - 40) + 20)
+                  .clamp(20, alto - 20)
+                  .toDouble(),
+              child: pw.Container(
+                width: 22,
+                height: 22,
+                alignment: pw.Alignment.center,
+                decoration: pw.BoxDecoration(
+                  color: _Tinta.grafito,
+                  shape: pw.BoxShape.circle,
+                  border: pw.Border.all(
+                      color: PdfColors.white, width: 2),
+                ),
+                child: pw.Text(
+                  '${i + 1}',
+                  style: pw.TextStyle(
+                    color: PdfColors.white,
+                    fontSize: 10,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+              ),
             ),
         ],
       ),
