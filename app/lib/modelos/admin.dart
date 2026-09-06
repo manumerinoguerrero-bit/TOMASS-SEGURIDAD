@@ -245,6 +245,7 @@ class MovimientoAdmin {
     this.espacio,
     this.patente,
     this.entrada,
+    this.autorizadoPor,
     this.motivoDenegacion,
   });
 
@@ -258,6 +259,10 @@ class MovimientoAdmin {
 
   final bool aprobado;
   final DateTime ocurridoEn;
+
+  /// Nombre de la persona que ENTRÓ o SALIÓ (la visita, en la mayoría de los
+  /// casos). Se toma de nombre_snapshot: es lo que anotó el guardia en el
+  /// momento del ingreso.
   final String? quien;
 
   /// RUT chileno de la persona que entró/salió (viene de rut_snapshot).
@@ -267,20 +272,29 @@ class MovimientoAdmin {
   final String? espacio;
   final String? patente;
   final String? entrada;
+
+  /// Nombre del RESIDENTE que autorizó el ingreso — no es la misma persona
+  /// que `quien`. Cuando el que ingresa ES el residente (entrando a su
+  /// propia casa) o cuando el guardia dejó pasar sin autorización clara,
+  /// puede ser null.
+  final String? autorizadoPor;
+
   final String? motivoDenegacion;
 
   bool get esVehicular => tipoAcceso == 'vehicular';
   bool get esEntrada => sentido == 'entrada';
 
   factory MovimientoAdmin.desdeMapa(Map<String, dynamic> m) {
-    // El nombre puede venir de dos lados: de la foto guardada en el momento
-    // (nombre_snapshot) o de la ficha del residente. Se prefiere la foto,
-    // porque es lo que era verdad el día que pasó.
-    String? nombre = m['nombre_snapshot'] as String?;
-    if (nombre == null || nombre.isEmpty) {
-      final u = m['usuarios'];
-      if (u is Map) nombre = u['nombre_completo'] as String?;
-    }
+    // El nombre_snapshot es la persona que pasó por la puerta (la visita).
+    final quien = m['nombre_snapshot'] as String?;
+
+    // El residente_id apunta a QUIÉN AUTORIZÓ el ingreso: ese usuario viene
+    // en la relación 'usuarios' del select. Antes se lo usaba de fallback
+    // para el nombre de la visita, lo que mezclaba dos conceptos distintos
+    // (residente que autoriza vs. visita que ingresa).
+    String? autorizo;
+    final u = m['usuarios'];
+    if (u is Map) autorizo = u['nombre_completo'] as String?;
 
     final p = m['puntos_acceso'];
 
@@ -290,11 +304,22 @@ class MovimientoAdmin {
       sentido: (m['sentido'] ?? 'entrada') as String,
       aprobado: m['estado'] == 'aprobado',
       ocurridoEn: DateTime.parse(m['ocurrido_en'] as String),
-      quien: nombre,
+      // Si la visita no dejó su nombre pero tenemos al residente en la
+      // ficha, mostramos ese nombre — el ingreso fue del propio residente
+      // (o del ex-modelo cuando faltaba el snapshot). No pierde información.
+      quien: (quien != null && quien.isNotEmpty) ? quien : autorizo,
       rut: m['rut_snapshot'] as String?,
       espacio: m['unidad_snapshot'] as String?,
       patente: m['patente_snapshot'] as String?,
       entrada: p is Map ? p['nombre'] as String? : null,
+      // Sólo mostramos "autorizado por" cuando ES DISTINTO del que ingresó
+      // (para no repetir "Juan Pérez · autorizó Juan Pérez" en el ingreso
+      // de un residente a su casa).
+      autorizadoPor: (autorizo != null &&
+              autorizo.isNotEmpty &&
+              autorizo != quien)
+          ? autorizo
+          : null,
       motivoDenegacion: m['motivo_denegacion'] as String?,
     );
   }

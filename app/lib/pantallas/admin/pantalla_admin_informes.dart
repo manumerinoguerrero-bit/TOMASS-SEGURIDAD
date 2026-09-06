@@ -88,11 +88,21 @@ class PantallaAdminInformes extends ConsumerWidget {
 // PESTAÑA 1 · QUIÉN ENTRÓ Y SALIÓ
 // ============================================================================
 
-class _PestanaAccesos extends ConsumerWidget {
+class _PestanaAccesos extends ConsumerStatefulWidget {
   const _PestanaAccesos();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_PestanaAccesos> createState() => _EstadoPestanaAccesos();
+}
+
+class _EstadoPestanaAccesos extends ConsumerState<_PestanaAccesos> {
+  /// Rango personalizado (día + hora). Cuando está seteado, el PDF sale con
+  /// este rango exacto en vez de "últimos N días". La lista sigue mostrando
+  /// por días — el rango es para el PDF que se manda a Carabineros/mandante.
+  ({DateTime desde, DateTime hasta})? _rango;
+
+  @override
+  Widget build(BuildContext context) {
     final movimientos = ref.watch(movimientosAdminProvider);
     final dias = ref.watch(diasDelInformeProvider);
 
@@ -101,17 +111,33 @@ class _PestanaAccesos extends ConsumerWidget {
         // ---- Cuánto tiempo hacia atrás ----
         Padding(
           padding: const EdgeInsets.all(Medidas.margen),
-          child: SegmentedButton<int>(
-            segments: const [
-              ButtonSegment(value: 1, label: Text('Hoy')),
-              ButtonSegment(value: 7, label: Text('7 días')),
-              ButtonSegment(value: 30, label: Text('30 días')),
-              ButtonSegment(value: 90, label: Text('3 meses')),
+          child: Column(
+            children: [
+              SegmentedButton<int>(
+                segments: const [
+                  ButtonSegment(value: 1, label: Text('Hoy')),
+                  ButtonSegment(value: 7, label: Text('7 días')),
+                  ButtonSegment(value: 30, label: Text('30 días')),
+                  ButtonSegment(value: 90, label: Text('3 meses')),
+                ],
+                selected: {dias},
+                // Cuando hay rango personalizado, el segmento queda anulado:
+                // sería raro elegir "7 días" y que igual el PDF muestre otro
+                // rango. Se ve deshabilitado hasta quitar el rango.
+                onSelectionChanged: _rango != null
+                    ? null
+                    : (s) => ref
+                        .read(diasDelInformeProvider.notifier)
+                        .state = s.first,
+                showSelectedIcon: false,
+              ),
+              const SizedBox(height: 8),
+              SelectorRangoPersonalizado(
+                rango: _rango,
+                alElegir: (r) => setState(() => _rango = r),
+                alQuitar: () => setState(() => _rango = null),
+              ),
             ],
-            selected: {dias},
-            onSelectionChanged: (s) =>
-                ref.read(diasDelInformeProvider.notifier).state = s.first,
-            showSelectedIcon: false,
           ),
         ),
 
@@ -154,7 +180,7 @@ class _PestanaAccesos extends ConsumerWidget {
                           width: double.infinity,
                           child: FilledButton.icon(
                             onPressed: () =>
-                                _descargarPdfIngresos(context, ref, lista, dias),
+                                _descargarPdfIngresos(lista, dias),
                             icon: const Icon(
                                 Icons.picture_as_pdf_rounded, size: 18),
                             label:
@@ -190,27 +216,47 @@ class _PestanaAccesos extends ConsumerWidget {
   }
 
   Future<void> _descargarPdfIngresos(
-    BuildContext context,
-    WidgetRef ref,
     List<MovimientoAdmin> lista,
     int dias,
   ) async {
     final perfil = ref.read(perfilProvider).valueOrNull;
     final instalacion = perfil?.nombreCondominio ?? 'Instalación';
-    final desde = DateTime.now().subtract(Duration(days: dias));
+
+    // Si hay rango personalizado, el PDF sale con EXACTAMENTE ese período
+    // (día + hora inicio a día + hora fin). Si no, sale con "últimos N días".
+    final rango = _rango;
+    final desde =
+        rango?.desde ?? DateTime.now().subtract(Duration(days: dias));
+    final hasta = rango?.hasta ?? DateTime.now();
+
     try {
+      // Con rango personalizado hay que pedir la lista de nuevo al servicio,
+      // porque la lista del provider está filtrada por días — puede no cubrir
+      // el rango elegido, o traer días de más.
+      final movimientos = rango == null
+          ? lista
+          : await ref
+              .read(servicioAdminProvider)
+              .movimientos(desde: desde, hasta: hasta);
+
       final bytes = await InformeDeIngresosPdf.armar(
         instalacion: instalacion,
         desde: desde,
-        hasta: DateTime.now(),
-        movimientos: lista,
+        hasta: hasta,
+        movimientos: movimientos,
       );
+
+      final nombre = rango == null
+          ? 'ingresos-${desde.toIso8601String().substring(0, 10)}.pdf'
+          : 'ingresos-${desde.toIso8601String().substring(0, 10)}-a-'
+              '${hasta.toIso8601String().substring(0, 10)}.pdf';
+
       await Printing.layoutPdf(
-        name: 'ingresos-${desde.toIso8601String().substring(0, 10)}.pdf',
+        name: nombre,
         onLayout: (_) => bytes,
       );
     } catch (falla) {
-      if (!context.mounted) return;
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(Traductor.traducir(falla).mensaje),
@@ -276,6 +322,29 @@ class _FilaAcceso extends StatelessWidget {
                     style: const TextStyle(
                         fontSize: 11.5, color: Colores.textoSuave),
                   ),
+                  if (m.autorizadoPor != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.verified_user_outlined,
+                              size: 12, color: Colores.textoTenue),
+                          const SizedBox(width: 3),
+                          Flexible(
+                            child: Text(
+                              'Autorizó: ${m.autorizadoPor}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Colores.textoTenue,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   if (!m.aprobado && m.motivoDenegacion != null)
                     Padding(
                       padding: const EdgeInsets.only(top: 3),
@@ -314,11 +383,21 @@ class _FilaAcceso extends StatelessWidget {
 // PESTAÑA 2 · LOS TURNOS DE LOS GUARDIAS
 // ============================================================================
 
-class _PestanaTurnos extends ConsumerWidget {
+class _PestanaTurnos extends ConsumerStatefulWidget {
   const _PestanaTurnos();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_PestanaTurnos> createState() => _EstadoPestanaTurnos();
+}
+
+class _EstadoPestanaTurnos extends ConsumerState<_PestanaTurnos> {
+  /// Rango personalizado (día + hora) para el PDF. Si es null, el PDF sale
+  /// con los últimos 14 días. La lista de la pantalla no depende del rango
+  /// — sigue mostrando los últimos 14 días como siempre.
+  ({DateTime desde, DateTime hasta})? _rango;
+
+  @override
+  Widget build(BuildContext context) {
     final turnos = ref.watch(turnosAdminProvider);
 
     return turnos.when(
@@ -346,21 +425,31 @@ class _PestanaTurnos extends ConsumerWidget {
           onRefresh: () async => ref.invalidate(turnosAdminProvider),
           child: Column(
             children: [
-              // ---- Botón Descargar PDF ----
+              // ---- Selector de rango + botón Descargar PDF ----
               Padding(
                 padding: const EdgeInsets.fromLTRB(
                     Medidas.margen, Medidas.margen, Medidas.margen, 4),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    onPressed: () => _descargarPdf(context, ref, lista),
-                    icon: const Icon(Icons.picture_as_pdf_rounded, size: 18),
-                    label: const Text('Descargar informe en PDF'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: Colores.grafito,
-                      minimumSize: const Size(0, 42),
+                child: Column(
+                  children: [
+                    SelectorRangoPersonalizado(
+                      rango: _rango,
+                      alElegir: (r) => setState(() => _rango = r),
+                      alQuitar: () => setState(() => _rango = null),
                     ),
-                  ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: () => _descargarPdf(),
+                        icon: const Icon(Icons.picture_as_pdf_rounded, size: 18),
+                        label: const Text('Descargar informe en PDF'),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Colores.grafito,
+                          minimumSize: const Size(0, 42),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
               Expanded(
@@ -378,19 +467,15 @@ class _PestanaTurnos extends ConsumerWidget {
     );
   }
 
-  Future<void> _descargarPdf(
-    BuildContext context,
-    WidgetRef ref,
-    List<TurnoAdmin> lista,
-  ) async {
+  Future<void> _descargarPdf() async {
     // Aviso al usuario que puede tardar (se bajan las fotos una por una)
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
+      const SnackBar(
         content: Text(
-          'Calculando estadísticas y bajando ${lista.length} fotos...',
+          'Calculando estadísticas y bajando fotos…',
         ),
         backgroundColor: Colores.grafito,
-        duration: const Duration(seconds: 8),
+        duration: Duration(seconds: 8),
       ),
     );
     try {
@@ -399,9 +484,13 @@ class _PestanaTurnos extends ConsumerWidget {
       final servicioFotos = ref.read(servicioFotosProvider);
       final servicio = ref.read(servicioAdminProvider);
 
-      // Traemos las estadísticas del período (últimos 14 días por defecto)
-      final desde = DateTime.now().subtract(const Duration(days: 14));
-      final hasta = DateTime.now();
+      // Rango del PDF: personalizado si el admin lo eligió; si no, los
+      // últimos 14 días como siempre.
+      final rango = _rango;
+      final desde = rango?.desde ??
+          DateTime.now().subtract(const Duration(days: 14));
+      final hasta = rango?.hasta ?? DateTime.now();
+
       final (stats, turnosEnriquecidos) =
           await servicio.estadisticasTurnos(desde: desde, hasta: hasta);
 
@@ -427,13 +516,19 @@ class _PestanaTurnos extends ConsumerWidget {
         stats: stats,
         rondasPorTurno: rondasPorTurno,
       );
-      if (!context.mounted) return;
+      if (!mounted) return;
+
+      final nombre = rango == null
+          ? 'informe-turnos-${DateTime.now().millisecondsSinceEpoch}.pdf'
+          : 'turnos-${desde.toIso8601String().substring(0, 10)}-a-'
+              '${hasta.toIso8601String().substring(0, 10)}.pdf';
+
       await Printing.layoutPdf(
-        name: 'informe-turnos-${DateTime.now().millisecondsSinceEpoch}.pdf',
+        name: nombre,
         onLayout: (_) async => bytes,
       );
     } catch (falla) {
-      if (!context.mounted) return;
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('No se pudo generar el PDF: '

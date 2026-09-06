@@ -339,12 +339,13 @@ class InformeDeIngresosPdf {
         0: const pw.FixedColumnWidth(74),  // fecha
         1: const pw.FixedColumnWidth(48),  // tipo
         2: const pw.FixedColumnWidth(44),  // sentido
-        3: const pw.FlexColumnWidth(2.0),  // quién
+        3: const pw.FlexColumnWidth(1.7),  // quién
         4: const pw.FixedColumnWidth(62),  // rut
         5: const pw.FlexColumnWidth(0.9),  // unidad
         6: const pw.FixedColumnWidth(58),  // patente
         7: const pw.FlexColumnWidth(1.2),  // punto
-        8: const pw.FixedColumnWidth(42),  // estado
+        8: const pw.FlexColumnWidth(1.4),  // autorizó
+        9: const pw.FixedColumnWidth(42),  // estado
       },
       children: [
         pw.TableRow(
@@ -358,6 +359,7 @@ class InformeDeIngresosPdf {
             _th('Unidad'),
             _th('Patente'),
             _th('Punto'),
+            _th('Autorizó'),
             _th('Estado'),
           ],
         ),
@@ -378,10 +380,11 @@ class InformeDeIngresosPdf {
         _td(m.esVehicular ? 'Vehículo' : 'Peatón'),
         _td(m.esEntrada ? 'Entrada' : 'Salida'),
         _td(m.quien ?? '—'),
-        _td(m.rut ?? '—'),
+        _td(m.rut == null ? '—' : Formato.rut(m.rut)),
         _td(m.espacio ?? '—'),
         _td(m.patente ?? '—'),
         _td(m.entrada ?? '—'),
+        _td(m.autorizadoPor ?? '—'),
         _td(
           m.aprobado ? 'OK' : 'NEG',
           bold: true,

@@ -52,13 +52,49 @@ class _EstadoPestanaEncomiendas extends ConsumerState<PestanaEncomiendas> {
   /// justo lo que quedó impreso, ni una encomienda más ni una menos.
   List<EncomiendaDelInforme>? _ultimoInforme;
 
+  /// Rango personalizado (día + hora) para el PDF. Si es null, el PDF sale
+  /// con los últimos N días del segmented button.
+  ({DateTime desde, DateTime hasta})? _rango;
+
   // ==========================================================================
   // GENERAR EL INFORME
   // ==========================================================================
 
   Future<void> _generarInforme() async {
-    final lista = ref.read(encomiendasDelInformeProvider).valueOrNull;
-    if (lista == null || lista.isEmpty) {
+    // Si hay rango personalizado, la lista sale del servicio con esos límites
+    // exactos. Si no, sale del provider (últimos N días).
+    List<EncomiendaDelInforme> lista;
+    if (_rango != null) {
+      setState(() {
+        _generando = true;
+        _ultimoInforme = null;
+        _progreso = 'Buscando encomiendas del período…';
+      });
+      try {
+        lista = await ref.read(servicioAdminProvider).encomiendasEntregadas(
+              desde: _rango!.desde,
+              hasta: _rango!.hasta,
+            );
+      } catch (falla) {
+        if (!mounted) return;
+        setState(() => _generando = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(Traductor.traducir(falla).mensaje),
+            backgroundColor: Colores.rojo,
+          ),
+        );
+        return;
+      }
+    } else {
+      final delProvider = ref.read(encomiendasDelInformeProvider).valueOrNull;
+      if (delProvider == null) return;
+      lista = delProvider;
+    }
+
+    if (lista.isEmpty) {
+      if (!mounted) return;
+      setState(() => _generando = false);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('No hay encomiendas entregadas con foto en este período.'),
@@ -113,11 +149,19 @@ class _EstadoPestanaEncomiendas extends ConsumerState<PestanaEncomiendas> {
       if (!mounted) return;
       setState(() => _generando = false);
 
-      // Abre la hoja del teléfono para imprimir, compartir o guardar
+      // Abre la hoja del teléfono para imprimir, compartir o guardar.
+      // Si hubo rango personalizado, el filename lo lleva; si no, "Ndias".
+      final rango = _rango;
+      final nombre = rango == null
+          ? 'encomiendas-${_nombreDeArchivo(perfil?.nombreCondominio)}-'
+              '${dias}dias.pdf'
+          : 'encomiendas-${_nombreDeArchivo(perfil?.nombreCondominio)}-'
+              '${rango.desde.toIso8601String().substring(0, 10)}-a-'
+              '${rango.hasta.toIso8601String().substring(0, 10)}.pdf';
+
       await Printing.sharePdf(
         bytes: pdf,
-        filename: 'encomiendas-${_nombreDeArchivo(perfil?.nombreCondominio)}-'
-            '${dias}dias.pdf',
+        filename: nombre,
       );
 
       if (!mounted) return;
@@ -237,7 +281,7 @@ class _EstadoPestanaEncomiendas extends ConsumerState<PestanaEncomiendas> {
                   ButtonSegment(value: 30, label: Text('Mes')),
                 ],
                 selected: {dias},
-                onSelectionChanged: ocupado
+                onSelectionChanged: (ocupado || _rango != null)
                     ? null
                     : (s) {
                         ref
@@ -246,6 +290,19 @@ class _EstadoPestanaEncomiendas extends ConsumerState<PestanaEncomiendas> {
                         setState(() => _ultimoInforme = null);
                       },
                 showSelectedIcon: false,
+              ),
+              const SizedBox(height: 8),
+              SelectorRangoPersonalizado(
+                rango: _rango,
+                deshabilitado: ocupado,
+                alElegir: (r) => setState(() {
+                  _rango = r;
+                  _ultimoInforme = null;
+                }),
+                alQuitar: () => setState(() {
+                  _rango = null;
+                  _ultimoInforme = null;
+                }),
               ),
               const SizedBox(height: 10),
               SizedBox(

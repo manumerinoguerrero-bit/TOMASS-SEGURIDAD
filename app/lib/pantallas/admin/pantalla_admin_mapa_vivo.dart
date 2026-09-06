@@ -31,6 +31,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../config/tema.dart';
+import '../../estado/proveedores.dart';
 import '../../estado/proveedores_admin.dart';
 import '../../modelos/admin.dart';
 import '../../nucleo/errores.dart';
@@ -288,14 +289,16 @@ class _PinGuardia extends StatelessWidget {
 // TARJETA CHICA DE UN GUARDIA (barra inferior)
 // ============================================================================
 
-class _TarjetaGuardia extends StatelessWidget {
+class _TarjetaGuardia extends ConsumerWidget {
   const _TarjetaGuardia({required this.guardia, required this.alTocar});
 
   final GuardiaEnVivo guardia;
   final VoidCallback alTocar;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final instalacion =
+        ref.watch(perfilProvider).valueOrNull?.nombreCondominio;
     final color = switch (guardia.estado) {
       'vivo' => Colores.verde,
       'demorado' => Colores.naranja,
@@ -350,7 +353,10 @@ class _TarjetaGuardia extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    guardia.puntoAccesoNombre ?? 'Todo el condominio',
+                    [
+                      if (instalacion != null) instalacion,
+                      guardia.puntoAccesoNombre ?? 'Todo el condominio',
+                    ].join(' · '),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -382,14 +388,16 @@ class _TarjetaGuardia extends StatelessWidget {
 // DETALLE DEL GUARDIA (bottom sheet)
 // ============================================================================
 
-class _DetalleGuardia extends StatelessWidget {
+class _DetalleGuardia extends ConsumerWidget {
   const _DetalleGuardia({required this.guardia});
 
   final GuardiaEnVivo guardia;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final g = guardia;
+    final instalacion =
+        ref.watch(perfilProvider).valueOrNull?.nombreCondominio;
     final color = switch (g.estado) {
       'vivo' => Colores.verde,
       'demorado' => Colores.naranja,
@@ -447,6 +455,7 @@ class _DetalleGuardia extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 14),
+            if (instalacion != null) _fila('Instalación', instalacion),
             _fila('Puesto', g.puntoAccesoNombre ?? 'Todo el condominio'),
             _fila('Comenzó', Formato.fechaYHora(g.inicio)),
             _fila(
@@ -503,13 +512,15 @@ class _DetalleGuardia extends StatelessWidget {
 // CASO SIN UBICACIONES: hay guardias activos pero ninguno reportó todavía
 // ============================================================================
 
-class _SinUbicaciones extends StatelessWidget {
+class _SinUbicaciones extends ConsumerWidget {
   const _SinUbicaciones({required this.guardias});
 
   final List<GuardiaEnVivo> guardias;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final instalacion =
+        ref.watch(perfilProvider).valueOrNull?.nombreCondominio;
     return Padding(
       padding: const EdgeInsets.all(Medidas.margen),
       child: Column(
@@ -548,8 +559,11 @@ class _SinUbicaciones extends StatelessWidget {
                       color: Colores.textoSuave),
                   title: Text(g.guardiaNombre),
                   subtitle: Text(
-                    'Desde ${Formato.hora(g.inicio)} · '
-                    '${g.puntoAccesoNombre ?? "Todo el condominio"}',
+                    [
+                      'Desde ${Formato.hora(g.inicio)}',
+                      if (instalacion != null) instalacion,
+                      g.puntoAccesoNombre ?? 'Todo el condominio',
+                    ].join(' · '),
                     style: const TextStyle(fontSize: 12),
                   ),
                 ),

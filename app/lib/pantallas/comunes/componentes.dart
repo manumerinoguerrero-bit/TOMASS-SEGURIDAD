@@ -12,6 +12,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../config/tema.dart';
 import '../../estado/proveedores.dart';
 import '../../nucleo/errores.dart';
+import '../../nucleo/formato.dart';
 import '../../servicios/servicio_fotos.dart';
 
 // ============================================================================
@@ -639,4 +640,162 @@ class _PintorDelMarco extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter viejo) => false;
+}
+
+// ============================================================================
+// SELECTOR DE RANGO PERSONALIZADO (día + hora)
+// ============================================================================
+// Cuando el admin necesita responder "las cámaras del 15 al 16 de marzo entre
+// 22:00 y 06:00" — el rango exacto que le pide Carabineros o el mandante —
+// este widget muestra:
+//
+//   * un botón "Elegir rango de fechas y horas" si no hay rango elegido, o
+//   * un chip con el rango vigente + botones para cambiarlo o quitarlo.
+//
+// El widget no guarda estado interno: el rango vive en el padre. Es puro
+// presentacional + tres callbacks (elegir/cambiar/quitar).
+//
+// Este mismo widget se usa en Accesos, Turnos y Encomiendas para no repetir
+// el mismo código tres veces. Rondas tiene su propia copia por ahora, para
+// no correr riesgo de regresiones.
+// ============================================================================
+
+class SelectorRangoPersonalizado extends StatelessWidget {
+  const SelectorRangoPersonalizado({
+    super.key,
+    required this.rango,
+    required this.alElegir,
+    required this.alQuitar,
+    this.deshabilitado = false,
+  });
+
+  /// El rango vigente. null significa "sin rango personalizado".
+  final ({DateTime desde, DateTime hasta})? rango;
+
+  /// Se llama cuando el usuario terminó de elegir un rango en los pickers.
+  /// El padre debe guardarlo y volver a construir con el nuevo `rango`.
+  final ValueChanged<({DateTime desde, DateTime hasta})> alElegir;
+
+  /// Se llama cuando el usuario quita el rango personalizado.
+  final VoidCallback alQuitar;
+
+  final bool deshabilitado;
+
+  Future<void> _elegir(BuildContext context) async {
+    final ahora = DateTime.now();
+    final r = await showDateRangePicker(
+      context: context,
+      firstDate: ahora.subtract(const Duration(days: 365)),
+      lastDate: ahora,
+      initialDateRange: rango == null
+          ? DateTimeRange(
+              start: ahora.subtract(const Duration(days: 7)),
+              end: ahora,
+            )
+          : DateTimeRange(start: rango!.desde, end: rango!.hasta),
+      locale: const Locale('es', 'CL'),
+      helpText: 'Elegí el rango de días',
+      cancelText: 'Cancelar',
+      confirmText: 'Siguiente',
+      saveText: 'Aplicar',
+    );
+    if (r == null || !context.mounted) return;
+
+    final hd = await showTimePicker(
+      context: context,
+      initialTime: rango == null
+          ? const TimeOfDay(hour: 0, minute: 0)
+          : TimeOfDay.fromDateTime(rango!.desde),
+      helpText: 'Desde qué hora del primer día',
+      cancelText: 'Cancelar',
+      confirmText: 'OK',
+    );
+    if (hd == null || !context.mounted) return;
+
+    final hh = await showTimePicker(
+      context: context,
+      initialTime: rango == null
+          ? const TimeOfDay(hour: 23, minute: 59)
+          : TimeOfDay.fromDateTime(rango!.hasta),
+      helpText: 'Hasta qué hora del último día',
+      cancelText: 'Cancelar',
+      confirmText: 'OK',
+    );
+    if (hh == null || !context.mounted) return;
+
+    final desde =
+        DateTime(r.start.year, r.start.month, r.start.day, hd.hour, hd.minute);
+    final hasta =
+        DateTime(r.end.year, r.end.month, r.end.day, hh.hour, hh.minute);
+    alElegir((desde: desde, hasta: hasta));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (rango == null) {
+      return Align(
+        alignment: Alignment.centerLeft,
+        child: TextButton.icon(
+          onPressed: deshabilitado ? null : () => _elegir(context),
+          icon: const Icon(Icons.date_range_rounded, size: 18),
+          label: const Text('Elegir rango de fechas y horas'),
+        ),
+      );
+    }
+    final r = rango!;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colores.dorado.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+            color: Colores.dorado.withValues(alpha: 0.5), width: 1.2),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.date_range_rounded,
+              size: 17, color: Colores.doradoOscuro),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  "RANGO PERSONALIZADO",
+                  style: TextStyle(
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.8,
+                    color: Colores.doradoOscuro,
+                  ),
+                ),
+                Text(
+                  "${Formato.fecha(r.desde)} ${Formato.hora(r.desde)} → "
+                  "${Formato.fecha(r.hasta)} ${Formato.hora(r.hasta)}",
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: Colores.grafito,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.edit_rounded, size: 18),
+            tooltip: "Cambiar",
+            onPressed: deshabilitado ? null : () => _elegir(context),
+            color: Colores.grafito,
+          ),
+          IconButton(
+            icon: const Icon(Icons.close_rounded, size: 18),
+            tooltip: "Quitar",
+            onPressed: deshabilitado ? null : alQuitar,
+            color: Colores.rojo,
+          ),
+        ],
+      ),
+    );
+  }
 }

@@ -77,6 +77,23 @@ class Formato {
   /// La regla vive en modelos/formato_patente.dart, para tenerla en un solo lugar.
   static String patente(String cruda) => FormatoPatente.normalizar(cruda);
 
+  /// Deja el RUT como se escribe en Chile: sin puntos, con guion antes del
+  /// dígito verificador y con la K en mayúscula. Ej.: "12345678K" → "12345678-K",
+  /// "12.345.678-k" → "12345678-K", "123456785" → "12345678-5".
+  /// Si viene vacío o con menos de 2 caracteres, devuelve la cadena como está.
+  static String rut(String? crudo) {
+    if (crudo == null) return '';
+    final limpio = crudo
+        .replaceAll('.', '')
+        .replaceAll('-', '')
+        .replaceAll(' ', '')
+        .toUpperCase();
+    if (limpio.length < 2) return limpio;
+    final cuerpo = limpio.substring(0, limpio.length - 1);
+    final dv = limpio.substring(limpio.length - 1);
+    return '$cuerpo-$dv';
+  }
+
   /// Pone el nombre con la primera letra de cada palabra en mayúscula.
   static String nombrePropio(String texto) {
     return texto
