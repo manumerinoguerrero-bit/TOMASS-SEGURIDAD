@@ -95,21 +95,15 @@ class _EstadoMapaVivo extends ConsumerState<PantallaAdminMapaVivo> {
           final conUbicacion =
               lista.where((g) => g.tieneUbicacion).toList();
 
-          if (lista.isEmpty) {
-            return const ListaVacia(
-              icono: Icons.location_off_outlined,
-              titulo: 'Ningún guardia activo ahora',
-              explicacion:
-                  'Cuando un guardia abra su turno, va a aparecer acá con '
-                  'su última posición.',
-            );
-          }
-
-          if (conUbicacion.isEmpty) {
-            return _SinUbicaciones(guardias: lista);
-          }
-
-          final centro = _centro(conUbicacion);
+          // El mapa siempre se muestra — igual que en Merlyn. Si no hay
+          // guardias, quedamos centrados en La Serena y el banner dice
+          // "0 guardias activos". Si hay guardias pero ninguno reportó
+          // GPS, seguimos mostrando La Serena y el panel inferior lista
+          // los que están en turno para que el admin sepa quiénes son.
+          const laSerena = LatLng(-29.9027, -71.2519);
+          final centro =
+              conUbicacion.isEmpty ? laSerena : _centro(conUbicacion);
+          final zoomInicial = conUbicacion.isEmpty ? 13.0 : 17.0;
 
           // Layout estilo Merlyn: mapa a pantalla completa con overlays
           // flotantes. Antes teníamos una barra inferior fija que le
@@ -122,7 +116,7 @@ class _EstadoMapaVivo extends ConsumerState<PantallaAdminMapaVivo> {
                 mapController: _mapa,
                 options: MapOptions(
                   initialCenter: centro,
-                  initialZoom: 17,
+                  initialZoom: zoomInicial,
                   minZoom: 3,
                   maxZoom: 19,
                 ),
@@ -197,25 +191,39 @@ class _EstadoMapaVivo extends ConsumerState<PantallaAdminMapaVivo> {
               ),
 
               // ---- Panel inferior flotante con las tarjetas ----
-              Positioned(
-                left: 12,
-                right: 12,
-                bottom: 12,
-                child: SafeArea(
-                  child: _PanelDeTarjetas(
-                    guardias: lista,
-                    alTocar: (g) {
-                      if (g.tieneUbicacion) {
-                        _mapa.move(
-                          LatLng(g.ultimaLat!, g.ultimaLng!),
-                          18,
-                        );
-                      }
-                      _abrirDetalle(g);
-                    },
+              // Sólo si hay guardias en turno. Si no hay ninguno, dejamos
+              // el mapa limpio con el banner "0 guardias activos" arriba.
+              if (lista.isNotEmpty)
+                Positioned(
+                  left: 12,
+                  right: 12,
+                  bottom: 12,
+                  child: SafeArea(
+                    child: _PanelDeTarjetas(
+                      guardias: lista,
+                      alTocar: (g) {
+                        if (g.tieneUbicacion) {
+                          _mapa.move(
+                            LatLng(g.ultimaLat!, g.ultimaLng!),
+                            18,
+                          );
+                        }
+                        _abrirDetalle(g);
+                      },
+                    ),
                   ),
                 ),
-              ),
+
+              // ---- Aviso "hay guardias pero ninguno reportó GPS" ----
+              // Va encima del panel de tarjetas, para que el admin entienda
+              // por qué no ve pins todavía.
+              if (lista.isNotEmpty && conUbicacion.isEmpty)
+                Positioned(
+                  top: 72,
+                  left: 12,
+                  right: 12,
+                  child: SafeArea(child: _AvisoSinGps()),
+                ),
             ],
           );
         },
@@ -551,66 +559,43 @@ class _DetalleGuardia extends ConsumerWidget {
 }
 
 // ============================================================================
-// CASO SIN UBICACIONES: hay guardias activos pero ninguno reportó todavía
+// AVISO "hay guardias en turno pero ninguno reportó GPS"
+// ============================================================================
+// Antes esto ocupaba TODA la pantalla y tapaba el mapa. Ahora es una tarjeta
+// naranja compacta que flota entre el banner y el panel inferior, para que
+// el admin siga viendo el mapa mientras espera que llegue la primera medición.
 // ============================================================================
 
-class _SinUbicaciones extends ConsumerWidget {
-  const _SinUbicaciones({required this.guardias});
-
-  final List<GuardiaEnVivo> guardias;
+class _AvisoSinGps extends StatelessWidget {
+  const _AvisoSinGps();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final instalacion =
-        ref.watch(perfilProvider).valueOrNull?.nombreCondominio;
-    return Padding(
-      padding: const EdgeInsets.all(Medidas.margen),
-      child: Column(
-        children: [
-          Card(
-            color: Colores.naranja.withValues(alpha: 0.08),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(Medidas.redondeo),
-              side: BorderSide(color: Colores.naranja.withValues(alpha: 0.4)),
-            ),
-            child: const Padding(
-              padding: EdgeInsets.all(Medidas.margen),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(Icons.info_outline_rounded,
-                      color: Colores.naranjaOscuro, size: 22),
-                  SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'Hay guardias con turno abierto, pero ninguno reportó '
-                      'su ubicación todavía. Puede tardar hasta 3 min desde '
-                      'que abren el turno.',
-                      style: TextStyle(fontSize: 13, height: 1.5),
-                    ),
-                  ),
-                ],
+  Widget build(BuildContext context) {
+    return Card(
+      color: const Color(0xFFFDF3E7),
+      elevation: 3,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: BorderSide(color: Colores.naranja.withValues(alpha: 0.5)),
+      ),
+      child: const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.gps_not_fixed_rounded,
+                color: Colores.naranjaOscuro, size: 20),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Hay guardias con turno abierto, pero ninguno reportó su '
+                'ubicación todavía. Puede tardar hasta 3 min desde que '
+                'abren el turno.',
+                style: TextStyle(fontSize: 12, height: 1.4),
               ),
             ),
-          ),
-          const SizedBox(height: 12),
-          ...guardias.map((g) => Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                child: ListTile(
-                  leading: const Icon(Icons.shield_rounded,
-                      color: Colores.textoSuave),
-                  title: Text(g.guardiaNombre),
-                  subtitle: Text(
-                    [
-                      'Desde ${Formato.hora(g.inicio)}',
-                      if (instalacion != null) instalacion,
-                      g.puntoAccesoNombre ?? 'Todo el condominio',
-                    ].join(' · '),
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                ),
-              )),
-        ],
+          ],
+        ),
       ),
     );
   }
