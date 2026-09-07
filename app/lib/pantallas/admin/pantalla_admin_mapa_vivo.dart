@@ -78,14 +78,7 @@ class _EstadoMapaVivo extends ConsumerState<PantallaAdminMapaVivo> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Mapa en vivo'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            tooltip: 'Actualizar ahora',
-            onPressed: () => ref.invalidate(guardiasEnVivoProvider),
-          ),
-          const MenuDelAdmin(),
-        ],
+        actions: const [MenuDelAdmin()],
       ),
       body: guardias.when(
         loading: () => const Center(
@@ -118,78 +111,108 @@ class _EstadoMapaVivo extends ConsumerState<PantallaAdminMapaVivo> {
 
           final centro = _centro(conUbicacion);
 
-          return Column(
+          // Layout estilo Merlyn: mapa a pantalla completa con overlays
+          // flotantes. Antes teníamos una barra inferior fija que le
+          // comía altura al mapa; con overlays el mapa es más grande y
+          // el resto se apoya arriba como Cards con sombra.
+          return Stack(
             children: [
-              Expanded(
-                child: FlutterMap(
-                  mapController: _mapa,
-                  options: MapOptions(
-                    initialCenter: centro,
-                    initialZoom: 17,
-                    minZoom: 3,
-                    maxZoom: 19,
+              // ---- El mapa ocupa TODO ----
+              FlutterMap(
+                mapController: _mapa,
+                options: MapOptions(
+                  initialCenter: centro,
+                  initialZoom: 17,
+                  minZoom: 3,
+                  maxZoom: 19,
+                ),
+                children: [
+                  TileLayer(
+                    urlTemplate:
+                        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    userAgentPackageName: 'cl.tomass.tomass_seguridad',
+                    maxNativeZoom: 19,
                   ),
-                  children: [
-                    TileLayer(
-                      urlTemplate:
-                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                      userAgentPackageName: 'cl.tomass.tomass_seguridad',
-                      maxNativeZoom: 19,
-                    ),
-                    MarkerLayer(
-                      markers: [
-                        for (final g in conUbicacion)
-                          Marker(
-                            point: LatLng(g.ultimaLat!, g.ultimaLng!),
-                            width: 46,
-                            height: 60,
-                            alignment: Alignment.bottomCenter,
-                            child: _PinGuardia(
-                              guardia: g,
-                              alTocar: () => _abrirDetalle(g),
-                            ),
+                  MarkerLayer(
+                    markers: [
+                      for (final g in conUbicacion)
+                        Marker(
+                          point: LatLng(g.ultimaLat!, g.ultimaLng!),
+                          width: 130,
+                          height: 74,
+                          alignment: Alignment.bottomCenter,
+                          child: _PinGuardia(
+                            guardia: g,
+                            alTocar: () => _abrirDetalle(g),
                           ),
-                      ],
+                        ),
+                    ],
+                  ),
+                  const RichAttributionWidget(
+                    attributions: [
+                      TextSourceAttribution('© OpenStreetMap'),
+                    ],
+                  ),
+                ],
+              ),
+
+              // ---- Banner "EN VIVO" arriba ----
+              Positioned(
+                top: 12,
+                left: 12,
+                right: 12,
+                child: SafeArea(child: _BannerVivo(cantidad: lista.length)),
+              ),
+
+              // ---- Botones flotantes: zoom + refresh ----
+              Positioned(
+                right: 12,
+                bottom: 128,
+                child: Column(
+                  children: [
+                    _FabRedondo(
+                      icono: Icons.add_rounded,
+                      alTocar: () => _mapa.move(
+                        _mapa.camera.center,
+                        (_mapa.camera.zoom + 1).clamp(3, 19),
+                      ),
                     ),
-                    // Atribución obligatoria de OpenStreetMap
-                    const RichAttributionWidget(
-                      attributions: [
-                        TextSourceAttribution('© OpenStreetMap'),
-                      ],
+                    const SizedBox(height: 8),
+                    _FabRedondo(
+                      icono: Icons.remove_rounded,
+                      alTocar: () => _mapa.move(
+                        _mapa.camera.center,
+                        (_mapa.camera.zoom - 1).clamp(3, 19),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    _FabRedondo(
+                      icono: Icons.refresh_rounded,
+                      fondo: Colores.grafito,
+                      tinta: Colors.white,
+                      alTocar: () => ref.invalidate(guardiasEnVivoProvider),
                     ),
                   ],
                 ),
               ),
 
-              // Barra inferior: lista compacta scrollable de guardias
-              Container(
-                decoration: const BoxDecoration(
-                  color: Colores.superficie,
-                  border: Border(
-                    top: BorderSide(color: Colores.linea),
-                  ),
-                ),
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                child: SizedBox(
-                  height: 92,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 14),
-                    itemCount: lista.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 10),
-                    itemBuilder: (_, i) => _TarjetaGuardia(
-                      guardia: lista[i],
-                      alTocar: () {
-                        if (lista[i].tieneUbicacion) {
-                          _mapa.move(
-                            LatLng(
-                                lista[i].ultimaLat!, lista[i].ultimaLng!),
-                            18,
-                          );
-                        }
-                        _abrirDetalle(lista[i]);
-                      },
-                    ),
+              // ---- Panel inferior flotante con las tarjetas ----
+              Positioned(
+                left: 12,
+                right: 12,
+                bottom: 12,
+                child: SafeArea(
+                  child: _PanelDeTarjetas(
+                    guardias: lista,
+                    alTocar: (g) {
+                      if (g.tieneUbicacion) {
+                        _mapa.move(
+                          LatLng(g.ultimaLat!, g.ultimaLng!),
+                          18,
+                        );
+                      }
+                      _abrirDetalle(g);
+                    },
                   ),
                 ),
               ),
@@ -240,11 +263,43 @@ class _PinGuardia extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Primer nombre para el chip: si tiene varios, con el primero alcanza.
+    // Preferimos algo corto porque el chip queda encima del mapa.
+    final primerNombre = guardia.guardiaNombre.trim().split(RegExp(r'\s+')).first;
+
     return GestureDetector(
       onTap: alTocar,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // ---- Chip con el primer nombre (estilo Merlyn) ----
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: _color,
+              borderRadius: BorderRadius.circular(5),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.2),
+                  blurRadius: 4,
+                  offset: const Offset(0, 1),
+                ),
+              ],
+            ),
+            child: Text(
+              primerNombre,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 10.5,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.2,
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          // ---- El círculo con el escudo ----
           Container(
             width: 38,
             height: 38,
@@ -264,19 +319,6 @@ class _PinGuardia extends StatelessWidget {
               Icons.shield_rounded,
               color: Colors.white,
               size: 20,
-            ),
-          ),
-          Container(
-            width: 3,
-            height: 8,
-            color: _color,
-          ),
-          Container(
-            width: 7,
-            height: 7,
-            decoration: BoxDecoration(
-              color: _color,
-              shape: BoxShape.circle,
             ),
           ),
         ],
@@ -569,6 +611,145 @@ class _SinUbicaciones extends ConsumerWidget {
                 ),
               )),
         ],
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// BANNER "EN VIVO" (arriba del mapa)
+// ============================================================================
+// Un chip flotante con LED verde parpadeando + contador de guardias activos.
+// Mismo lenguaje visual del dashboard Merlyn, para que ambas apps se sientan
+// hermanas.
+// ============================================================================
+
+class _BannerVivo extends StatelessWidget {
+  const _BannerVivo({required this.cantidad});
+
+  final int cantidad;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Row(
+          children: [
+            Container(
+              width: 10,
+              height: 10,
+              decoration: const BoxDecoration(
+                color: Colores.verde,
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Text(
+              'EN VIVO',
+              style: TextStyle(
+                color: Colores.verdeOscuro,
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                '$cantidad guardia${cantidad == 1 ? "" : "s"} '
+                'activo${cantidad == 1 ? "" : "s"}',
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: Colores.grafito,
+                ),
+              ),
+            ),
+            const Text(
+              'Actualiza c/30 s',
+              style: TextStyle(fontSize: 10.5, color: Colores.textoTenue),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// FAB REDONDO (zoom +, zoom -, refresh)
+// ============================================================================
+
+class _FabRedondo extends StatelessWidget {
+  const _FabRedondo({
+    required this.icono,
+    required this.alTocar,
+    this.fondo = Colors.white,
+    this.tinta = Colores.grafito,
+  });
+
+  final IconData icono;
+  final VoidCallback alTocar;
+  final Color fondo;
+  final Color tinta;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: fondo,
+      elevation: 4,
+      shape: const CircleBorder(),
+      child: InkWell(
+        onTap: alTocar,
+        customBorder: const CircleBorder(),
+        child: SizedBox(
+          width: 44,
+          height: 44,
+          child: Icon(icono, color: tinta, size: 22),
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// PANEL DE TARJETAS (flota abajo, scroll horizontal)
+// ============================================================================
+// Reemplaza la barra fija que teníamos antes por un panel flotante estilo
+// Merlyn. Al tocar una tarjeta, el mapa hace zoom hasta ese guardia y abre
+// el detalle en un bottom sheet.
+// ============================================================================
+
+class _PanelDeTarjetas extends StatelessWidget {
+  const _PanelDeTarjetas({required this.guardias, required this.alTocar});
+
+  final List<GuardiaEnVivo> guardias;
+  final void Function(GuardiaEnVivo) alTocar;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: SizedBox(
+        height: 98,
+        child: ListView.separated(
+          padding: const EdgeInsets.all(8),
+          scrollDirection: Axis.horizontal,
+          itemCount: guardias.length,
+          separatorBuilder: (_, __) => const SizedBox(width: 8),
+          itemBuilder: (_, i) => _TarjetaGuardia(
+            guardia: guardias[i],
+            alTocar: () => alTocar(guardias[i]),
+          ),
+        ),
       ),
     );
   }
