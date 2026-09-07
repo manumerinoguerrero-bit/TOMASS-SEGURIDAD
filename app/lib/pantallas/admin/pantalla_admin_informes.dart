@@ -35,6 +35,7 @@ import '../../servicios/informe_incidentes_pdf.dart';
 import '../../servicios/informe_ingresos_pdf.dart';
 import '../../servicios/informe_turnos_pdf.dart';
 import 'acciones_admin.dart';
+import 'detalle_novedad.dart';
 import 'informe_de_encomiendas.dart';
 import 'informe_de_rondas.dart';
 
@@ -937,116 +938,232 @@ class _SelfieGrande extends ConsumerWidget {
 // selector que Accesos y bajar un PDF con todo el detalle.
 // ============================================================================
 
-class _PestanaNovedades extends ConsumerWidget {
+class _PestanaNovedades extends ConsumerStatefulWidget {
   const _PestanaNovedades();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final incidentes = ref.watch(incidentesAdminProvider);
+  ConsumerState<_PestanaNovedades> createState() => _EstadoPestanaNovedades();
+}
+
+class _EstadoPestanaNovedades extends ConsumerState<_PestanaNovedades> {
+  /// Rango personalizado (día + hora). Cuando está seteado, la lista y el PDF
+  /// salen con ese rango exacto en vez de "últimos N días".
+  ({DateTime desde, DateTime hasta})? _rango;
+
+  Future<List<IncidenteAdmin>>? _futuroRango;
+
+  void _cargarRango() {
+    final r = _rango;
+    if (r == null) {
+      _futuroRango = null;
+      return;
+    }
+    _futuroRango = ref
+        .read(servicioAdminProvider)
+        .incidentesDelPeriodo(desde: r.desde, hasta: r.hasta);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final dias = ref.watch(diasDelInformeProvider);
 
     return Column(
       children: [
         Padding(
           padding: const EdgeInsets.all(Medidas.margen),
-          child: SegmentedButton<int>(
-            segments: const [
-              ButtonSegment(value: 1, label: Text('Hoy')),
-              ButtonSegment(value: 7, label: Text('7 días')),
-              ButtonSegment(value: 30, label: Text('30 días')),
-              ButtonSegment(value: 90, label: Text('3 meses')),
+          child: Column(
+            children: [
+              SegmentedButton<int>(
+                segments: const [
+                  ButtonSegment(value: 1, label: Text('Hoy')),
+                  ButtonSegment(value: 7, label: Text('7 días')),
+                  ButtonSegment(value: 30, label: Text('30 días')),
+                  ButtonSegment(value: 90, label: Text('3 meses')),
+                ],
+                selected: {dias},
+                onSelectionChanged: _rango != null
+                    ? null
+                    : (s) => ref
+                        .read(diasDelInformeProvider.notifier)
+                        .state = s.first,
+                showSelectedIcon: false,
+              ),
+              const SizedBox(height: 8),
+              SelectorRangoPersonalizado(
+                rango: _rango,
+                alElegir: (r) => setState(() {
+                  _rango = r;
+                  _cargarRango();
+                }),
+                alQuitar: () => setState(() {
+                  _rango = null;
+                  _futuroRango = null;
+                }),
+              ),
             ],
-            selected: {dias},
-            onSelectionChanged: (s) =>
-                ref.read(diasDelInformeProvider.notifier).state = s.first,
-            showSelectedIcon: false,
           ),
         ),
         Expanded(
-          child: incidentes.when(
-            loading: () => const Center(
-              child: CircularProgressIndicator(color: Colores.grafito),
-            ),
-            error: (falla, _) => Padding(
-              padding: const EdgeInsets.all(Medidas.margen),
-              child: AvisoDeError(
-                problema: Traductor.traducir(falla),
-                alReintentar: () => ref.invalidate(incidentesAdminProvider),
-              ),
-            ),
-            data: (lista) {
-              if (lista.isEmpty) {
-                return const ListaVacia(
-                  icono: Icons.report_gmailerrorred_outlined,
-                  titulo: 'Sin novedades en este período',
-                  explicacion:
-                      'Cuando los guardias reporten una novedad, va a aparecer '
-                      'acá con foto y detalle.',
-                );
-              }
-
-              final abiertas = lista.where((i) => i.abierta).length;
-
-              return RefreshIndicator(
-                onRefresh: () async =>
-                    ref.invalidate(incidentesAdminProvider),
-                child: ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(
-                      Medidas.margen, 0, Medidas.margen, Medidas.margen),
-                  itemCount: lista.length + 2,
-                  itemBuilder: (_, i) {
-                    if (i == 0) {
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: SizedBox(
-                          width: double.infinity,
-                          child: FilledButton.icon(
-                            onPressed: () =>
-                                _descargarPdf(context, ref, lista, dias),
-                            icon: const Icon(
-                                Icons.picture_as_pdf_rounded, size: 18),
-                            label: const Text(
-                                'Descargar informe de novedades en PDF'),
-                            style: FilledButton.styleFrom(
-                              backgroundColor: Colores.grafito,
-                              minimumSize: const Size(0, 42),
-                            ),
-                          ),
-                        ),
-                      );
-                    }
-                    if (i == 1) {
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 12, top: 4),
-                        child: Text(
-                          '${lista.length} '
-                          '${lista.length == 1 ? "novedad" : "novedades"}'
-                          '${abiertas > 0 ? " · $abiertas abierta${abiertas == 1 ? "" : "s"}" : ""}',
-                          style: Theme.of(context).textTheme.labelSmall,
-                        ),
-                      );
-                    }
-                    return _FilaNovedad(incidente: lista[i - 2]);
-                  },
-                ),
-              );
-            },
-          ),
+          child: _rango != null
+              ? _ListaNovedadesConRango(
+                  futuro: _futuroRango!,
+                  desde: _rango!.desde,
+                  hasta: _rango!.hasta,
+                  alRecargar: () => setState(() => _cargarRango()),
+                )
+              : _ListaNovedades(dias: dias),
         ),
       ],
     );
   }
+}
 
-  Future<void> _descargarPdf(
-    BuildContext context,
-    WidgetRef ref,
-    List<IncidenteAdmin> lista,
-    int dias,
-  ) async {
+class _ListaNovedades extends ConsumerWidget {
+  const _ListaNovedades({required this.dias});
+  final int dias;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final incidentes = ref.watch(incidentesAdminProvider);
+    return incidentes.when(
+      loading: () => const Center(
+        child: CircularProgressIndicator(color: Colores.grafito),
+      ),
+      error: (falla, _) => Padding(
+        padding: const EdgeInsets.all(Medidas.margen),
+        child: AvisoDeError(
+          problema: Traductor.traducir(falla),
+          alReintentar: () => ref.invalidate(incidentesAdminProvider),
+        ),
+      ),
+      data: (lista) => _CuerpoNovedades(
+        lista: lista,
+        desde: DateTime.now().subtract(Duration(days: dias)),
+        hasta: DateTime.now(),
+        alRecargar: () => ref.invalidate(incidentesAdminProvider),
+      ),
+    );
+  }
+}
+
+class _ListaNovedadesConRango extends ConsumerWidget {
+  const _ListaNovedadesConRango({
+    required this.futuro,
+    required this.desde,
+    required this.hasta,
+    required this.alRecargar,
+  });
+
+  final Future<List<IncidenteAdmin>> futuro;
+  final DateTime desde;
+  final DateTime hasta;
+  final VoidCallback alRecargar;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return FutureBuilder<List<IncidenteAdmin>>(
+      future: futuro,
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: CircularProgressIndicator(color: Colores.grafito),
+          );
+        }
+        if (snap.hasError) {
+          return Padding(
+            padding: const EdgeInsets.all(Medidas.margen),
+            child: AvisoDeError(
+              problema: Traductor.traducir(snap.error!),
+              alReintentar: alRecargar,
+            ),
+          );
+        }
+        return _CuerpoNovedades(
+          lista: snap.data ?? const [],
+          desde: desde,
+          hasta: hasta,
+          alRecargar: alRecargar,
+        );
+      },
+    );
+  }
+}
+
+class _CuerpoNovedades extends ConsumerWidget {
+  const _CuerpoNovedades({
+    required this.lista,
+    required this.desde,
+    required this.hasta,
+    required this.alRecargar,
+  });
+
+  final List<IncidenteAdmin> lista;
+  final DateTime desde;
+  final DateTime hasta;
+  final VoidCallback alRecargar;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (lista.isEmpty) {
+      return const ListaVacia(
+        icono: Icons.report_gmailerrorred_outlined,
+        titulo: 'Sin novedades en este período',
+        explicacion:
+            'Cuando los guardias reporten una novedad, va a aparecer '
+            'acá con foto y detalle.',
+      );
+    }
+
+    final abiertas = lista.where((i) => i.abierta).length;
+
+    return RefreshIndicator(
+      onRefresh: () async => alRecargar(),
+      child: ListView.builder(
+        padding: const EdgeInsets.fromLTRB(
+            Medidas.margen, 0, Medidas.margen, Medidas.margen),
+        itemCount: lista.length + 2,
+        itemBuilder: (_, i) {
+          if (i == 0) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () => _descargarPdf(context, ref),
+                  icon: const Icon(Icons.picture_as_pdf_rounded, size: 18),
+                  label: const Text('Descargar informe de novedades en PDF'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colores.grafito,
+                    minimumSize: const Size(0, 42),
+                  ),
+                ),
+              ),
+            );
+          }
+          if (i == 1) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12, top: 4),
+              child: Text(
+                '${lista.length} '
+                '${lista.length == 1 ? "novedad" : "novedades"}'
+                '${abiertas > 0 ? " · $abiertas abierta${abiertas == 1 ? "" : "s"}" : ""}',
+                style: Theme.of(context).textTheme.labelSmall,
+              ),
+            );
+          }
+          return _FilaNovedad(
+            incidente: lista[i - 2],
+            alRecargar: alRecargar,
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _descargarPdf(BuildContext context, WidgetRef ref) async {
     final perfil = ref.read(perfilProvider).valueOrNull;
     final instalacion = perfil?.nombreCondominio ?? 'Instalación';
     final servicioFotos = ref.read(servicioFotosProvider);
-    final desde = DateTime.now().subtract(Duration(days: dias));
 
     final cuantasFotos = lista.fold<int>(0, (t, i) => t + i.fotos.length);
     if (cuantasFotos > 0) {
@@ -1063,12 +1180,13 @@ class _PestanaNovedades extends ConsumerWidget {
       final bytes = await InformeDeIncidentesPdf.armar(
         instalacion: instalacion,
         desde: desde,
-        hasta: DateTime.now(),
+        hasta: hasta,
         incidentes: lista,
         servicioFotos: servicioFotos,
       );
       await Printing.layoutPdf(
-        name: 'novedades-${desde.toIso8601String().substring(0, 10)}.pdf',
+        name: 'novedades-${desde.toIso8601String().substring(0, 10)}-a-'
+            '${hasta.toIso8601String().substring(0, 10)}.pdf',
         onLayout: (_) => bytes,
       );
     } catch (falla) {
@@ -1084,9 +1202,10 @@ class _PestanaNovedades extends ConsumerWidget {
 }
 
 class _FilaNovedad extends StatelessWidget {
-  const _FilaNovedad({required this.incidente});
+  const _FilaNovedad({required this.incidente, required this.alRecargar});
 
   final IncidenteAdmin incidente;
+  final VoidCallback alRecargar;
 
   @override
   Widget build(BuildContext context) {
@@ -1099,9 +1218,21 @@ class _FilaNovedad extends StatelessWidget {
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
+      child: InkWell(
+        onTap: () async {
+          final huboResolucion = await Navigator.of(context).push<bool>(
+            MaterialPageRoute(
+              builder: (_) => PantallaDetalleNovedad(incidente: i),
+            ),
+          );
+          // Si volvió con "true" es porque se marcó como resuelta: pedimos
+          // a la lista de arriba que refresque.
+          if (huboResolucion == true) alRecargar();
+        },
+        borderRadius: BorderRadius.circular(Medidas.redondeo),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
@@ -1224,6 +1355,7 @@ class _FilaNovedad extends StatelessWidget {
               ],
             ),
           ],
+          ),
         ),
       ),
     );

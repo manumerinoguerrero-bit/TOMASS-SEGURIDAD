@@ -942,6 +942,26 @@ class ServicioAdmin {
     }
   }
 
+  /// Marca una novedad como resuelta, dejando la nota de qué se hizo o qué
+  /// pasos se sugirieron. El registro de quién la resolvió y cuándo queda
+  /// intacto para siempre — la resolución también es prueba, como el reporte.
+  Future<void> resolverIncidente({
+    required String id,
+    required String nota,
+  }) async {
+    try {
+      final yo = _supabase.auth.currentUser?.id;
+      await _supabase.from('incidentes').update({
+        'estado': 'resuelta',
+        'nota_resolucion': nota,
+        'resuelto_en': DateTime.now().toUtc().toIso8601String(),
+        if (yo != null) 'resuelto_por': yo,
+      }).eq('id', id).timeout(Entorno.esperaMaxima);
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+
   /// Borra las fotos de las encomiendas que ya quedaron impresas en un
   /// informe. El texto (quién retiró, cuándo, quién entregó) y la firma NUNCA
   /// se tocan acá: eso es lo que sigue sirviendo como constancia después.
