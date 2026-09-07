@@ -951,8 +951,11 @@ class ServicioAdmin {
   }) async {
     try {
       final yo = _supabase.auth.currentUser?.id;
+      // El CHECK constraint de la tabla incidentes acepta 'abierto',
+      // 'en_proceso' y 'cerrado'. En la UI le decimos "resuelta" al usuario
+      // porque suena mas natural en espanol, pero al backend va 'cerrado'.
       await _supabase.from('incidentes').update({
-        'estado': 'resuelta',
+        'estado': 'cerrado',
         'nota_resolucion': nota,
         'resuelto_en': DateTime.now().toUtc().toIso8601String(),
         if (yo != null) 'resuelto_por': yo,

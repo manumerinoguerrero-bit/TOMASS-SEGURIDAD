@@ -451,7 +451,7 @@ class InformeDeGuardiaPdf {
       _ => _Tinta.verde,
     };
     final ocurrido = DateTime.parse(n['ocurrido_en'] as String);
-    final resuelto = n['estado'] == 'resuelta';
+    final resuelto = n['estado'] == 'cerrado';
 
     return pw.Container(
       margin: const pw.EdgeInsets.only(bottom: 10),

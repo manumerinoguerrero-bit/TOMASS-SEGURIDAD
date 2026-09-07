@@ -1107,7 +1107,10 @@ class IncidenteAdmin {
   final String titulo;
   final DateTime ocurridoEn;
 
-  /// 'abierta', 'resuelta', etc. — cómo viene en la base.
+  /// El CHECK del backend restringe a: 'abierto', 'en_proceso', 'cerrado'.
+  /// Antes acá figuraba 'abierta'/'resuelta' que en realidad nunca existieron
+  /// en la BD — cuando el admin cerraba una novedad, el UPDATE tiraba
+  /// "Alguno de los datos no es válido" y la novedad quedaba abierta.
   final String estado;
   final String? gravedad;
   final String? descripcion;
@@ -1119,7 +1122,7 @@ class IncidenteAdmin {
   final DateTime? resueltoEn;
   final List<String> fotos;
 
-  bool get abierta => estado != 'resuelta';
+  bool get abierta => estado != 'cerrado';
   bool get tieneFotos => fotos.isNotEmpty;
 
   factory IncidenteAdmin.desdeMapa(Map<String, dynamic> m) {
@@ -1147,7 +1150,7 @@ class IncidenteAdmin {
       tipo: (m['tipo'] ?? 'otra') as String,
       titulo: (m['titulo'] ?? 'Sin título') as String,
       ocurridoEn: DateTime.parse(m['ocurrido_en'] as String),
-      estado: (m['estado'] ?? 'abierta') as String,
+      estado: (m['estado'] ?? 'abierto') as String,
       gravedad: m['gravedad'] as String?,
       descripcion: m['descripcion'] as String?,
       ubicacion: m['ubicacion_texto'] as String?,
