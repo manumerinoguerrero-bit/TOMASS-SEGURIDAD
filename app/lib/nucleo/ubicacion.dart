@@ -100,6 +100,49 @@ abstract final class Localizador {
     }
   }
 
+  /// Pide el permiso "Permitir todo el tiempo" para que el rastreador GPS
+  /// del turno pueda seguir mandando la posición al panel del admin aunque
+  /// el guardia bloquee la pantalla.
+  ///
+  /// Devuelve true si el permiso quedó otorgado como "always"; false en
+  /// cualquier otro caso (negado, "solo mientras uso", "denegado siempre").
+  ///
+  /// La app funciona sin este permiso: el mapa en vivo va a mostrar la
+  /// posición solo mientras el guardia tenga la app en pantalla. Con el
+  /// permiso otorgado, la posición sigue mandándose con el celular en el
+  /// bolsillo.
+  static Future<bool> pedirPermisoParaBackground() async {
+    try {
+      var permiso = await Geolocator.checkPermission();
+
+      // Primero el permiso base ("mientras uso la app"). Sin esto, Android
+      // no muestra la opción de subir a "always".
+      if (permiso == LocationPermission.denied) {
+        permiso = await Geolocator.requestPermission();
+      }
+      if (permiso == LocationPermission.denied ||
+          permiso == LocationPermission.deniedForever) {
+        return false;
+      }
+
+      // Segundo pedido: subir a "always". Android muestra un diálogo
+      // aparte con opciones "Permitir todo el tiempo" y "Solo mientras uso"
+      // ya seleccionada. Esta llamada NO abre el diálogo nativo — lo abre
+      // Android automáticamente cuando la app pide una posición en un
+      // foreground service, si el permiso está en "while in use".
+      //
+      // Para forzarlo desde acá igual chequeamos si ya está en always y,
+      // si no, lo pedimos una vez.
+      if (permiso == LocationPermission.whileInUse) {
+        permiso = await Geolocator.requestPermission();
+      }
+
+      return permiso == LocationPermission.always;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Por qué no se pudo tomar la ubicación, dicho para una persona.
   ///
   /// Solo se usa para explicarle al administrador por qué el botón de "tomar

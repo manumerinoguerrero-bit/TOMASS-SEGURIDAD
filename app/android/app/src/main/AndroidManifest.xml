@@ -24,21 +24,44 @@
     <uses-permission android:name="android.permission.USE_FINGERPRINT" />
 
     <!-- Para que el celular vibre al aprobar o denegar un acceso -->
-    <!-- UBICACIÓN, para los puntos de control de las rondas.
+    <!-- UBICACIÓN, para los puntos de control de las rondas Y para el mapa
+         en vivo del administrador.
 
          Sirve para dejar registrado que el guardia ESTUVO en cada sector, y no
          solo que tenía el código del cartel. Sin esto, alguien podría sacarle
          una foto a los carteles el primer día y escanear las fotos desde la
          garita sin moverse en toda la noche.
 
-         Solo se pide mientras la app está abierta: no se sigue al guardia
-         cuando no está trabajando. -->
+         El permiso "ACCESS_BACKGROUND_LOCATION" es lo que hace que el mapa en
+         vivo funcione cuando el guardia bloquea el celular en la garita. Sin
+         este permiso, apenas la app pasa a background el sistema mata el GPS
+         y el admin ve "Sin señal" a los 3 minutos. -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+
+    <!-- FOREGROUND SERVICE de ubicación.
+
+         Es lo que le dice al sistema "esta app tiene que seguir mandando GPS
+         aunque la pantalla esté apagada, y le voy a mostrar al residente una
+         notificación permanente para que sepa que está andando". Sin esto,
+         Android 8+ mata el proceso al minuto de bloquear el celular.
+
+         FOREGROUND_SERVICE_LOCATION es la variante específica exigida por
+         Android 14 (API 34). En Android más viejos alcanza con FOREGROUND_SERVICE
+         a secas, pero declararlos los dos no molesta y prepara para el futuro. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+
+    <!-- Para que el celular no se duerma mientras el foreground service manda
+         la posición. Sin esto, algunos fabricantes (Xiaomi sobre todo) siguen
+         durmiendo el proceso aunque el servicio esté declarado. -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <uses-permission android:name="android.permission.VIBRATE" />
 
-    <!-- Para los avisos al guardia y al residente (Android 13 o superior) -->
+    <!-- Para los avisos al guardia y al residente (Android 13 o superior),
+         y para poder mostrar la notificación permanente del foreground service. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- La cámara NO se declara obligatoria a propósito: así la app se puede
@@ -82,6 +105,19 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
+        <!-- SERVICIO DEL RASTREADOR GPS EN VIVO
+             ============================================
+             La librería geolocator ya trae este servicio implementado en
+             nativo (GeolocatorLocationService). Solo hay que declararlo
+             para que Android sepa que está permitido correrlo como
+             foreground service de tipo "location". Sin esta declaración,
+             Android 14+ tira una excepción al intentar arrancarlo. -->
+        <service
+            android:name="com.baseflow.geolocator.GeolocatorLocationService"
+            android:foregroundServiceType="location"
+            android:enabled="true"
+            android:exported="false" />
     </application>
 
     <queries>

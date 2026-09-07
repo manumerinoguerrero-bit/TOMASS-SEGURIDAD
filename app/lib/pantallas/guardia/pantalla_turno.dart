@@ -101,6 +101,14 @@ class _EstadoTurno extends ConsumerState<PantallaTurno> {
       return;
     }
 
+    // Antes de tomar la ubicación pedimos el permiso "Permitir todo el
+    // tiempo". Es lo que hace que el rastreador siga mandando la posición
+    // cuando el guardia bloquee la pantalla en la garita. Si el guardia
+    // dice que no, el turno se abre igual — el mapa en vivo va a mostrar
+    // "Sin señal" mientras la pantalla esté apagada, pero no vamos a
+    // impedir el turno por eso.
+    await Localizador.pedirPermisoParaBackground();
+
     // GPS con timeout corto: no bloqueamos al guardia si no engancha señal.
     final donde = await Localizador.donde(
       esperaMaxima: const Duration(seconds: 8),
