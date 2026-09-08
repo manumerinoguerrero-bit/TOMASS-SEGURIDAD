@@ -31,7 +31,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../config/tema.dart';
-import '../../estado/proveedores.dart';
 import '../../estado/proveedores_admin.dart';
 import '../../modelos/admin.dart';
 import '../../nucleo/errores.dart';
@@ -347,8 +346,10 @@ class _TarjetaGuardia extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final instalacion =
-        ref.watch(perfilProvider).valueOrNull?.nombreCondominio;
+    // La instalación viene del propio guardia — el mapa muestra guardias de
+    // TODAS las instalaciones que administra el admin, así que dos cards
+    // pueden estar en instalaciones distintas.
+    final instalacion = guardia.condominioNombre;
     final color = switch (guardia.estado) {
       'vivo' => Colores.verde,
       'demorado' => Colores.naranja,
@@ -404,7 +405,7 @@ class _TarjetaGuardia extends ConsumerWidget {
                   ),
                   Text(
                     [
-                      if (instalacion != null) instalacion,
+                      instalacion,
                       guardia.puntoAccesoNombre ?? 'Todo el condominio',
                     ].join(' · '),
                     maxLines: 1,
@@ -446,8 +447,9 @@ class _DetalleGuardia extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final g = guardia;
-    final instalacion =
-        ref.watch(perfilProvider).valueOrNull?.nombreCondominio;
+    // Instalación viene del guardia, no del perfil del admin — mapa
+    // cross-instalación.
+    final instalacion = g.condominioNombre;
     final color = switch (g.estado) {
       'vivo' => Colores.verde,
       'demorado' => Colores.naranja,
@@ -505,7 +507,7 @@ class _DetalleGuardia extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: 14),
-            if (instalacion != null) _fila('Instalación', instalacion),
+            _fila('Instalación', instalacion),
             _fila('Puesto', g.puntoAccesoNombre ?? 'Todo el condominio'),
             _fila('Comenzó', Formato.fechaYHora(g.inicio)),
             _fila(

@@ -405,6 +405,7 @@ class ServicioGuardia {
     String? fotoUrl,
     String? observacion,
     String? residenteId,
+    DateTime? ocurridoEn,
   }) async {
     try {
       await _supabase.rpc('registrar_acceso_manual', params: {
@@ -420,6 +421,10 @@ class ServicioGuardia {
         'p_foto_url': fotoUrl,
         'p_observacion': observacion,
         'p_residente_id': residenteId,
+        // Hora del ingreso. Si el guardia dejó null, el servidor usa now().
+        // Sirve para cuando el guardia estaba ocupado y anota la visita
+        // 20 minutos después de que pasó, con la hora real de ingreso.
+        if (ocurridoEn != null) 'p_ocurrido_en': ocurridoEn.toUtc().toIso8601String(),
       }).timeout(Entorno.esperaMaxima);
     } catch (falla) {
       throw Traductor.traducir(falla);

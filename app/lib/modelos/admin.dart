@@ -950,6 +950,8 @@ class GuardiaEnVivo {
     required this.guardiaId,
     required this.guardiaNombre,
     required this.inicio,
+    required this.condominioId,
+    required this.condominioNombre,
     this.fotoUrl,
     this.puntoAccesoNombre,
     this.ultimaLat,
@@ -964,6 +966,14 @@ class GuardiaEnVivo {
   final DateTime inicio;
   final String? fotoUrl;
   final String? puntoAccesoNombre;
+
+  /// La instalación donde está trabajando el guardia. Viene del RPC, no del
+  /// perfil del admin: el mapa en vivo muestra guardias de TODAS las
+  /// instalaciones que el admin administra, así que cada card puede tener
+  /// una instalación distinta.
+  final String condominioId;
+  final String condominioNombre;
+
   final double? ultimaLat;
   final double? ultimaLng;
   final DateTime? ultimaUbicacionEn;
@@ -1008,6 +1018,9 @@ class GuardiaEnVivo {
       inicio: DateTime.parse(m['inicio'] as String),
       fotoUrl: m['foto_url'] as String?,
       puntoAccesoNombre: m['punto_acceso_nombre'] as String?,
+      condominioId: m['condominio_id'] as String,
+      condominioNombre:
+          (m['condominio_nombre'] as String?) ?? 'Instalación',
       ultimaLat: (m['ultima_geo_lat'] as num?)?.toDouble(),
       ultimaLng: (m['ultima_geo_lng'] as num?)?.toDouble(),
       ultimaUbicacionEn: m['ultima_ubicacion_en'] == null

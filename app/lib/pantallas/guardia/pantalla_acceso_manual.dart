@@ -72,6 +72,12 @@ class _EstadoAccesoManual extends ConsumerState<PantallaAccesoManual> {
   bool _guardando = false;
   ErrorAmigable? _problema;
 
+  /// Hora en la que pasó la persona. null significa "ahora" — es el caso
+  /// normal. Si el guardia estaba ocupado con otra cosa y anota el ingreso
+  /// después, pone la hora real acá y no la que marca el reloj cuando toca
+  /// "Registrar".
+  DateTime? _horaManual;
+
   /// Los últimos "quién autoriza" que se escribieron en este turno.
   ///
   /// En un colegio autoriza casi siempre la misma gente (inspectoría, la
@@ -105,6 +111,39 @@ class _EstadoAccesoManual extends ConsumerState<PantallaAccesoManual> {
     _autoriza.dispose();
     _observacion.dispose();
     super.dispose();
+  }
+
+  Future<void> _elegirHoraManual() async {
+    final ahora = DateTime.now();
+    final inicial = _horaManual ?? ahora;
+
+    // Fecha: dejamos ir hasta 24 h atrás como límite práctico. Un turno
+    // dura 12 h como máximo, así que ese margen alcanza y sobra.
+    final fecha = await showDatePicker(
+      context: context,
+      initialDate: inicial,
+      firstDate: ahora.subtract(const Duration(days: 1)),
+      lastDate: ahora,
+      locale: const Locale('es', 'CL'),
+      helpText: '¿En qué día pasó?',
+      cancelText: 'Cancelar',
+      confirmText: 'Siguiente',
+    );
+    if (fecha == null || !mounted) return;
+
+    final hora = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(inicial),
+      helpText: '¿A qué hora pasó?',
+      cancelText: 'Cancelar',
+      confirmText: 'Listo',
+    );
+    if (hora == null || !mounted) return;
+
+    setState(() {
+      _horaManual = DateTime(
+          fecha.year, fecha.month, fecha.day, hora.hour, hora.minute);
+    });
   }
 
   Future<void> _sacarFoto() async {
@@ -160,6 +199,7 @@ class _EstadoAccesoManual extends ConsumerState<PantallaAccesoManual> {
             patente: FormatoPatente.normalizar(_patente.text),
             fotoUrl: rutaFoto,
             observacion: _observacion.text,
+            ocurridoEn: _horaManual,
           );
 
       if (!mounted) return;
@@ -181,6 +221,8 @@ class _EstadoAccesoManual extends ConsumerState<PantallaAccesoManual> {
       // Se limpia todo menos "quién autoriza" y la garita: en una entrada de
       // colegio pasan diez personas seguidas autorizadas por la misma persona,
       // y volver a escribirlo cada vez es lo que hace que se deje de completar.
+      // La hora manual TAMBIÉN se resetea: si el guardia anotó un ingreso
+      // atrasado, el próximo por defecto vuelve a ser "ahora".
       setState(() {
         _nombre.clear();
         _rut.clear();
@@ -191,6 +233,7 @@ class _EstadoAccesoManual extends ConsumerState<PantallaAccesoManual> {
         _tipoAcceso = 'peatonal';
         _guardando = false;
         _idDelIngreso = _nuevoId();
+        _horaManual = null;
       });
 
       ref.invalidate(ultimosAccesosProvider);
@@ -414,6 +457,17 @@ class _EstadoAccesoManual extends ConsumerState<PantallaAccesoManual> {
             ),
           ),
 
+          // ---- Hora del ingreso (por defecto = ahora) ----
+          // Si el guardia estaba ocupado con otra cosa cuando la persona pasó
+          // (fila de autos, teléfono, otro visitante) puede anotar el ingreso
+          // después con la hora real de cuando cruzó, no con la hora en que
+          // termina de escribir el formulario.
+          _CampoHora(
+            hora: _horaManual,
+            alElegir: _elegirHoraManual,
+            alQuitar: () => setState(() => _horaManual = null),
+          ),
+
           const SizedBox(height: 10),
 
           // ---- Guardar ----
@@ -618,6 +672,109 @@ class _Foto extends StatelessWidget {
           child: const Text('Quitar'),
         ),
       ],
+    );
+  }
+}
+
+// ============================================================================
+// CAMPO "HORA DEL INGRESO"
+// ============================================================================
+// Por defecto la app usa la hora en que se toca "Registrar". Si el guardia
+// estaba ocupado y anota la visita más tarde, elige la hora real acá.
+// ============================================================================
+
+class _CampoHora extends StatelessWidget {
+  const _CampoHora({
+    required this.hora,
+    required this.alElegir,
+    required this.alQuitar,
+  });
+
+  final DateTime? hora;
+  final Future<void> Function() alElegir;
+  final VoidCallback alQuitar;
+
+  static const _dias = ['lun', 'mar', 'mié', 'jue', 'vie', 'sáb', 'dom'];
+
+  @override
+  Widget build(BuildContext context) {
+    if (hora == null) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            onPressed: alElegir,
+            icon: const Icon(Icons.schedule_rounded, size: 18),
+            label: const Text('La visita pasó antes — anotar la hora real'),
+          ),
+        ),
+      );
+    }
+
+    final h = hora!;
+    final hoy = DateTime.now();
+    final esHoy = h.year == hoy.year && h.month == hoy.month && h.day == hoy.day;
+    final etiquetaDia = esHoy
+        ? 'Hoy'
+        : '${_dias[h.weekday - 1]} ${h.day.toString().padLeft(2, '0')}/'
+            '${h.month.toString().padLeft(2, '0')}';
+    final etiquetaHora =
+        '${h.hour.toString().padLeft(2, '0')}:${h.minute.toString().padLeft(2, '0')}';
+
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colores.dorado.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(Medidas.redondeoChico),
+        border: Border.all(
+            color: Colores.dorado.withValues(alpha: 0.5), width: 1.2),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.schedule_rounded,
+              size: 18, color: Colores.doradoOscuro),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'HORA MANUAL',
+                  style: TextStyle(
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.8,
+                    color: Colores.doradoOscuro,
+                  ),
+                ),
+                Text(
+                  '$etiquetaDia · $etiquetaHora',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Colores.grafito,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.edit_rounded, size: 18),
+            tooltip: 'Cambiar',
+            onPressed: () => alElegir(),
+            color: Colores.grafito,
+          ),
+          IconButton(
+            icon: const Icon(Icons.close_rounded, size: 18),
+            tooltip: 'Usar la hora de ahora',
+            onPressed: alQuitar,
+            color: Colores.rojo,
+          ),
+        ],
+      ),
     );
   }
 }
