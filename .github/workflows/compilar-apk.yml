@@ -92,6 +92,9 @@ jobs:
         with:
           name: tomass-seguridad-apk
           path: app/build/app/outputs/flutter-apk/app-release.apk
-          # Se guarda 30 días. Después se borra solo para no ocupar espacio.
-          retention-days: 30
+          # 3 días es suficiente: si en 3 días no lo instalaste, casi
+          # seguro ya hay otro APK más nuevo con más fixes. Antes teníamos
+          # 30 días y a los 60 workflows la cuota gratuita de 500 MB de
+          # GitHub se llenó y bloqueó los siguientes uploads.
+          retention-days: 3
           if-no-files-found: error
