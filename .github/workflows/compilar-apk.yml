@@ -31,6 +31,10 @@ on:
   # Y también cuando aprietes el botón "Run workflow" a mano
   workflow_dispatch:
 
+# Permisos necesarios para crear releases (leer + escribir contenido)
+permissions:
+  contents: write
+
 jobs:
   compilar:
     name: Compilar el APK de Android
@@ -86,15 +90,46 @@ jobs:
         working-directory: app
         run: flutter build apk --release
 
-      # 7 · Dejar el APK disponible para descargar
-      - name: Publicar el APK
-        uses: actions/upload-artifact@v4
+      # 7 · Renombrar el APK con la fecha y el commit
+      #     Antes se llamaba siempre "app-release.apk". Con la fecha en el
+      #     nombre, el guardia ve al instalar cuál es el más nuevo y no hay
+      #     que confiar en el timestamp del archivo.
+      - name: Renombrar el APK
+        working-directory: app
+        run: |
+          FECHA=$(date +'%Y-%m-%d-%H%M')
+          COMMIT=$(echo "${{ github.sha }}" | cut -c1-7)
+          cp build/app/outputs/flutter-apk/app-release.apk \
+             tomass-seguridad-${FECHA}-${COMMIT}.apk
+
+      # 8 · Publicar el APK como RELEASE (no como artifact)
+      #
+      #     Los artifacts de GitHub Actions tienen cuota (500 MB en el plan
+      #     gratuito) y llenaron el espacio a los 60 workflows. Los RELEASES
+      #     no tienen esa cuota, y además:
+      #
+      #       * Aparecen en el tab "Releases" del repo, más fáciles de
+      #         compartir con los guardias.
+      #       * Cada release trae el link directo al APK sin login.
+      #       * El nombre del release es el título del commit, así que se ve
+      #         qué trae cada APK sin abrir nada.
+      #
+      #     Cada push a main crea un release nuevo con tag "apk-<sha_corto>".
+      #     Si se aprieta "Run workflow" a mano sobre el mismo commit, el
+      #     release se sobreescribe.
+      - name: Publicar el APK como Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: tomass-seguridad-apk
-          path: app/build/app/outputs/flutter-apk/app-release.apk
-          # 3 días es suficiente: si en 3 días no lo instalaste, casi
-          # seguro ya hay otro APK más nuevo con más fixes. Antes teníamos
-          # 30 días y a los 60 workflows la cuota gratuita de 500 MB de
-          # GitHub se llenó y bloqueó los siguientes uploads.
-          retention-days: 3
-          if-no-files-found: error
+          tag_name: apk-${{ github.run_number }}-${{ github.sha }}
+          name: 'APK #${{ github.run_number }} · ${{ github.event.head_commit.message }}'
+          body: |
+            APK de Tomass Seguridad compilado automáticamente.
+
+            **Commit:** ${{ github.sha }}
+            **Mensaje:** ${{ github.event.head_commit.message }}
+            **Compilado:** ${{ github.event.head_commit.timestamp }}
+
+            Descargá el `.apk` de abajo e instalalo en el celular.
+          files: app/tomass-seguridad-*.apk
+          make_latest: true
+          fail_on_unmatched_files: true
