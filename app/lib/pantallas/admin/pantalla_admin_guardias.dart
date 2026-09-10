@@ -449,10 +449,19 @@ class _TarjetaGuardia extends StatelessWidget {
       );
     } catch (falla) {
       if (!context.mounted) return;
+      final e = Traductor.traducir(falla);
+      // Mostramos también el detalle: cuando la causa es una query específica
+      // o un dato inconsistente, el detalle trae el mensaje real del servidor
+      // en vez de solo "La base de datos rechazó la operación", que no dice
+      // por dónde arrancar a buscar.
+      final texto = e.detalle != null && e.detalle!.isNotEmpty
+          ? '${e.mensaje}\n${e.detalle}'
+          : e.mensaje;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(Traductor.traducir(falla).mensaje),
+          content: Text(texto),
           backgroundColor: Colores.rojo,
+          duration: const Duration(seconds: 8),
         ),
       );
     }

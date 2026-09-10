@@ -25,6 +25,7 @@ import '../../nucleo/errores.dart';
 import '../../nucleo/formato.dart';
 import '../comunes/componentes.dart';
 import 'acciones_de_turno.dart';
+import 'pantalla_personas_dentro.dart';
 
 class PantallaPanel extends ConsumerWidget {
   const PantallaPanel({super.key});
@@ -377,17 +378,27 @@ class _QuienEstaAdentro extends ConsumerWidget {
                     for (final p in lista.take(6))
                       _FilaPersona(persona: p),
 
-                    if (lista.length > 6) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        'y ${lista.length - 6} más',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontStyle: FontStyle.italic,
-                          color: Colores.textoSuave,
+                    // Botón para ver la lista completa con búsqueda.
+                    // Aparece siempre — no solo cuando hay más de 6 — porque
+                    // en la pantalla completa el guardia puede filtrar por
+                    // patente o unidad, que en el resumen no se puede.
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: TextButton.icon(
+                          onPressed: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const PantallaPersonasDentro(),
+                            ),
+                          ),
+                          icon: const Icon(Icons.list_alt_rounded, size: 18),
+                          label: Text(lista.length > 6
+                              ? 'Ver los ${lista.length} — buscar por nombre, unidad o patente'
+                              : 'Ver todos con búsqueda'),
                         ),
                       ),
-                    ],
+                    ),
                   ],
                 ),
               ),
