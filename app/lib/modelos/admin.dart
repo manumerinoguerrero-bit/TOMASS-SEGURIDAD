@@ -696,6 +696,7 @@ class EncomiendaDelInforme {
     this.guardiaEntrega,
     this.fotoUrl,
     this.fotoEntregaUrl,
+    this.firmaUrl,
   });
 
   final String id;
@@ -719,7 +720,13 @@ class EncomiendaDelInforme {
   final String? fotoUrl;
   final String? fotoEntregaUrl;
 
+  /// Firma del residente en el momento de retirar la encomienda. Se guarda
+  /// en el mismo bucket que las fotos (paquetes). Es la prueba manuscrita
+  /// del recibí conforme, adicional a la foto de quien retiró.
+  final String? firmaUrl;
+
   bool get tieneFoto => fotoUrl != null || fotoEntregaUrl != null;
+  bool get tieneFirma => firmaUrl != null && firmaUrl!.isNotEmpty;
   bool get fueEntregado => estado == 'entregado';
 
   /// Con qué foto se arma la fila del informe.
@@ -777,6 +784,7 @@ class EncomiendaDelInforme {
       guardiaEntrega: guardia,
       fotoUrl: m['foto_url'] as String?,
       fotoEntregaUrl: m['foto_entrega_url'] as String?,
+      firmaUrl: m['firma_url'] as String?,
     );
   }
 }

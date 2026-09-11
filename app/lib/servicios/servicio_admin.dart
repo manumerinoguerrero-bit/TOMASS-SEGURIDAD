@@ -639,14 +639,14 @@ class ServicioAdmin {
           .select('''
             id, descripcion, numero_seguimiento, empresa_courier,
             recibido_en, entregado_en, estado,
-            retirado_por, foto_url, foto_entrega_url,
+            retirado_por, foto_url, foto_entrega_url, firma_url,
             destinatario_texto, unidad_texto,
             usuarios!paquetes_residente_id_fkey ( nombre_completo ),
             unidades ( numero, torre ),
             guardia:usuarios!paquetes_guardia_entrega_id_fkey ( nombre_completo )
           ''')
           .isFilter('fotos_borradas_en', null)
-          .or('foto_url.not.is.null,foto_entrega_url.not.is.null')
+          .or('foto_url.not.is.null,foto_entrega_url.not.is.null,firma_url.not.is.null')
           .gte('recibido_en', desde.toIso8601String())
           .lte('recibido_en', hasta.toIso8601String())
           .order('recibido_en', ascending: false)

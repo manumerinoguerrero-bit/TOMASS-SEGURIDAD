@@ -51,6 +51,7 @@ class InformeDeEncomiendasPdf {
     required int dias,
     required List<EncomiendaDelInforme> encomiendas,
     required Map<String, Uint8List> fotos,
+    Map<String, Uint8List> firmas = const {},
   }) async {
     final doc = pw.Document(
       title: 'Informe de encomiendas — $instalacion',
@@ -80,7 +81,7 @@ class InformeDeEncomiendasPdf {
           pw.SizedBox(height: 18),
           _titulo('Detalle, del más reciente al más antiguo'),
           pw.SizedBox(height: 10),
-          ..._grilla(encomiendas, fotos),
+          ..._grilla(encomiendas, fotos, firmas),
         ],
       ),
     );
@@ -191,6 +192,7 @@ class InformeDeEncomiendasPdf {
   static List<pw.Widget> _grilla(
     List<EncomiendaDelInforme> encomiendas,
     Map<String, Uint8List> fotos,
+    Map<String, Uint8List> firmas,
   ) {
     final filas = <pw.Widget>[];
     for (var i = 0; i < encomiendas.length; i += 2) {
@@ -202,12 +204,14 @@ class InformeDeEncomiendasPdf {
           child: pw.Row(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              pw.Expanded(child: _tarjeta(izquierda, fotos[izquierda.id])),
+              pw.Expanded(
+                  child: _tarjeta(izquierda, fotos[izquierda.id],
+                      firmas[izquierda.id])),
               pw.SizedBox(width: 8),
               pw.Expanded(
                 child: derecha == null
                     ? pw.SizedBox()
-                    : _tarjeta(derecha, fotos[derecha.id]),
+                    : _tarjeta(derecha, fotos[derecha.id], firmas[derecha.id]),
               ),
             ],
           ),
@@ -217,7 +221,8 @@ class InformeDeEncomiendasPdf {
     return filas;
   }
 
-  static pw.Widget _tarjeta(EncomiendaDelInforme e, Uint8List? foto) {
+  static pw.Widget _tarjeta(
+      EncomiendaDelInforme e, Uint8List? foto, Uint8List? firma) {
     final descripcion = (e.descripcion ?? '').trim();
 
     return pw.Container(
@@ -226,61 +231,115 @@ class InformeDeEncomiendasPdf {
         border: pw.Border.all(color: _Tinta.grisClaro),
         borderRadius: const pw.BorderRadius.all(pw.Radius.circular(3)),
       ),
-      child: pw.Row(
+      child: pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
-          pw.Container(
-            width: 60,
-            height: 60,
-            alignment: pw.Alignment.center,
-            decoration: const pw.BoxDecoration(color: _Tinta.fondoFoto),
-            child: foto == null
-                ? pw.Text('Sin foto',
-                    textAlign: pw.TextAlign.center,
-                    style: const pw.TextStyle(fontSize: 6.5, color: _Tinta.gris))
-                : pw.Image(pw.MemoryImage(foto), fit: pw.BoxFit.cover,
-                    width: 60, height: 60),
-          ),
-          pw.SizedBox(width: 8),
-          pw.Expanded(
-            child: pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                pw.Text(
-                  descripcion.isEmpty ? 'Encomienda' : descripcion,
-                  maxLines: 1,
-                  overflow: pw.TextOverflow.clip,
-                  style: pw.TextStyle(
-                      fontSize: 8.5, fontWeight: pw.FontWeight.bold, color: _Tinta.grafito),
+          // ---- Fila superior: foto + datos ----
+          pw.Row(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Container(
+                width: 60,
+                height: 60,
+                alignment: pw.Alignment.center,
+                decoration: const pw.BoxDecoration(color: _Tinta.fondoFoto),
+                child: foto == null
+                    ? pw.Text('Sin foto',
+                        textAlign: pw.TextAlign.center,
+                        style: const pw.TextStyle(
+                            fontSize: 6.5, color: _Tinta.gris))
+                    : pw.Image(pw.MemoryImage(foto),
+                        fit: pw.BoxFit.cover, width: 60, height: 60),
+              ),
+              pw.SizedBox(width: 8),
+              pw.Expanded(
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text(
+                      descripcion.isEmpty ? 'Encomienda' : descripcion,
+                      maxLines: 1,
+                      overflow: pw.TextOverflow.clip,
+                      style: pw.TextStyle(
+                          fontSize: 8.5,
+                          fontWeight: pw.FontWeight.bold,
+                          color: _Tinta.grafito),
+                    ),
+                    pw.SizedBox(height: 2),
+                    pw.Text('Retiró: ${e.quienRetiro}',
+                        maxLines: 1,
+                        overflow: pw.TextOverflow.clip,
+                        style: const pw.TextStyle(
+                            fontSize: 7.5, color: _Tinta.grafito)),
+                    if (e.unidad != null)
+                      pw.Text(e.unidad!,
+                          style: const pw.TextStyle(
+                              fontSize: 7, color: _Tinta.gris)),
+                    pw.SizedBox(height: 2),
+                    pw.Text(
+                        e.fueEntregado
+                            ? 'Entregado ${Formato.fechaYHora(e.entregadoEn!)}'
+                            : 'Recibido ${Formato.fechaYHora(e.recibidoEn)} · '
+                                'aún en portería',
+                        style: pw.TextStyle(
+                          fontSize: 7,
+                          color:
+                              e.fueEntregado ? _Tinta.gris : _Tinta.naranja,
+                          fontWeight: e.fueEntregado
+                              ? pw.FontWeight.normal
+                              : pw.FontWeight.bold,
+                        )),
+                    if (e.guardiaEntrega != null)
+                      pw.Text('Entregó: ${e.guardiaEntrega}',
+                          style: const pw.TextStyle(
+                              fontSize: 7, color: _Tinta.gris)),
+                  ],
                 ),
-                pw.SizedBox(height: 2),
-                pw.Text('Retiró: ${e.quienRetiro}',
-                    maxLines: 1,
-                    overflow: pw.TextOverflow.clip,
-                    style: const pw.TextStyle(fontSize: 7.5, color: _Tinta.grafito)),
-                if (e.unidad != null)
-                  pw.Text(e.unidad!,
-                      style: const pw.TextStyle(fontSize: 7, color: _Tinta.gris)),
-                pw.SizedBox(height: 2),
-                pw.Text(
-                    e.fueEntregado
-                        ? 'Entregado ${Formato.fechaYHora(e.entregadoEn!)}'
-                        : 'Recibido ${Formato.fechaYHora(e.recibidoEn)} · '
-                            'aún en portería',
-                    style: pw.TextStyle(
-                      fontSize: 7,
-                      color:
-                          e.fueEntregado ? _Tinta.gris : _Tinta.naranja,
-                      fontWeight: e.fueEntregado
-                          ? pw.FontWeight.normal
-                          : pw.FontWeight.bold,
-                    )),
-                if (e.guardiaEntrega != null)
-                  pw.Text('Entregó: ${e.guardiaEntrega}',
-                      style: const pw.TextStyle(fontSize: 7, color: _Tinta.gris)),
+              ),
+            ],
+          ),
+          // ---- Firma del residente (si el paquete se entregó) ----
+          // La firma es la constancia manuscrita del "recibí conforme". Va
+          // debajo de los datos para no achicar la foto — que es lo que
+          // más se mira. Si no hay firma (paquetes viejos previos al
+          // canvas de firma, o entregas donde el residente no firmó),
+          // sale el texto en gris.
+          if (e.fueEntregado) ...[
+            pw.SizedBox(height: 6),
+            pw.Divider(color: _Tinta.grisClaro, height: 1, thickness: 0.4),
+            pw.SizedBox(height: 4),
+            pw.Row(
+              crossAxisAlignment: pw.CrossAxisAlignment.center,
+              children: [
+                pw.Text('Firma:',
+                    style: const pw.TextStyle(
+                        fontSize: 7, color: _Tinta.gris)),
+                pw.SizedBox(width: 6),
+                pw.Expanded(
+                  child: pw.Container(
+                    height: 32,
+                    decoration: pw.BoxDecoration(
+                      border: pw.Border(
+                        bottom: pw.BorderSide(
+                            color: _Tinta.grisClaro, width: 0.5),
+                      ),
+                    ),
+                    child: firma == null
+                        ? pw.Center(
+                            child: pw.Text('sin firma',
+                                style: const pw.TextStyle(
+                                    fontSize: 6.5, color: _Tinta.gris)),
+                          )
+                        : pw.Image(
+                            pw.MemoryImage(firma),
+                            fit: pw.BoxFit.contain,
+                            alignment: pw.Alignment.centerLeft,
+                          ),
+                  ),
+                ),
               ],
             ),
-          ),
+          ],
         ],
       ),
     );

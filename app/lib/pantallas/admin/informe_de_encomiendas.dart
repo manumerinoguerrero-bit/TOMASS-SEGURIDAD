@@ -113,20 +113,28 @@ class _EstadoPestanaEncomiendas extends ConsumerState<PestanaEncomiendas> {
     try {
       final servicioFotos = ref.read(servicioFotosProvider);
       final fotos = <String, Uint8List>{};
+      final firmas = <String, Uint8List>{};
 
       // De a 5 fotos a la vez: ni una por una (lento) ni todas juntas
-      // (satura la conexión y traba el teléfono).
+      // (satura la conexión y traba el teléfono). Por cada encomienda
+      // bajamos foto Y firma en paralelo cuando existen — la firma va
+      // en el mismo bucket "paquetes".
       const tandasDe = 5;
       var hechas = 0;
       for (var i = 0; i < lista.length; i += tandasDe) {
-        final grupo = lista.skip(i).take(tandasDe);
+        final grupo = lista.skip(i).take(tandasDe).toList();
         final resultados = await Future.wait(grupo.map((e) async {
-          final bytes = await servicioFotos.bytesParaPdf(
+          final foto = servicioFotos.bytesParaPdf(
               e.fotoParaElInforme, CajonDeFotos.paquetes);
-          return MapEntry(e.id, bytes);
+          final firma = e.tieneFirma
+              ? servicioFotos.bytesParaPdf(e.firmaUrl, CajonDeFotos.paquetes)
+              : Future<Uint8List?>.value(null);
+          final (fb, sb) = await (foto, firma).wait;
+          return (id: e.id, fotoBytes: fb, firmaBytes: sb);
         }));
         for (final r in resultados) {
-          if (r.value != null) fotos[r.key] = r.value!;
+          if (r.fotoBytes != null) fotos[r.id] = r.fotoBytes!;
+          if (r.firmaBytes != null) firmas[r.id] = r.firmaBytes!;
           hechas++;
         }
         if (!mounted) return;
@@ -144,6 +152,7 @@ class _EstadoPestanaEncomiendas extends ConsumerState<PestanaEncomiendas> {
         dias: dias,
         encomiendas: lista,
         fotos: fotos,
+        firmas: firmas,
       );
 
       if (!mounted) return;
