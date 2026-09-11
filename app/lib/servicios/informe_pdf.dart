@@ -55,6 +55,21 @@ class _Tinta {
   static const blanco = PdfColor.fromInt(0xFFFFFFFF);
 }
 
+/// Comparación con el período anterior. Sirve para poner en la portada
+/// "23 rondas · ↓ 12% vs período anterior". Si es null, el PDF sale sin
+/// esa columna.
+class ComparacionRondas {
+  const ComparacionRondas({
+    required this.rondasAnteriores,
+    required this.marcasAnteriores,
+    required this.diasAnteriores,
+  });
+
+  final List<RondaDelInforme> rondasAnteriores;
+  final List<MarcaDelInforme> marcasAnteriores;
+  final int diasAnteriores;
+}
+
 class InformeDeRondasPdf {
   /// Arma el PDF y lo devuelve listo para compartir, imprimir o guardar.
   static Future<Uint8List> armar({
@@ -64,6 +79,8 @@ class InformeDeRondasPdf {
     required List<MarcaDelInforme> marcas,
     required List<SectorDelPlano> sectores,
     required int minutosEntreRondas,
+    ComparacionRondas? comparacion,
+    String? nombreAdmin,
   }) async {
     final doc = pw.Document(
       title: 'Informe de rondas — $instalacion',
@@ -108,10 +125,13 @@ class InformeDeRondasPdf {
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
             _encabezado(escudo, instalacion, desde, hasta),
-            pw.SizedBox(height: 22),
-            _resumen(rondas, marcas, sectores, minutosEntreRondas),
-            pw.SizedBox(height: 20),
+            pw.SizedBox(height: 18),
+            _puntosDestacados(rondas, marcas, minutosEntreRondas, comparacion),
+            pw.SizedBox(height: 14),
+            _resumen(rondas, marcas, sectores, minutosEntreRondas, comparacion),
+            pw.SizedBox(height: 18),
             pw.Expanded(child: _tablaDeRondas(rondas)),
+            _firmaAlPie(nombreAdmin),
             _pie(),
           ],
         ),
@@ -205,48 +225,85 @@ class InformeDeRondasPdf {
     DateTime desde,
     DateTime hasta,
   ) {
-    return pw.Container(
-      padding: const pw.EdgeInsets.all(16),
-      decoration: const pw.BoxDecoration(color: _Tinta.grafito),
-      child: pw.Row(
-        children: [
-          if (escudo != null)
-            pw.Container(
-              width: 40,
-              height: 46,
-              child: pw.Image(pw.MemoryImage(escudo), fit: pw.BoxFit.contain),
-            ),
-          pw.SizedBox(width: 14),
-          pw.Expanded(
-            child: pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                pw.Text('TOMASS SEGURIDAD',
-                    style: pw.TextStyle(
-                      fontSize: 15,
-                      fontWeight: pw.FontWeight.bold,
-                      color: _Tinta.blanco,
-                      letterSpacing: 1.2,
-                    )),
-                pw.SizedBox(height: 2),
-                pw.Text('INFORME DE RONDAS',
-                    style: const pw.TextStyle(
-                        fontSize: 8, color: _Tinta.grisClaro, letterSpacing: 2)),
-                pw.SizedBox(height: 8),
-                pw.Text(instalacion,
-                    style: pw.TextStyle(
-                        fontSize: 13,
-                        fontWeight: pw.FontWeight.bold,
-                        color: _Tinta.blanco)),
-                pw.Text(
-                  'Del ${Formato.fecha(desde)} al ${Formato.fecha(hasta)}',
-                  style: const pw.TextStyle(fontSize: 9.5, color: _Tinta.grisClaro),
+    // Nueva portada: hero de dos capas. Arriba una banda dorada finita
+    // (identidad Tomass), y debajo la banda grande grafito con logo grande
+    // + nombre del cliente destacado. Sirve para que el mandante reciba el
+    // PDF y lo primero que vea sea "Milagros del Cerro Grande" en gran
+    // tipografía, no "TOMASS SEGURIDAD".
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+      children: [
+        // Banda dorada arriba (identidad)
+        pw.Container(
+          height: 4,
+          color: const PdfColor.fromInt(0xFFC9A24E),
+        ),
+        pw.Container(
+          padding: const pw.EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+          decoration: const pw.BoxDecoration(color: _Tinta.grafito),
+          child: pw.Row(
+            children: [
+              if (escudo != null)
+                pw.Container(
+                  width: 48,
+                  height: 56,
+                  child: pw.Image(pw.MemoryImage(escudo), fit: pw.BoxFit.contain),
                 ),
-              ],
-            ),
+              pw.SizedBox(width: 16),
+              pw.Expanded(
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    // Kicker chico arriba con el nombre de la empresa
+                    pw.Row(
+                      children: [
+                        pw.Text('TOMASS SEGURIDAD',
+                            style: pw.TextStyle(
+                              fontSize: 11,
+                              fontWeight: pw.FontWeight.bold,
+                              color: _Tinta.blanco,
+                              letterSpacing: 1.4,
+                            )),
+                        pw.SizedBox(width: 8),
+                        pw.Container(
+                          padding: const pw.EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
+                          decoration: pw.BoxDecoration(
+                            color: const PdfColor.fromInt(0xFFC9A24E),
+                          ),
+                          child: pw.Text('INFORME DE RONDAS',
+                              style: pw.TextStyle(
+                                fontSize: 7.5,
+                                color: _Tinta.grafito,
+                                letterSpacing: 1.8,
+                                fontWeight: pw.FontWeight.bold,
+                              )),
+                        ),
+                      ],
+                    ),
+                    pw.SizedBox(height: 10),
+                    // Nombre del cliente destacado — el nombre del condominio
+                    // es lo que el mandante va a ver primero al abrir el PDF.
+                    pw.Text(instalacion,
+                        style: pw.TextStyle(
+                          fontSize: 20,
+                          fontWeight: pw.FontWeight.bold,
+                          color: _Tinta.blanco,
+                          letterSpacing: 0.3,
+                        )),
+                    pw.SizedBox(height: 4),
+                    pw.Text(
+                      'Período: del ${Formato.fecha(desde)} al ${Formato.fecha(hasta)}',
+                      style: const pw.TextStyle(
+                          fontSize: 10, color: _Tinta.grisClaro),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -259,12 +316,21 @@ class InformeDeRondasPdf {
     List<MarcaDelInforme> marcas,
     List<SectorDelPlano> sectores,
     int minutosEntreRondas,
+    ComparacionRondas? comp,
   ) {
     final completas = rondas.where((r) => r.completa).length;
     final fueraDeHora = rondas.where((r) => r.sePasoDelLimite).length;
     final lejanas = marcas.where((m) => m.lejos).length;
     final horas = (minutosEntreRondas / 60).toStringAsFixed(
         minutosEntreRondas % 60 == 0 ? 0 : 1);
+
+    // Números del período anterior para la comparación
+    final rondasAnt = comp?.rondasAnteriores.length;
+    final completasAnt =
+        comp?.rondasAnteriores.where((r) => r.completa).length;
+    final marcasAnt = comp?.marcasAnteriores.length;
+    final fueraDeHoraAnt =
+        comp?.rondasAnteriores.where((r) => r.sePasoDelLimite).length;
 
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -273,16 +339,21 @@ class InformeDeRondasPdf {
         pw.SizedBox(height: 10),
         pw.Row(
           children: [
-            _cuadro('${rondas.length}', 'rondas hechas'),
+            _cuadro('${rondas.length}', 'rondas hechas',
+                anterior: rondasAnt, mejorSiSube: true),
             pw.SizedBox(width: 8),
-            _cuadro('$completas', 'con todos los\nsectores'),
+            _cuadro('$completas', 'con todos los\nsectores',
+                anterior: completasAnt, mejorSiSube: true),
             pw.SizedBox(width: 8),
-            _cuadro('${marcas.length}', 'marcaciones'),
+            _cuadro('${marcas.length}', 'marcaciones',
+                anterior: marcasAnt, mejorSiSube: true),
             pw.SizedBox(width: 8),
             _cuadro(
               '$fueraDeHora',
               'pasaron las\n$horas horas',
               tinta: fueraDeHora > 0 ? _Tinta.naranja : _Tinta.verde,
+              anterior: fueraDeHoraAnt,
+              mejorSiSube: false,
             ),
           ],
         ),
@@ -308,8 +379,41 @@ class InformeDeRondasPdf {
     );
   }
 
-  static pw.Widget _cuadro(String numero, String etiqueta,
-      {PdfColor tinta = _Tinta.grafito}) {
+  /// Un cuadro de KPI con opción de mostrar comparación con el período
+  /// anterior debajo del número. La flecha indica dirección: verde si va
+  /// en el sentido "bueno" (más rondas es bueno, más fuera de hora es
+  /// malo — se controla con [mejorSiSube]).
+  static pw.Widget _cuadro(
+    String numero,
+    String etiqueta, {
+    PdfColor tinta = _Tinta.grafito,
+    int? anterior,
+    bool mejorSiSube = true,
+  }) {
+    // Cálculo de la comparación
+    String? comparacion;
+    PdfColor? colorComp;
+    if (anterior != null) {
+      final actual = int.tryParse(numero) ?? 0;
+      final delta = actual - anterior;
+      if (anterior == 0 && actual == 0) {
+        comparacion = 'sin cambio';
+        colorComp = _Tinta.gris;
+      } else if (anterior == 0) {
+        comparacion = 'nuevo';
+        colorComp = mejorSiSube ? _Tinta.verde : _Tinta.rojo;
+      } else {
+        final pct = (delta / anterior * 100).round().abs();
+        final flecha = delta > 0 ? '↑' : (delta < 0 ? '↓' : '=');
+        final subeBien = (delta > 0 && mejorSiSube) ||
+            (delta < 0 && !mejorSiSube);
+        comparacion = delta == 0 ? '= sin cambio' : '$flecha $pct% vs anterior';
+        colorComp = delta == 0
+            ? _Tinta.gris
+            : (subeBien ? _Tinta.verde : _Tinta.naranja);
+      }
+    }
+
     return pw.Expanded(
       child: pw.Container(
         padding: const pw.EdgeInsets.symmetric(vertical: 10, horizontal: 8),
@@ -323,8 +427,229 @@ class InformeDeRondasPdf {
             pw.Text(etiqueta,
                 style: const pw.TextStyle(
                     fontSize: 7.5, color: _Tinta.gris, lineSpacing: 1.5)),
+            if (comparacion != null) ...[
+              pw.SizedBox(height: 3),
+              pw.Text(comparacion,
+                  style: pw.TextStyle(
+                    fontSize: 7,
+                    color: colorComp,
+                    fontWeight: pw.FontWeight.bold,
+                  )),
+            ],
           ],
         ),
+      ),
+    );
+  }
+
+  // ==========================================================================
+  // PUNTOS A DESTACAR
+  // ==========================================================================
+  // Arriba del resumen numérico, 3-4 bullets que convierten los datos en
+  // insight ejecutivo. Es lo que hace que el mandante mire el informe y
+  // sepa QUÉ le importa sin tener que interpretar tablas.
+  // ==========================================================================
+
+  static pw.Widget _puntosDestacados(
+    List<RondaDelInforme> rondas,
+    List<MarcaDelInforme> marcas,
+    int minutosEntreRondas,
+    ComparacionRondas? comp,
+  ) {
+    final completas = rondas.where((r) => r.completa).length;
+    final fueraDeHora = rondas.where((r) => r.sePasoDelLimite).length;
+    final lejanas = marcas.where((m) => m.lejos).length;
+
+    // Cada punto tiene: bool esBueno (para el ✓ verde vs ⚠ naranja) y texto.
+    final puntos = <({bool bueno, String texto})>[];
+
+    if (rondas.isEmpty) {
+      puntos.add((
+        bueno: false,
+        texto: 'No se registraron rondas en el período. Conviene revisar '
+            'con el equipo de guardia qué pasó.'
+      ));
+    } else if (completas == rondas.length && rondas.length > 1) {
+      puntos.add((
+        bueno: true,
+        texto: 'Las ${rondas.length} rondas del período cubrieron todos los '
+            'sectores. El recorrido se cumplió íntegramente.'
+      ));
+    } else if (completas > 0) {
+      final pct = (completas / rondas.length * 100).round();
+      puntos.add((
+        bueno: completas == rondas.length,
+        texto: '$completas de ${rondas.length} rondas cubrieron todos los '
+            'sectores ($pct%).'
+      ));
+    }
+
+    if (fueraDeHora > 0) {
+      final horas = (minutosEntreRondas / 60).toStringAsFixed(
+          minutosEntreRondas % 60 == 0 ? 0 : 1);
+      puntos.add((
+        bueno: false,
+        texto: '$fueraDeHora ${fueraDeHora == 1 ? "ronda superó" : "rondas superaron"} '
+            'las $horas horas que exige el contrato de trabajo.'
+      ));
+    } else if (rondas.length > 1) {
+      puntos.add((
+        bueno: true,
+        texto: 'Ninguna ronda se pasó del intervalo máximo entre rondas.'
+      ));
+    }
+
+    if (lejanas > 0) {
+      puntos.add((
+        bueno: false,
+        texto: '$lejanas ${lejanas == 1 ? "marcación GPS quedó" : "marcaciones GPS quedaron"} '
+            'lejos del cartel. Puede ser mala señal — el plano de la hoja '
+            'siguiente lo muestra en detalle.'
+      ));
+    }
+
+    // Comparación con el período anterior
+    if (comp != null && comp.rondasAnteriores.isNotEmpty) {
+      final rondasAnt = comp.rondasAnteriores.length;
+      final delta = rondas.length - rondasAnt;
+      if (delta != 0) {
+        final direccion = delta > 0 ? 'más' : 'menos';
+        final abs = delta.abs();
+        puntos.add((
+          bueno: delta >= 0,
+          texto: '$abs ${abs == 1 ? "ronda" : "rondas"} $direccion que el período '
+              'anterior (${rondas.length} vs $rondasAnt).'
+        ));
+      }
+    }
+
+    if (puntos.isEmpty) return pw.SizedBox();
+
+    return pw.Container(
+      width: double.infinity,
+      padding: const pw.EdgeInsets.all(12),
+      decoration: pw.BoxDecoration(
+        color: const PdfColor.fromInt(0xFFF4F7FB),
+        border: pw.Border(
+          left: pw.BorderSide(color: _Tinta.grafito, width: 3),
+        ),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text('PUNTOS A DESTACAR',
+              style: pw.TextStyle(
+                fontSize: 9,
+                fontWeight: pw.FontWeight.bold,
+                color: _Tinta.grafito,
+                letterSpacing: 1.4,
+              )),
+          pw.SizedBox(height: 8),
+          for (final p in puntos.take(4)) ...[
+            pw.Row(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Container(
+                  width: 12,
+                  padding: const pw.EdgeInsets.only(top: 1),
+                  child: pw.Text(
+                    p.bueno ? '✓' : '⚠',
+                    style: pw.TextStyle(
+                      fontSize: 10.5,
+                      color: p.bueno ? _Tinta.verde : _Tinta.naranja,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                ),
+                pw.SizedBox(width: 6),
+                pw.Expanded(
+                  child: pw.Text(
+                    p.texto,
+                    style: const pw.TextStyle(
+                        fontSize: 9.5, lineSpacing: 2, color: _Tinta.grafito),
+                  ),
+                ),
+              ],
+            ),
+            pw.SizedBox(height: 5),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // ==========================================================================
+  // FIRMA AL PIE
+  // ==========================================================================
+  // Cierre del informe con la clásica "elaborado por / recibido conforme".
+  // Es lo que hace que el mandante lo firme y lo archive como constancia.
+  // ==========================================================================
+
+  static pw.Widget _firmaAlPie(String? nombreAdmin) {
+    final quien = nombreAdmin ?? 'Tomass Seguridad Privada';
+    return pw.Padding(
+      padding: const pw.EdgeInsets.only(top: 14),
+      child: pw.Row(
+        children: [
+          pw.Expanded(
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Container(
+                  height: 34,
+                  decoration: const pw.BoxDecoration(
+                    border: pw.Border(
+                      bottom: pw.BorderSide(color: _Tinta.grisClaro, width: 0.6),
+                    ),
+                  ),
+                ),
+                pw.SizedBox(height: 3),
+                pw.Text('ELABORADO POR',
+                    style: pw.TextStyle(
+                      fontSize: 7,
+                      color: _Tinta.gris,
+                      letterSpacing: 1.2,
+                      fontWeight: pw.FontWeight.bold,
+                    )),
+                pw.Text(quien,
+                    style: pw.TextStyle(
+                      fontSize: 9,
+                      color: _Tinta.grafito,
+                      fontWeight: pw.FontWeight.bold,
+                    )),
+              ],
+            ),
+          ),
+          pw.SizedBox(width: 32),
+          pw.Expanded(
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Container(
+                  height: 34,
+                  decoration: const pw.BoxDecoration(
+                    border: pw.Border(
+                      bottom: pw.BorderSide(color: _Tinta.grisClaro, width: 0.6),
+                    ),
+                  ),
+                ),
+                pw.SizedBox(height: 3),
+                pw.Text('RECIBIDO CONFORME',
+                    style: pw.TextStyle(
+                      fontSize: 7,
+                      color: _Tinta.gris,
+                      letterSpacing: 1.2,
+                      fontWeight: pw.FontWeight.bold,
+                    )),
+                pw.Text('Administración de la instalación',
+                    style: const pw.TextStyle(
+                      fontSize: 9,
+                      color: _Tinta.grafito,
+                    )),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

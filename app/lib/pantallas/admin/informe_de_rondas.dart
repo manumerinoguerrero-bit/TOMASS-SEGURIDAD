@@ -134,9 +134,27 @@ class _EstadoPestanaRondas extends ConsumerState<PestanaRondas> {
       final perfil = ref.read(perfilProvider).valueOrNull;
       final rangoP = _rangoResuelto; // null si no hay rango personalizado
 
-      // Los tres pedidos van a la vez: el informe tarda lo que tarda el más
-      // lento, y no la suma de los tres.
-      final (rondas, marcas, sectores) = await (
+      // Período actual y período anterior. El anterior sirve para la
+      // sección de comparación en la portada del PDF ("↓ 20% menos rondas
+      // fuera de hora vs período anterior"). El período anterior se calcula
+      // como "los N días antes del desde actual", del mismo largo, para
+      // que la comparación sea justa.
+      final desdeActual = rangoP?.desde ?? DateTime.now().subtract(Duration(days: dias));
+      final hastaActual = rangoP?.hasta ?? DateTime.now();
+      final duracion = hastaActual.difference(desdeActual);
+      final desdeAnterior = desdeActual.subtract(duracion);
+      final hastaAnterior = desdeActual;
+      final diasAnterior = duracion.inDays.clamp(1, 365);
+
+      // 5 pedidos en paralelo: los del período actual + los del anterior.
+      // El informe tarda lo que tarda el más lento, y no la suma de todos.
+      final (
+        rondas,
+        marcas,
+        sectores,
+        rondasAnt,
+        marcasAnt,
+      ) = await (
         servicio.informeDeRondas(
           dias: dias,
           desde: rangoP?.desde,
@@ -148,6 +166,16 @@ class _EstadoPestanaRondas extends ConsumerState<PestanaRondas> {
           hasta: rangoP?.hasta,
         ),
         servicio.sectoresParaElPlano(),
+        servicio.informeDeRondas(
+          dias: diasAnterior,
+          desde: desdeAnterior,
+          hasta: hastaAnterior,
+        ),
+        servicio.detalleDeRondas(
+          dias: diasAnterior,
+          desde: desdeAnterior,
+          hasta: hastaAnterior,
+        ),
       ).wait;
 
       final pdf = await InformeDeRondasPdf.armar(
@@ -158,6 +186,12 @@ class _EstadoPestanaRondas extends ConsumerState<PestanaRondas> {
         sectores: sectores,
         // Lo que exige el contrato de trabajo: una ronda cada 2 horas.
         minutosEntreRondas: 120,
+        nombreAdmin: perfil?.nombreCompleto,
+        comparacion: ComparacionRondas(
+          rondasAnteriores: rondasAnt,
+          marcasAnteriores: marcasAnt,
+          diasAnteriores: diasAnterior,
+        ),
       );
 
       if (!mounted) return;
