@@ -101,15 +101,25 @@ jobs:
       #     para dejar margen para el prefijo "APK #N · ".
       - name: Renombrar el APK y preparar título
         working-directory: app
+        env:
+          # Pasamos el mensaje del commit como VARIABLE DE ENTORNO en vez de
+          # interpolarlo dentro del script con ${{ ... }}. La interpolación
+          # directa inserta el mensaje CON sus saltos de línea reales en
+          # medio del string entre comillas, y esas líneas nuevas hacen que
+          # bash intente parsearlas como código. Los paréntesis y otros
+          # caracteres especiales del mensaje también rompen el parser.
+          # Con env: la variable llega intacta y $COMMIT_MSG es una simple
+          # variable de shell que preserva saltos de línea.
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
         run: |
           FECHA=$(date +'%Y-%m-%d-%H%M')
-          COMMIT=$(echo "${{ github.sha }}" | cut -c1-7)
+          COMMIT=$(echo "$GITHUB_SHA" | cut -c1-7)
           cp build/app/outputs/flutter-apk/app-release.apk \
              tomass-seguridad-${FECHA}-${COMMIT}.apk
 
           # Primera línea del mensaje (título), truncada a 200 chars.
-          TITULO=$(echo "${{ github.event.head_commit.message }}" | head -n 1 | cut -c1-200)
-          echo "RELEASE_TITULO=$TITULO" >> $GITHUB_ENV
+          TITULO=$(printf '%s' "$COMMIT_MSG" | head -n 1 | cut -c1-200)
+          echo "RELEASE_TITULO=$TITULO" >> "$GITHUB_ENV"
 
       # 8 · Publicar el APK como RELEASE (no como artifact)
       #
