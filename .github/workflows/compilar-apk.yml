@@ -90,17 +90,26 @@ jobs:
         working-directory: app
         run: flutter build apk --release
 
-      # 7 · Renombrar el APK con la fecha y el commit
-      #     Antes se llamaba siempre "app-release.apk". Con la fecha en el
-      #     nombre, el guardia ve al instalar cuál es el más nuevo y no hay
-      #     que confiar en el timestamp del archivo.
-      - name: Renombrar el APK
+      # 7 · Renombrar el APK con la fecha y el commit, y armar el título
+      #     del release limitado a 200 chars (GitHub tope los 256).
+      #
+      #     Antes usábamos "${{ github.event.head_commit.message }}" directo
+      #     en el `name` del release, y con mensajes largos GitHub rechazaba
+      #     la creación del release con "name is too long (maximum is 256
+      #     characters)". Ahora tomamos SOLO la primera línea del mensaje
+      #     (que por convención es el título) y la truncamos a 200 chars
+      #     para dejar margen para el prefijo "APK #N · ".
+      - name: Renombrar el APK y preparar título
         working-directory: app
         run: |
           FECHA=$(date +'%Y-%m-%d-%H%M')
           COMMIT=$(echo "${{ github.sha }}" | cut -c1-7)
           cp build/app/outputs/flutter-apk/app-release.apk \
              tomass-seguridad-${FECHA}-${COMMIT}.apk
+
+          # Primera línea del mensaje (título), truncada a 200 chars.
+          TITULO=$(echo "${{ github.event.head_commit.message }}" | head -n 1 | cut -c1-200)
+          echo "RELEASE_TITULO=$TITULO" >> $GITHUB_ENV
 
       # 8 · Publicar el APK como RELEASE (no como artifact)
       #
@@ -121,7 +130,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: apk-${{ github.run_number }}-${{ github.sha }}
-          name: 'APK #${{ github.run_number }} · ${{ github.event.head_commit.message }}'
+          name: 'APK #${{ github.run_number }} · ${{ env.RELEASE_TITULO }}'
           body: |
             APK de Tomass Seguridad compilado automáticamente.
 
