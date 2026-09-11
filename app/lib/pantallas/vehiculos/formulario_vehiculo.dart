@@ -157,8 +157,10 @@ class _EstadoFormulario extends ConsumerState<FormularioVehiculo> {
       ref.invalidate(misVehiculosProvider);
       if (!mounted) return;
 
+      // Capturamos el messenger antes del pop — sino el snack se pierde.
+      final messenger = ScaffoldMessenger.of(context);
       Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         SnackBar(
           content: Text(
             'Registramos el ${FormatoPatente.normalizar(_patente.text)}. '

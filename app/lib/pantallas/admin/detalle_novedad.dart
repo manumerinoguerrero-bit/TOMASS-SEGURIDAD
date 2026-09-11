@@ -69,8 +69,14 @@ class _EstadoDetalleNovedad extends ConsumerState<PantallaDetalleNovedad> {
       ref.invalidate(incidentesAdminProvider);
       ref.invalidate(resumenAdminProvider);
 
+      // Capturamos el ScaffoldMessenger ANTES de pop — después del pop el
+      // widget queda desmontado y ScaffoldMessenger.of(context) buscaría en
+      // un árbol que ya no existe. Con la referencia capturada, el snack
+      // se muestra correctamente en la pantalla anterior (la lista de
+      // novedades) al volver.
+      final messenger = ScaffoldMessenger.of(context);
       Navigator.of(context).pop(true);
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         const SnackBar(
           content: Text('Novedad marcada como resuelta.'),
           backgroundColor: Colores.verde,

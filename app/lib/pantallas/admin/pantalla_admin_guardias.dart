@@ -528,8 +528,12 @@ class _EstadoFormulario extends ConsumerState<_FormularioGuardia> {
             telefono: _telefono.text,
           );
       if (!mounted) return;
+      // Capturamos el messenger ANTES del pop para que el snack aparezca
+      // en la pantalla de arriba (la lista de guardias) y no en el diálogo
+      // que se está cerrando.
+      final messenger = ScaffoldMessenger.of(context);
       Navigator.of(context).pop(true);
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         SnackBar(
           content: Text('Guardia ${_nombre.text} dado de alta.'),
           backgroundColor: Colores.verde,
