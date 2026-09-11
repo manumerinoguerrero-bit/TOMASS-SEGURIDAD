@@ -327,7 +327,8 @@ class ServicioAdmin {
       final filas = await _supabase
           .from('puntos_control')
           .select('id, nombre, descripcion, orden, codigo_qr, latitud, '
-              'longitud, metros_de_tolerancia, ubicacion_tomada_en')
+              'longitud, metros_de_tolerancia, ubicacion_tomada_en, '
+              'punto_acceso_id, puntos_acceso ( nombre )')
           .eq('activo', true)
           .order('orden')
           .timeout(Entorno.esperaMaxima);
@@ -341,12 +342,17 @@ class ServicioAdmin {
   }
 
   /// Crea un sector nuevo. La ubicacion sale del telefono del administrador.
+  ///
+  /// [puntoAccesoId] indica a qué garita pertenece el sector: en un colegio
+  /// con varias garitas, cada guardia hace SUS puntos. Si es null, el sector
+  /// es común a todas las garitas del condominio.
   Future<String> crearPuntoDeControl({
     required String nombre,
     double? latitud,
     double? longitud,
     String? descripcion,
     int tolerancia = 60,
+    String? puntoAccesoId,
   }) async {
     try {
       final id = await _supabase.rpc('crear_punto_control', params: {
@@ -355,8 +361,43 @@ class ServicioAdmin {
         'p_longitud': longitud,
         'p_descripcion': descripcion,
         'p_tolerancia': tolerancia,
+        if (puntoAccesoId != null) 'p_punto_acceso_id': puntoAccesoId,
       }).timeout(Entorno.esperaMaxima);
       return id as String;
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+
+  /// Las garitas ACTIVAS de la instalación actual. Se usan al crear un sector
+  /// para elegir a qué garita pertenece.
+  Future<List<Map<String, dynamic>>> garitasActivas() async {
+    try {
+      final filas = await _supabase
+          .from('puntos_acceso')
+          .select('id, nombre')
+          .eq('activo', true)
+          .order('nombre')
+          .timeout(Entorno.esperaMaxima);
+      return (filas as List)
+          .map((f) => Map<String, dynamic>.from(f))
+          .toList();
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+
+  /// Reasigna un sector existente a otra garita (o lo pasa a común si
+  /// [puntoAccesoId] es null).
+  Future<void> asignarPuntoAGarita({
+    required String puntoId,
+    String? puntoAccesoId,
+  }) async {
+    try {
+      await _supabase.rpc('asignar_punto_control_a_garita', params: {
+        'p_punto_id': puntoId,
+        if (puntoAccesoId != null) 'p_punto_acceso_id': puntoAccesoId,
+      }).timeout(Entorno.esperaMaxima);
     } catch (falla) {
       throw Traductor.traducir(falla);
     }

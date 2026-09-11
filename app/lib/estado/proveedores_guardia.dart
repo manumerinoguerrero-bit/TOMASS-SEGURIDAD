@@ -207,9 +207,17 @@ final miRondaAbiertaProvider = FutureProvider<RondaAbierta?>((ref) {
 });
 
 /// Los carteles del recorrido, marcando cuáles ya pasó en la ronda en curso.
+///
+/// Filtro por garita: si el guardia abrió turno en una garita puntual, solo
+/// ve los sectores de esa garita (y los comunes). Si cubre todo el
+/// condominio (cubroTodo) o el condominio es chico, ve todos.
 final puntosDeControlProvider = FutureProvider<List<PuntoControl>>((ref) async {
   final ronda = await ref.watch(miRondaAbiertaProvider.future);
-  return ref.watch(servicioGuardiaProvider).puntosDeControl(rondaId: ronda?.id);
+  final miPuesto = ref.watch(miPuestoProvider);
+  return ref.watch(servicioGuardiaProvider).puntosDeControl(
+        rondaId: ronda?.id,
+        puntoAccesoId: miPuesto,
+      );
 });
 
 /// ¿En esta instalación se hacen rondas?

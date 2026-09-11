@@ -475,6 +475,8 @@ class PuntoControlAdmin {
     this.latitud,
     this.longitud,
     this.ubicacionTomadaEn,
+    this.puntoAccesoId,
+    this.puntoAccesoNombre,
   });
 
   final String id;
@@ -492,24 +494,35 @@ class PuntoControlAdmin {
   final double? longitud;
   final DateTime? ubicacionTomadaEn;
 
+  /// Garita a la que le corresponde este sector. Null = común a todas.
+  /// En un colegio con varias garitas, cada guardia hace SUS puntos y no
+  /// se pisa el recorrido con el otro.
+  final String? puntoAccesoId;
+  final String? puntoAccesoNombre;
+
   /// Sin ubicación, el sistema solo puede demostrar que alguien tuvo el código
   /// del cartel; con ella demuestra que estuvo ahí.
   bool get tieneUbicacion => latitud != null && longitud != null;
 
-  factory PuntoControlAdmin.desdeMapa(Map<String, dynamic> m) =>
-      PuntoControlAdmin(
-        id: m['id'] as String,
-        nombre: (m['nombre'] ?? '') as String,
-        orden: (m['orden'] ?? 0) as int,
-        codigoQr: (m['codigo_qr'] ?? '') as String,
-        metrosDeTolerancia: (m['metros_de_tolerancia'] ?? 60) as int,
-        descripcion: m['descripcion'] as String?,
-        latitud: (m['latitud'] as num?)?.toDouble(),
-        longitud: (m['longitud'] as num?)?.toDouble(),
-        ubicacionTomadaEn: m['ubicacion_tomada_en'] == null
-            ? null
-            : DateTime.parse(m['ubicacion_tomada_en'] as String),
-      );
+  factory PuntoControlAdmin.desdeMapa(Map<String, dynamic> m) {
+    final garita = m['puntos_acceso'];
+    return PuntoControlAdmin(
+      id: m['id'] as String,
+      nombre: (m['nombre'] ?? '') as String,
+      orden: (m['orden'] ?? 0) as int,
+      codigoQr: (m['codigo_qr'] ?? '') as String,
+      metrosDeTolerancia: (m['metros_de_tolerancia'] ?? 60) as int,
+      descripcion: m['descripcion'] as String?,
+      latitud: (m['latitud'] as num?)?.toDouble(),
+      longitud: (m['longitud'] as num?)?.toDouble(),
+      ubicacionTomadaEn: m['ubicacion_tomada_en'] == null
+          ? null
+          : DateTime.parse(m['ubicacion_tomada_en'] as String),
+      puntoAccesoId: m['punto_acceso_id'] as String?,
+      puntoAccesoNombre:
+          garita is Map ? garita['nombre'] as String? : null,
+    );
+  }
 }
 
 // ============================================================================

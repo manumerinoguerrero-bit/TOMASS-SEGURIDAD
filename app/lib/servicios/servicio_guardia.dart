@@ -280,14 +280,29 @@ class ServicioGuardia {
 
   /// Los carteles de esta instalacion, con la marca de cuales ya se pasaron en
   /// la ronda que esta abierta.
-  Future<List<PuntoControl>> puntosDeControl({String? rondaId}) async {
+  ///
+  /// Filtro por garita: si el guardia esta cubriendo una garita puntual
+  /// ([puntoAccesoId] no null), solo trae los sectores asignados a esa
+  /// garita mas los COMUNES (punto_acceso_id = NULL). En los colegios cada
+  /// garita hace su lado del recorrido; en condominios chicos con una sola
+  /// garita, todos los puntos son comunes y se ven igual.
+  Future<List<PuntoControl>> puntosDeControl({
+    String? rondaId,
+    String? puntoAccesoId,
+  }) async {
     try {
-      final filas = await _supabase
+      var consulta = _supabase
           .from('puntos_control')
           .select('id, nombre, orden, descripcion')
-          .eq('activo', true)
-          .order('orden')
-          .timeout(Entorno.esperaMaxima);
+          .eq('activo', true);
+      if (puntoAccesoId != null) {
+        // Filtro OR: asignados a esa garita O sin garita (comunes).
+        consulta = consulta.or(
+          'punto_acceso_id.eq.$puntoAccesoId,punto_acceso_id.is.null',
+        );
+      }
+      final filas =
+          await consulta.order('orden').timeout(Entorno.esperaMaxima);
 
       final puntos = (filas as List)
           .map((f) => PuntoControl.desdeMapa(Map<String, dynamic>.from(f)))

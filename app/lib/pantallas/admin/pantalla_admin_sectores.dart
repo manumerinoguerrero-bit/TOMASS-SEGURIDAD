@@ -77,8 +77,8 @@ class _EstadoSectores extends ConsumerState<PantallaAdminSectores> {
     if (!mounted) return;
     setState(() => _trabajando = false);
 
-    final nombre = await _pedirNombre();
-    if (nombre == null || !mounted) return;
+    final elegido = await _pedirNombre();
+    if (elegido == null || !mounted) return;
 
     if (donde == null) {
       final igual = await _preguntar(
@@ -93,7 +93,7 @@ class _EstadoSectores extends ConsumerState<PantallaAdminSectores> {
       if (igual != true || !mounted) return;
 
       setState(() => _trabajando = true);
-      await _crear(nombre, null);
+      await _crear(elegido.nombre, null, elegido.puntoAccesoId);
       return;
     }
 
@@ -113,10 +113,10 @@ class _EstadoSectores extends ConsumerState<PantallaAdminSectores> {
     }
 
     setState(() => _trabajando = true);
-    await _crear(nombre, donde);
+    await _crear(elegido.nombre, donde, elegido.puntoAccesoId);
   }
 
-  Future<void> _crear(String nombre, Ubicacion? donde) async {
+  Future<void> _crear(String nombre, Ubicacion? donde, String? puntoAccesoId) async {
     try {
       await ref.read(servicioAdminProvider).crearPuntoDeControl(
             nombre: nombre,
@@ -127,6 +127,7 @@ class _EstadoSectores extends ConsumerState<PantallaAdminSectores> {
             tolerancia: donde == null
                 ? 60
                 : (donde.metrosDeError * 2).clamp(60, 200).round(),
+            puntoAccesoId: puntoAccesoId,
           );
       if (!mounted) return;
       ref.invalidate(puntosDeControlAdminProvider);
@@ -202,13 +203,22 @@ class _EstadoSectores extends ConsumerState<PantallaAdminSectores> {
   // AYUDANTES DE PANTALLA
   // ==========================================================================
 
-  Future<String?> _pedirNombre({String? actual}) async {
-    // ⚠️ El controller del TextField vive DENTRO del State del diálogo, no
-    //    afuera. Antes lo creábamos acá y lo disponíamos después del await, y
-    //    eso volaba la app con "_dependents.isEmpty is not true": Flutter
-    //    anima la salida del AlertDialog, y mientras la animación corre el
-    //    TextField todavía está en el árbol referenciando el controller. Si lo
-    //    disponés en ese momento, el próximo frame revienta.
+  /// Pide nombre + garita para un sector NUEVO.
+  ///
+  /// El dropdown de garita solo aparece si el condominio tiene más de una
+  /// (colegios con Garita 1 / Garita 2 / etc). En condominios chicos con una
+  /// sola garita, no tiene sentido preguntar y se salta el paso.
+  Future<({String nombre, String? puntoAccesoId})?>
+      _pedirNombre() async {
+    return showDialog<({String nombre, String? puntoAccesoId})>(
+      context: context,
+      builder: (_) => const _DialogoNombreYGarita(),
+    );
+  }
+
+  /// Pide solo un nombre nuevo. Se usa al RENOMBRAR un sector existente:
+  /// el punto ya tiene su garita, no queremos cambiarla acá por accidente.
+  Future<String?> _pedirRenombrar({required String actual}) async {
     return showDialog<String>(
       context: context,
       builder: (_) => _DialogoNombre(actual: actual),
@@ -315,7 +325,7 @@ class _EstadoSectores extends ConsumerState<PantallaAdminSectores> {
                   instalacion: instalacion,
                   alUbicar: () => _ubicarAca(lista[i]),
                   alRenombrar: () async {
-                    final n = await _pedirNombre(actual: lista[i].nombre);
+                    final n = await _pedirRenombrar(actual: lista[i].nombre);
                     if (n == null || !mounted) return;
                     try {
                       await ref
@@ -351,6 +361,30 @@ class _EstadoSectores extends ConsumerState<PantallaAdminSectores> {
                       }
                     }
                   },
+                  alCambiarGarita: () async {
+                    final nueva = await showDialog<({String? id})?>(
+                      context: context,
+                      builder: (_) => _DialogoCambiarGarita(
+                        actualId: lista[i].puntoAccesoId,
+                      ),
+                    );
+                    if (nueva == null || !mounted) return;
+                    try {
+                      await ref
+                          .read(servicioAdminProvider)
+                          .asignarPuntoAGarita(
+                            puntoId: lista[i].id,
+                            puntoAccesoId: nueva.id,
+                          );
+                      if (!mounted) return;
+                      ref.invalidate(puntosDeControlAdminProvider);
+                      _avisar('Sector reasignado.');
+                    } catch (falla) {
+                      if (mounted) {
+                        _avisar(Traductor.traducir(falla).mensaje, malo: true);
+                      }
+                    }
+                  },
                 ),
             ],
           );
@@ -370,6 +404,230 @@ class _EstadoSectores extends ConsumerState<PantallaAdminSectores> {
 // controller queda muerto mientras el TextField todavía se está animando fuera
 // del árbol.
 // ============================================================================
+
+// ============================================================================
+// DIÁLOGO "SECTOR NUEVO" — con nombre + a qué garita pertenece
+// ============================================================================
+// Se usa solo para CREAR. Al renombrar un sector existente se usa el otro
+// diálogo más simple, para no cambiar por accidente la asignación de garita.
+// ============================================================================
+
+class _DialogoNombreYGarita extends ConsumerStatefulWidget {
+  const _DialogoNombreYGarita();
+
+  @override
+  ConsumerState<_DialogoNombreYGarita> createState() =>
+      _EstadoDialogoNombreYGarita();
+}
+
+class _EstadoDialogoNombreYGarita extends ConsumerState<_DialogoNombreYGarita> {
+  final _campo = TextEditingController();
+  String? _garitaId;
+  late Future<List<Map<String, dynamic>>> _garitas;
+
+  @override
+  void initState() {
+    super.initState();
+    _garitas = ref.read(servicioAdminProvider).garitasActivas();
+  }
+
+  @override
+  void dispose() {
+    _campo.dispose();
+    super.dispose();
+  }
+
+  void _aceptar() {
+    final texto = _campo.text.trim();
+    if (texto.length < 3) return;
+    Navigator.pop(context, (nombre: texto, puntoAccesoId: _garitaId));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palabras = ref.watch(palabrasProvider);
+    return AlertDialog(
+      title: const Text('Sector nuevo'),
+      content: FutureBuilder<List<Map<String, dynamic>>>(
+        future: _garitas,
+        builder: (context, snap) {
+          final garitas = snap.data ?? const [];
+          // Si hay una sola garita en el condominio, no tiene sentido preguntar
+          // — todos los puntos son de esa. Se salta el dropdown.
+          final mostrarDropdown = garitas.length > 1;
+
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Ponele un nombre que el guardia reconozca de noche, '
+                'caminando. "Portón del fondo" sirve; "Punto 3" no.',
+                style: const TextStyle(fontSize: 13, height: 1.45),
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: _campo,
+                autofocus: true,
+                textCapitalization: TextCapitalization.sentences,
+                onSubmitted: (_) => _aceptar(),
+                decoration: InputDecoration(
+                  labelText: 'Nombre del sector',
+                  hintText: palabras.tipo == 'colegio'
+                      ? 'Ej: Patio de básica'
+                      : 'Ej: Portón del fondo',
+                ),
+              ),
+              if (mostrarDropdown) ...[
+                const SizedBox(height: 16),
+                const Text('¿A QUÉ GARITA CORRESPONDE?',
+                    style: TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w800,
+                      color: Colores.textoSuave,
+                      letterSpacing: 0.7,
+                    )),
+                const SizedBox(height: 6),
+                DropdownButtonFormField<String?>(
+                  initialValue: _garitaId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    prefixIcon: Icon(Icons.meeting_room_outlined),
+                    isDense: true,
+                  ),
+                  items: [
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('Común a todas las garitas'),
+                    ),
+                    for (final g in garitas)
+                      DropdownMenuItem<String?>(
+                        value: g['id'] as String,
+                        child: Text(g['nombre'] as String,
+                            overflow: TextOverflow.ellipsis),
+                      ),
+                  ],
+                  onChanged: (v) => setState(() => _garitaId = v),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'El sector solo lo va a hacer el guardia que abra turno '
+                  'en esa garita. Elegí "común" si cualquier guardia lo puede '
+                  'incluir en su recorrido.',
+                  style: TextStyle(
+                      fontSize: 11, color: Colores.textoSuave, height: 1.35),
+                ),
+              ],
+            ],
+          );
+        },
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: _aceptar,
+          style: FilledButton.styleFrom(backgroundColor: Colores.grafito),
+          child: const Text('Siguiente'),
+        ),
+      ],
+    );
+  }
+}
+
+// ============================================================================
+// DIÁLOGO "CAMBIAR DE GARITA"
+// ============================================================================
+// Reasigna un sector existente a otra garita, o lo pasa a común. Al confirmar
+// devuelve el nuevo id (o null si eligió "común").
+// ============================================================================
+
+class _DialogoCambiarGarita extends ConsumerStatefulWidget {
+  const _DialogoCambiarGarita({this.actualId});
+  final String? actualId;
+
+  @override
+  ConsumerState<_DialogoCambiarGarita> createState() =>
+      _EstadoDialogoCambiarGarita();
+}
+
+class _EstadoDialogoCambiarGarita
+    extends ConsumerState<_DialogoCambiarGarita> {
+  late String? _eleccion = widget.actualId;
+  late Future<List<Map<String, dynamic>>> _garitas;
+
+  @override
+  void initState() {
+    super.initState();
+    _garitas = ref.read(servicioAdminProvider).garitasActivas();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Cambiar de garita'),
+      content: FutureBuilder<List<Map<String, dynamic>>>(
+        future: _garitas,
+        builder: (context, snap) {
+          if (!snap.hasData) {
+            return const SizedBox(
+              height: 60,
+              child: Center(child: CircularProgressIndicator()),
+            );
+          }
+          final garitas = snap.data!;
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'El sector solo lo va a hacer el guardia que abra turno '
+                'en esa garita. Común quiere decir que cualquier guardia '
+                'lo puede incluir en su recorrido.',
+                style: TextStyle(fontSize: 12.5, height: 1.4),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String?>(
+                initialValue: _eleccion,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  prefixIcon: Icon(Icons.meeting_room_outlined),
+                  isDense: true,
+                ),
+                items: [
+                  const DropdownMenuItem<String?>(
+                    value: null,
+                    child: Text('Común a todas las garitas'),
+                  ),
+                  for (final g in garitas)
+                    DropdownMenuItem<String?>(
+                      value: g['id'] as String,
+                      child: Text(g['nombre'] as String,
+                          overflow: TextOverflow.ellipsis),
+                    ),
+                ],
+                onChanged: (v) => setState(() => _eleccion = v),
+              ),
+            ],
+          );
+        },
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, (id: _eleccion)),
+          style: FilledButton.styleFrom(backgroundColor: Colores.grafito),
+          child: const Text('Guardar'),
+        ),
+      ],
+    );
+  }
+}
 
 class _DialogoNombre extends ConsumerStatefulWidget {
   const _DialogoNombre({this.actual});
@@ -512,6 +770,7 @@ class _Sector extends StatelessWidget {
     required this.alUbicar,
     required this.alRenombrar,
     required this.alDarDeBaja,
+    required this.alCambiarGarita,
   });
 
   final PuntoControlAdmin punto;
@@ -520,6 +779,7 @@ class _Sector extends StatelessWidget {
   final VoidCallback alUbicar;
   final VoidCallback alRenombrar;
   final VoidCallback alDarDeBaja;
+  final VoidCallback alCambiarGarita;
 
   @override
   Widget build(BuildContext context) {
@@ -545,15 +805,43 @@ class _Sector extends StatelessWidget {
         ),
         title: Text('$numero · ${punto.nombre}',
             style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700)),
-        subtitle: Text(
-          ubicado
-              ? 'Ubicado · tolerancia ${punto.metrosDeTolerancia} m'
-              : 'Sin ubicación',
-          style: TextStyle(
-            fontSize: 12,
-            color: ubicado ? Colores.textoSuave : Colores.naranjaOscuro,
-            fontWeight: ubicado ? FontWeight.normal : FontWeight.w600,
-          ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              ubicado
+                  ? 'Ubicado · tolerancia ${punto.metrosDeTolerancia} m'
+                  : 'Sin ubicación',
+              style: TextStyle(
+                fontSize: 12,
+                color: ubicado ? Colores.textoSuave : Colores.naranjaOscuro,
+                fontWeight: ubicado ? FontWeight.normal : FontWeight.w600,
+              ),
+            ),
+            // Garita a la que pertenece — clave para saber quién lo hace en
+            // los colegios con varias garitas. Si es común a todas, no se
+            // muestra chip: en condominios chicos con una sola garita, no
+            // agrega información.
+            if (punto.puntoAccesoNombre != null) ...[
+              const SizedBox(height: 3),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colores.grafito.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  punto.puntoAccesoNombre!,
+                  style: const TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                    color: Colores.grafito,
+                  ),
+                ),
+              ),
+            ],
+          ],
         ),
         trailing: PopupMenuButton<String>(
           icon: const Icon(Icons.more_vert_rounded, size: 20),
@@ -565,6 +853,8 @@ class _Sector extends StatelessWidget {
                 alUbicar();
               case 'nombre':
                 alRenombrar();
+              case 'garita':
+                alCambiarGarita();
               case 'baja':
                 alDarDeBaja();
             }
@@ -595,6 +885,15 @@ class _Sector extends StatelessWidget {
                 dense: true,
                 leading: Icon(Icons.edit_outlined, size: 19),
                 title: Text('Cambiar el nombre'),
+              ),
+            ),
+            PopupMenuItem(
+              value: 'garita',
+              child: ListTile(
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                leading: Icon(Icons.meeting_room_outlined, size: 19),
+                title: Text('Cambiar de garita'),
               ),
             ),
             PopupMenuItem(
