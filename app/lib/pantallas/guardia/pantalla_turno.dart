@@ -39,11 +39,14 @@ class PantallaTurno extends ConsumerStatefulWidget {
 }
 
 class _EstadoTurno extends ConsumerState<PantallaTurno> {
-  /// null = todavía no eligió. Cadena vacía = eligió "cubro todo".
-  /// Cualquier otra cosa = el id del puesto puntual.
-  String? _eleccion = _cubroTodo;
-
-  static const _cubroTodo = '';
+  /// null = todavía no eligió. Cualquier otra cosa = el id del puesto puntual.
+  ///
+  /// Antes existía la opción "Cubro todo el condominio" (cadena vacía). Se
+  /// sacó porque en la operación real cada guardia hace SU garita puntual —
+  /// las rondas se filtran por garita, el mapa en vivo muestra la garita en
+  /// la que está, y los informes se pueden desglosar. Con "cubro todo" el
+  /// guardia veía TODAS las rondas del condominio y nada se le podía asignar.
+  String? _eleccion;
 
   bool _trabajando = false;
   ErrorAmigable? _problema;
@@ -128,7 +131,7 @@ class _EstadoTurno extends ConsumerState<PantallaTurno> {
       await ref.read(servicioGuardiaProvider).abrirTurno(
             condominioId: perfil.condominioId,
             // Vacío significa "cubro todo el condominio"
-            puntoAccesoId: _eleccion == _cubroTodo ? null : _eleccion,
+            puntoAccesoId: _eleccion,
             fotoUrl: rutaFoto,
             geoLat: donde?.latitud,
             geoLng: donde?.longitud,
@@ -154,7 +157,7 @@ class _EstadoTurno extends ConsumerState<PantallaTurno> {
       final idAnterior = anterior?.valueOrNull?.condominioId;
       final idActual = actual.valueOrNull?.condominioId;
       if (idAnterior != null && idActual != null && idAnterior != idActual) {
-        setState(() => _eleccion = _cubroTodo);
+        setState(() => _eleccion = null);
       }
     });
 
@@ -400,50 +403,14 @@ class _Eleccion extends ConsumerWidget {
               );
             }
 
+            // El guardia elige OBLIGATORIAMENTE una garita puntual. Antes
+            // había una tarjeta "Cubro todo el condominio" arriba, pero en
+            // la operación real cada guardia trabaja en su garita: las
+            // rondas se filtran por garita, el mapa muestra dónde está, y
+            // los informes desglosan por garita. Con "cubro todo" el
+            // guardia veía rondas de otros y nada se le podía asignar.
             return Column(
               children: [
-                // La opción normal va primera y destacada: en la mayoría de los
-                // condominios hay UN SOLO guardia y tiene que cubrir las dos
-                // entradas al mismo tiempo.
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: _TarjetaCubroTodo(
-                    elegido: elegido == '',
-                    cuantasEntradas: lista.length,
-                    alTocar: trabajando ? null : () => alElegir(''),
-                  ),
-                ),
-
-                if (lista.isNotEmpty) ...[
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Divider(
-                            color: Colors.white.withValues(alpha: 0.2),
-                          ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 10),
-                          child: Text(
-                            'o solo una entrada',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Colors.white.withValues(alpha: 0.5),
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          child: Divider(
-                            color: Colors.white.withValues(alpha: 0.2),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-
                 for (final puesto in lista)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 10),
@@ -530,122 +497,6 @@ class _Eleccion extends ConsumerWidget {
   }
 }
 
-// ============================================================================
-// "Cubro todo el condominio" — la opción normal
-// ============================================================================
-// Va primera y destacada porque es lo que pasa en la mayoría de los
-// condominios: hay UN SOLO guardia y tiene que atender la entrada peatonal y la
-// vehicular al mismo tiempo.
-//
-// Con la opción de un puesto puntual, ese guardia quedaría ciego a la mitad: si
-// elige la vehicular no se entera de los peatones, y si elige la peatonal no ve
-// los autos esperando en la barrera.
-// ============================================================================
-
-class _TarjetaCubroTodo extends ConsumerWidget {
-  const _TarjetaCubroTodo({
-    required this.elegido,
-    required this.cuantasEntradas,
-    required this.alTocar,
-  });
-
-  final bool elegido;
-  final int cuantasEntradas;
-  final VoidCallback? alTocar;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final palabras = ref.watch(palabrasProvider);
-
-    return GestureDetector(
-      onTap: alTocar,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 140),
-        padding: const EdgeInsets.all(15),
-        decoration: BoxDecoration(
-          color: Colores.superficie,
-          borderRadius: BorderRadius.circular(Medidas.redondeo),
-          border: Border.all(
-            color: elegido ? Colores.verde : Colors.transparent,
-            width: 2.5,
-          ),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: Colores.verde.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(11),
-              ),
-              child: const Icon(Icons.shield_rounded,
-                  size: 25, color: Colores.verdeOscuro),
-            ),
-            const SizedBox(width: 13),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Flexible(
-                        child: Text(
-                          'Todo ${palabras.laInstalacion}',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -0.2,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 7),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 7, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colores.verde.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: const Text(
-                          'LO NORMAL',
-                          style: TextStyle(
-                            fontSize: 8.5,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.6,
-                            color: Colores.verdeOscuro,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    cuantasEntradas <= 1
-                        ? 'Recibís los avisos de todas las entradas'
-                        : 'Recibís los avisos de las $cuantasEntradas entradas: '
-                            'peatones y autos al mismo tiempo',
-                    style: const TextStyle(
-                      fontSize: 12.5,
-                      height: 1.4,
-                      color: Colores.textoSuave,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            AnimatedOpacity(
-              duration: const Duration(milliseconds: 140),
-              opacity: elegido ? 1 : 0,
-              child: const Icon(Icons.check_circle_rounded,
-                  color: Colores.verde, size: 26),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 class _TarjetaPuesto extends StatelessWidget {
   const _TarjetaPuesto({
