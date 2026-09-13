@@ -125,60 +125,6 @@ class ServicioGuardia {
   /// Asi el servidor reconoce el reintento y no anota dos veces a la misma
   /// persona.
   // ==========================================================================
-  // BUSCAR UN AUTO POR SU PATENTE
-  // ==========================================================================
-  // EL CASO REAL DE LA GARITA
-  //
-  //   Hay un auto estacionado donde no corresponde, o uno que el guardia no
-  //   reconoce dando vueltas adentro. Con la patente sabe de quien es y lo
-  //   llama, en vez de tener que buscar a alguien que lo conozca.
-  //
-  //   Y si la patente NO aparece, eso tambien es informacion: es un auto que no
-  //   esta registrado.
-  //
-  // POR QUE BUSCA POR PEDAZOS Y NO POR LA PATENTE COMPLETA
-  //
-  //   Porque el guardia la lee de lejos, de noche, muchas veces desde un angulo
-  //   malo. Si tuviera que escribirla entera y exacta, la mitad de las busquedas
-  //   no encontraria nada aunque el auto este registrado. Con tres letras
-  //   alcanza para achicar la lista.
-  // ==========================================================================
-
-  Future<List<VehiculoBuscado>> buscarPorPatente(String texto) async {
-    // Se sacan guiones y espacios: el guardia escribe "AB123" y en la base
-    // puede estar guardada como "AB-123".
-    final limpia = texto.replaceAll(RegExp(r'[^A-Za-z0-9]'), '').toUpperCase();
-    if (limpia.length < 3) return const [];
-
-    try {
-      final filas = await _supabase
-          .from('vehiculos')
-          .select('''
-            id, patente, marca, modelo, color, anio, estado, foto_url,
-            usuarios!vehiculos_residente_id_fkey (
-              nombre_completo, telefono,
-              unidades!usuarios_unidad_id_fkey ( numero, torre )
-            )
-          ''')
-          .order('patente')
-          .limit(60)
-          .timeout(Entorno.esperaMaxima);
-
-      // El filtro se hace aca y no en el servidor a proposito: las patentes
-      // estan guardadas con guion y el buscador tiene que encontrarlas igual
-      // sin el. Son pocos autos por instalacion, asi que traerlos y filtrarlos
-      // es mas simple y mas confiable que armar la consulta en el servidor.
-      return (filas as List)
-          .map((f) => VehiculoBuscado.desdeMapa(Map<String, dynamic>.from(f)))
-          .where((v) =>
-              v.patente.replaceAll(RegExp(r'[^A-Z0-9]'), '').contains(limpia))
-          .toList();
-    } catch (falla) {
-      throw Traductor.traducir(falla);
-    }
-  }
-
-  // ==========================================================================
   // VISITAS QUE LLEGAN SIN AVISO
   // ==========================================================================
   // EL CASO REAL DE LA GARITA DE UN CONDOMINIO

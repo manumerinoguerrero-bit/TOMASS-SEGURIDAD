@@ -25,14 +25,12 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../config/tema.dart';
 import '../../estado/proveedores.dart';
 import '../../estado/proveedores_guardia.dart';
 import '../../modelos/admin.dart';
 import '../../nucleo/errores.dart';
-import '../../navegacion/rutas.dart';
 import '../../nucleo/formato.dart';
 
 // ============================================================================
@@ -175,8 +173,6 @@ class MenuDelGuardia extends ConsumerWidget {
       onSelected: (elegido) {
         // El menú se cierra antes de abrir el cartel de confirmación
         switch (elegido) {
-          case 'patente':
-            context.push(Rutas.buscarPatente);
           case 'turno':
             AccionesDeTurno.cerrarTurno(context, ref);
           case 'sesion':
@@ -210,21 +206,6 @@ class MenuDelGuardia extends ConsumerWidget {
                 style: const TextStyle(fontSize: 11.5, color: Colores.textoSuave),
               ),
             ],
-          ),
-        ),
-        const PopupMenuDivider(),
-
-        // La herramienta que el guardia usa varias veces por turno: saber de
-        // quién es un auto. Va acá y no en la barra de abajo porque esa ya
-        // tiene siete pestañas, y sumar otra las volvería ilegibles.
-        const PopupMenuItem<String>(
-          value: 'patente',
-          child: ListTile(
-            contentPadding: EdgeInsets.zero,
-            dense: true,
-            leading: Icon(Icons.pin_rounded, size: 20),
-            title: Text('¿De quién es este auto?'),
-            subtitle: Text('Buscar por patente'),
           ),
         ),
         const PopupMenuDivider(),

@@ -34,7 +34,6 @@ import '../pantallas/acceso/pantalla_resultado.dart';
 import '../pantallas/guardia/contenedor_guardia.dart';
 import '../pantallas/guardia/pantalla_acceso_manual.dart';
 import '../pantallas/guardia/pantalla_autos_esperando.dart';
-import '../pantallas/guardia/pantalla_buscar_patente.dart';
 import '../pantallas/guardia/pantalla_escaner_guardia.dart';
 import '../pantallas/guardia/pantalla_novedades.dart';
 import '../pantallas/guardia/pantalla_panel.dart';
@@ -83,7 +82,6 @@ class Rutas {
   static const accesoManual = '/anotar-ingreso';
   static const rondas = '/rondas';
   static const visitasGuardia = '/visitas-porteria';
-  static const buscarPatente = '/buscar-patente';
 
   // Administrador
   static const adminInicio = '/administracion';
@@ -281,10 +279,6 @@ final rutasProvider = Provider<GoRouter>((ref) {
             builder: (context, estado) => const PantallaPorteria(),
           ),
           GoRoute(
-            path: Rutas.buscarPatente,
-            builder: (context, estado) => const PantallaBuscarPatente(),
-          ),
-          GoRoute(
             path: Rutas.visitasGuardia,
             builder: (context, estado) => const PantallaVisitasGuardia(),
           ),
@@ -358,7 +352,6 @@ const _dePorteria = {
   Rutas.accesoManual,
   Rutas.rondas,
   Rutas.visitasGuardia,
-  Rutas.buscarPatente,
   Rutas.autosEsperando,
   Rutas.escanerGuardia,
   Rutas.paquetesGuardia,
