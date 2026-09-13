@@ -1007,6 +1007,29 @@ class _EstadoEntrega extends ConsumerState<_HojaDeEntrega> {
   bool _loRetiraOtro = false;
   bool _guardando = false;
   ErrorAmigable? _problema;
+  // Nombres que ya retiraron paquetes de este residente en el pasado,
+  // ordenados por frecuencia. Se cargan al abrir la hoja y sirven de chips
+  // para que el guardia no reescriba el mismo nombre cada vez.
+  List<String> _sugerenciasRetiro = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarSugerencias();
+  }
+
+  Future<void> _cargarSugerencias() async {
+    final residenteId = widget.paquete['residente_id'] as String?;
+    if (residenteId == null || residenteId.isEmpty) return;
+    try {
+      final nombres = await ref
+          .read(servicioGuardiaProvider)
+          .quienSueleRetirar(residenteId: residenteId);
+      if (mounted) setState(() => _sugerenciasRetiro = nombres);
+    } catch (_) {
+      // Silencioso: sin sugerencias el guardia escribe a mano.
+    }
+  }
 
   @override
   void dispose() {
@@ -1138,6 +1161,52 @@ class _EstadoEntrega extends ConsumerState<_HojaDeEntrega> {
 
               if (_loRetiraOtro) ...[
                 const SizedBox(height: 4),
+                if (_sugerenciasRetiro.isNotEmpty) ...[
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 6, top: 2),
+                    child: Text(
+                      'YA RETIRARON ANTES ACÁ',
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.2,
+                        color: Colores.textoSuave,
+                      ),
+                    ),
+                  ),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: -4,
+                    children: [
+                      for (final nombre in _sugerenciasRetiro)
+                        ActionChip(
+                          label: Text(
+                            nombre,
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          avatar: const Icon(Icons.history_rounded, size: 16),
+                          onPressed: _guardando
+                              ? null
+                              : () {
+                                  _retiradoPor.text = nombre;
+                                  _retiradoPor.selection =
+                                      TextSelection.collapsed(
+                                          offset: nombre.length);
+                                },
+                          backgroundColor:
+                              Colores.naranja.withValues(alpha: 0.08),
+                          side: BorderSide(
+                            color: Colores.naranja.withValues(alpha: 0.35),
+                          ),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                ],
                 TextField(
                   controller: _retiradoPor,
                   enabled: !_guardando,

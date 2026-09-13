@@ -717,6 +717,46 @@ class ServicioGuardia {
     }
   }
 
+  /// Quién suele retirar los paquetes de este residente, basado en el
+  /// historial de entregas anteriores.
+  ///
+  /// Cuando el guardia va a entregar un paquete y activa "lo retira otra
+  /// persona", en vez de escribir el nombre desde cero le aparecen las
+  /// personas que ya retiraron antes en esta misma casa, ordenadas por
+  /// frecuencia. En un condominio, después de dos o tres entregas ya se
+  /// forma el patrón (la nana los martes, la señora en la tarde).
+  Future<List<String>> quienSueleRetirar({required String residenteId}) async {
+    try {
+      final filas = await _supabase
+          .from('paquetes')
+          .select('retirado_por')
+          .eq('residente_id', residenteId)
+          .eq('estado', 'entregado')
+          .not('retirado_por', 'is', null)
+          .order('entregado_en', ascending: false)
+          .limit(30)
+          .timeout(Entorno.esperaMaxima);
+
+      // Se agrupa por nombre y se cuentan las apariciones en el cliente:
+      // son pocas filas por residente y no vale la pena una función en el
+      // servidor.
+      final conteos = <String, int>{};
+      for (final f in (filas as List)) {
+        final nombre = ((f['retirado_por'] as String?) ?? '').trim();
+        if (nombre.isEmpty) continue;
+        conteos.update(nombre, (v) => v + 1, ifAbsent: () => 1);
+      }
+
+      final ordenado = conteos.entries.toList()
+        ..sort((a, b) => b.value.compareTo(a.value));
+      return ordenado.take(5).map((e) => e.key).toList();
+    } catch (_) {
+      // Una sugerencia que falla no vale un cartel de error: el guardia
+      // igual puede escribir el nombre a mano.
+      return const [];
+    }
+  }
+
   /// Recibe un paquete. La foto es obligatoria: es el respaldo si después
   /// alguien reclama que llegó dañado.
   ///
@@ -852,25 +892,73 @@ class ServicioGuardia {
     }
   }
 
-  /// Busca residentes por nombre o número de unidad, para asignarles un paquete.
+  /// Busca residentes por nombre, cédula o número de unidad, para asignarles
+  /// un paquete.
+  ///
+  /// Casi siempre el repartidor le dice al guardia la unidad, no el nombre:
+  /// "es para la casa 12", "torre B departamento 401". Por eso además de
+  /// buscar por nombre y cédula, también busca por número y torre de la
+  /// unidad. Si en la unidad hay varios residentes (papá, mamá, hijos)
+  /// aparecen todos para que el guardia elija a cuál le va el paquete.
   Future<List<Map<String, dynamic>>> buscarResidentes(String texto) async {
     final busqueda = texto.trim();
     if (busqueda.length < 2) return const [];
 
+    // Se hace la selección con una constante porque se usa dos veces (la
+    // búsqueda por nombre y la búsqueda por unidad). Así no se puede
+    // desincronizar entre ambas ramas.
+    const seleccion = '''
+      id, nombre_completo, telefono, foto_url, unidad_id,
+      unidades!usuarios_unidad_id_fkey ( numero, torre )
+    ''';
+
     try {
-      final filas = await _supabase
+      // 1) Por nombre o cédula del residente.
+      final porNombre = await _supabase
           .from('usuarios')
-          .select('''
-            id, nombre_completo, telefono, foto_url, unidad_id,
-            unidades!usuarios_unidad_id_fkey ( numero, torre )
-          ''')
+          .select(seleccion)
           .eq('rol', 'residente')
           .eq('estado', 'activo')
           .or('nombre_completo.ilike.%$busqueda%,cedula.ilike.%$busqueda%')
           .limit(20)
           .timeout(Entorno.esperaMaxima);
 
-      return filas.map((f) => Map<String, dynamic>.from(f)).toList();
+      // 2) Por número o torre de la unidad. Primero se buscan las unidades
+      //    que matchean, y después se traen TODOS los residentes de esas
+      //    unidades: si el guardia escribe "12" y en la casa 12 hay papá,
+      //    mamá y dos hijos, aparecen los cuatro.
+      final unidadesMatch = await _supabase
+          .from('unidades')
+          .select('id')
+          .or('numero.ilike.%$busqueda%,torre.ilike.%$busqueda%')
+          .limit(20)
+          .timeout(Entorno.esperaMaxima);
+
+      final idsUnidades = (unidadesMatch as List)
+          .map((u) => u['id'] as String)
+          .toList();
+
+      List porUnidad = const [];
+      if (idsUnidades.isNotEmpty) {
+        porUnidad = await _supabase
+            .from('usuarios')
+            .select(seleccion)
+            .eq('rol', 'residente')
+            .eq('estado', 'activo')
+            .inFilter('unidad_id', idsUnidades)
+            .limit(30)
+            .timeout(Entorno.esperaMaxima);
+      }
+
+      // Unir los dos resultados y deduplicar por id: un residente puede
+      // matchear tanto por nombre como por número de unidad.
+      final vistos = <String>{};
+      final resultado = <Map<String, dynamic>>[];
+      for (final f in [...(porNombre as List), ...porUnidad]) {
+        final id = f['id'] as String;
+        if (vistos.add(id)) resultado.add(Map<String, dynamic>.from(f));
+      }
+      return resultado;
     } catch (falla) {
       throw Traductor.traducir(falla);
     }
