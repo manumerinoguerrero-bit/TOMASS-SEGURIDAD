@@ -12,45 +12,47 @@
 //   Un GPS activo con alta precisión chupa batería como aspiradora. Con
 //   30 segundos, un celular común no llega al fin de un turno de 12 horas.
 //   Con 3 minutos es imperceptible. Para "dónde está el guardia AHORA"
-//   3 minutos es preciso de sobra: si un guardia está corriendo, la
-//   posición nunca es "aquí y solo aquí", es un radio de la instalación.
+//   3 minutos es preciso de sobra.
 //
-// FOREGROUND SERVICE (por qué el GPS sigue mandando con la pantalla apagada)
+// POR QUÉ HAY DOS FUENTES DE POSICIÓN (stream + timer)
 //
-//   Antes usábamos un Timer.periodic dentro del proceso Dart. En cuanto el
-//   guardia bloqueaba el celular, Flutter pausaba el timer y el admin veía
-//   "Sin señal" a los 3 minutos. Es lo que le pasó a Juan Martínez el
-//   06/09/2026.
+//   El diseño anterior tenía solo `getPositionStream()`. En la práctica,
+//   cuando el foreground service NO arrancaba bien (por permiso de
+//   notificaciones no aceptado, o por el fabricante Xiaomi/Realme matando
+//   procesos), el stream emitía UNA sola vez y se moría. Lo veíamos en la
+//   base: el guardia abría turno a las 10:57:15 y la última ubicación
+//   quedaba a las 10:57:17. Nada más en 5 horas.
 //
-//   Ahora usamos Geolocator.getPositionStream() con
-//   AndroidSettings.foregroundNotificationConfig. Esto le pide al sistema
-//   Android que arranque un servicio nativo con una notificación permanente,
-//   que sigue mandando la posición aunque:
+//   Ahora tenemos DOS caminos hacia la BD:
 //
-//     * el guardia bloquee la pantalla
-//     * la app quede en background
-//     * el celular se meta en modo ahorro de batería
+//     1. Stream de geolocator (rápido, ~cada 3 min si el service anda).
+//     2. Timer.periodic en Dart que cada 3 min pide getCurrentPosition().
 //
-//   La notificación es OBLIGATORIA por Android: es lo que le muestra al
-//   guardia que la app está usando el GPS. No se puede ocultar.
+//   Si el foreground service anda, el timer es redundante pero no molesta.
+//   Si NO anda (proceso Dart pausado por sistema), el timer no va a
+//   ejecutar tampoco. Pero al menos mientras el guardia tenga la app
+//   abierta o volver a ella, el timer arma la sesión de nuevo y manda.
 //
-// PERMISO "PERMITIR TODO EL TIEMPO"
+// PERMISOS QUE PEDIMOS AL ARRANCAR
 //
-//   El foreground service arranca igual con permiso "solo mientras uso la
-//   app", pero Android en algunos fabricantes (Xiaomi, Huawei) igual mata
-//   el proceso si la app pasa mucho a background. Con "Permitir todo el
-//   tiempo" queda claro que el sistema no debe pausar el GPS.
+//   * Location (ACCESS_FINE_LOCATION): sin esto no hay GPS.
+//   * LocationAlways (ACCESS_BACKGROUND_LOCATION): sin esto el service
+//     muere cuando la app pasa a background.
+//   * Notification (POST_NOTIFICATIONS, Android 13+): sin esto la notif
+//     permanente del foreground service NO aparece, y sin ella Android
+//     mata el proceso a los ~30 s de bloquear pantalla. Este era el bug.
 //
-//   El guardia lo acepta una sola vez la primera vez que abre un turno.
-//   Si el permiso no está, el rastreador arranca igual (mejor tener GPS
-//   con la app abierta que no tener nada), pero el admin va a ver "Sin
-//   señal" cuando el guardia bloquee la pantalla.
+//   Los permisos se piden UNA sola vez al abrir el primer turno; después
+//   Android los recuerda. Si el guardia rechaza alguno, el rastreador
+//   arranca igual (mejor tener algo que nada), pero el admin va a ver
+//   "Sin señal" cuando el guardia bloquee la pantalla.
 // ============================================================================
 
 import 'dart:async';
 import 'dart:io' show Platform;
 
 import 'package:geolocator/geolocator.dart';
+import 'package:permission_handler/permission_handler.dart' as ph;
 
 import 'servicio_guardia.dart';
 
@@ -59,9 +61,17 @@ class RastreadorGuardia {
 
   final ServicioGuardia _servicio;
   StreamSubscription<Position>? _sub;
+  Timer? _watchdog;
   bool _enviando = false;
+  DateTime? _ultimoEnvioExitoso;
 
-  bool get activo => _sub != null;
+  bool get activo => _sub != null || _watchdog != null;
+
+  /// Cuánto hace que se mandó la última posición al servidor (útil para
+  /// diagnóstico en pantalla si algún día se quiere).
+  Duration? get haceQueMandeUltimo => _ultimoEnvioExitoso == null
+      ? null
+      : DateTime.now().difference(_ultimoEnvioExitoso!);
 
   /// Arranca el rastreador si no está activo. Si el usuario no dio permiso de
   /// ubicación, sale sin hacer nada — el mapa en vivo va a mostrar "Sin
@@ -69,10 +79,13 @@ class RastreadorGuardia {
   Future<void> iniciar({Duration cada = const Duration(minutes: 3)}) async {
     if (activo) return;
 
-    // Chequeo mínimo: si el usuario apagó el GPS del teléfono o negó el
-    // permiso, no tiene sentido intentar. Pedimos el permiso de "en uso"
-    // — al iniciar el turno la pantalla de turno pide el "always" arriba.
+    // 1) Servicio de ubicación prendido en el celular
     if (!await Geolocator.isLocationServiceEnabled()) return;
+
+    // 2) Permiso de ubicación: pedimos "Always" a propósito, porque
+    //    "WhileInUse" no alcanza para el foreground service en background.
+    //    Si el usuario da solo "WhileInUse", igual arrancamos: el stream
+    //    va a andar mientras la app esté en primer plano.
     var permiso = await Geolocator.checkPermission();
     if (permiso == LocationPermission.denied) {
       permiso = await Geolocator.requestPermission();
@@ -82,27 +95,39 @@ class RastreadorGuardia {
       return;
     }
 
-    // Configuración del stream. En Android usamos AndroidSettings con el
-    // foreground service embebido de geolocator; en cualquier otra
-    // plataforma (iOS, web) caemos al LocationSettings genérico.
+    // 3) Permiso de notificaciones (Android 13+). Sin esto, la notificación
+    //    permanente del foreground service no aparece, y sin ella Android
+    //    trata la app como si no estuviera en foreground y mata el GPS a
+    //    los ~30 segundos de bloquear la pantalla. Este era el bug real.
+    //    En Android <13 y en iOS, request() responde granted directamente.
+    if (Platform.isAndroid) {
+      final estadoNotif = await ph.Permission.notification.status;
+      if (!estadoNotif.isGranted) {
+        await ph.Permission.notification.request();
+      }
+
+      // Además pedimos LocationAlways de forma explícita: geolocator no
+      // siempre lo pide en la misma sesión que WhileInUse (Android exige
+      // dos pasos separados), así que forzamos el segundo.
+      final estadoBg = await ph.Permission.locationAlways.status;
+      if (!estadoBg.isGranted && !estadoBg.isPermanentlyDenied) {
+        await ph.Permission.locationAlways.request();
+      }
+    }
+
+    // 4) Stream de geolocator con foreground service (rápido, cerca de la
+    //    frecuencia real del GPS del teléfono).
     final settings = Platform.isAndroid
         ? AndroidSettings(
             accuracy: LocationAccuracy.high,
-            // Intervalo mínimo entre actualizaciones. Al pasar por acá
-            // el sistema puede darnos MÁS actualizaciones si hay
-            // suficiente movimiento; nunca menos.
             intervalDuration: cada,
-            // 0 = mandar la posición cada `intervalDuration` sin importar
-            // si el guardia se movió o no. Con cualquier valor mayor,
-            // un guardia parado en la garita nunca aparecería en el mapa.
+            // 0 = mandar cada intervalDuration sin importar si se movió.
             distanceFilter: 0,
             foregroundNotificationConfig: const ForegroundNotificationConfig(
               notificationTitle: 'Tomass Seguridad',
               notificationText:
                   'Turno abierto · enviando tu ubicación al panel del admin',
               notificationChannelName: 'Rastreo del turno',
-              // No mostrar el ícono como notification badge en el launcher:
-              // ya está el ícono de la app abierta con otros datos.
               setOngoing: true,
               enableWakeLock: true,
               notificationIcon: AndroidResource(
@@ -119,15 +144,44 @@ class RastreadorGuardia {
 
     _sub = Geolocator.getPositionStream(locationSettings: settings)
         .listen(_alRecibir, onError: (_) {
-      // Silencioso a propósito: el próximo tick vuelve a probar. Si el
-      // stream muere del todo, el admin lo va a ver como "Sin señal" y
-      // el guardia va a reabrir la app.
+      // Silencioso: el watchdog abajo vuelve a intentar cada `cada`.
     });
+
+    // 5) WATCHDOG: Timer.periodic redundante. Cada `cada` pide la posición
+    //    actual de forma directa. Sirve para:
+    //      * Si el stream murió sin avisar (fabricantes agresivos), este
+    //        toma la posta mientras la app siga viva.
+    //      * Al arrancar, dispara un envío inmediato para no esperar el
+    //        primer tick del intervalo del stream.
+    //    getCurrentPosition() con desiredAccuracy medium es más liviano
+    //    para la batería que el stream de alta precisión, y como esto es
+    //    un fallback no necesita la máxima precisión.
+    _watchdog = Timer.periodic(cada, (_) => _tickWatchdog());
+    // Disparo inmediato para tener una posición apenas se abre el turno.
+    unawaited(_tickWatchdog());
+  }
+
+  Future<void> _tickWatchdog() async {
+    if (_enviando) return;
+    try {
+      final p = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.medium,
+          timeLimit: Duration(seconds: 25),
+        ),
+      );
+      await _alRecibir(p);
+    } catch (_) {
+      // Silencioso: el próximo tick vuelve a probar.
+    }
   }
 
   void detener() {
     _sub?.cancel();
     _sub = null;
+    _watchdog?.cancel();
+    _watchdog = null;
+    _ultimoEnvioExitoso = null;
   }
 
   Future<void> _alRecibir(Position p) async {
@@ -139,6 +193,7 @@ class RastreadorGuardia {
         lat: p.latitude,
         lng: p.longitude,
       );
+      _ultimoEnvioExitoso = DateTime.now();
     } catch (_) {
       // Cualquier falla queda silenciada: la próxima posición vuelve a probar.
     } finally {

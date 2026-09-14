@@ -106,6 +106,15 @@ dependencies:
   # esto demuestra que ESTUVO AHÍ, que es lo que el cliente quiere saber.
   geolocator: ^13.0.2
 
+  # Pide permisos de forma explícita, distinto de geolocator que solo pide
+  # los de ubicación. Lo necesitamos para pedir NOTIFICATION en Android 13+:
+  # sin ese permiso, la notificación permanente del foreground service no
+  # aparece, y sin esa notificación Android trata la app como si no estuviera
+  # en foreground y mata el rastreador GPS a los pocos segundos de bloquear
+  # la pantalla. Ese era el bug del "Sin señal" a los 3 minutos aunque el
+  # foreground service estuviera declarado en el manifest.
+  permission_handler: ^11.3.1
+
   # ---- Informes en PDF ----------------------------------------------------
   # Para el informe de rondas y el de encomiendas que el administrador le
   # entrega al cliente, y para el cartel de cada sector de ronda.
