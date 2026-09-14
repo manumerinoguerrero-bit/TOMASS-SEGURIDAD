@@ -625,17 +625,34 @@ class ServicioGuardia {
     }
   }
 
-  /// Los últimos movimientos del condominio, para la lista del panel.
+  /// Los últimos movimientos DEL CONDOMINIO ACTIVO del guardia.
+  ///
+  /// El filtro por `condominio_id` es explícito a propósito. Cuando el mismo
+  /// usuario administra varias instalaciones (Manuel es admin de todas) y
+  /// entra como guardia a una, sin este filtro la lista mezclaba accesos de
+  /// otros condominios donde también tiene permisos. Reportado el 14/09/2026
+  /// al ver "ingreso de apoderados y profesores" en Milagros del Cerro Grande.
+  ///
+  /// El id se pide con la RPC `mi_condominio()` — misma que usan las políticas
+  /// RLS del servidor, así el filtro del cliente y el del servidor coinciden.
   Future<List<Movimiento>> ultimosAccesos({int cuantos = 25}) async {
     try {
+      final condominioId = await _supabase
+          .rpc('mi_condominio')
+          .timeout(Entorno.esperaMaxima) as String?;
+      if (condominioId == null) return const [];
+
       final filas = await _supabase
           .from('movimientos_acceso')
           .select('''
             id, sentido, tipo_acceso, estado, ocurrido_en, patente_snapshot,
-            motivo_denegacion, sincronizado_offline, nombre_snapshot,
-            unidad_snapshot,
+            motivo_denegacion, sincronizado_offline,
+            nombre_snapshot, rut_snapshot, unidad_snapshot,
+            autorizado_por_texto,
+            usuarios!movimientos_acceso_residente_id_fkey ( nombre_completo ),
             puntos_acceso ( nombre )
           ''')
+          .eq('condominio_id', condominioId)
           .order('ocurrido_en', ascending: false)
           .limit(cuantos)
           .timeout(Entorno.esperaMaxima);
@@ -648,13 +665,24 @@ class ServicioGuardia {
     }
   }
 
-  /// Quiénes están dentro del condominio ahora.
+  /// Quiénes están dentro del CONDOMINIO ACTIVO ahora.
   /// Es el dato que hay que dar si vienen los bomberos.
+  ///
+  /// Igual que en ultimosAccesos(), se filtra por condominio_id explícito
+  /// contra `mi_condominio()`. La vista `v_personas_dentro` expone la
+  /// columna pero no filtra por sí sola, así que un usuario que administra
+  /// varias instalaciones vería personas mezcladas de todas ellas.
   Future<List<Map<String, dynamic>>> personasDentro() async {
     try {
+      final condominioId = await _supabase
+          .rpc('mi_condominio')
+          .timeout(Entorno.esperaMaxima) as String?;
+      if (condominioId == null) return const [];
+
       final filas = await _supabase
           .from('v_personas_dentro')
           .select()
+          .eq('condominio_id', condominioId)
           .order('entro_en', ascending: false)
           .timeout(Entorno.esperaMaxima);
 

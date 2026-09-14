@@ -566,21 +566,61 @@ class _FilaAcceso extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Primera línea: nombre de la persona (o el tipo genérico si
+                // no se registró nombre). Es lo primero que el guardia quiere
+                // ver — reemplaza al texto genérico "Entrada peatonal" que
+                // había antes y que no ayudaba a saber quién había pasado.
                 Text(
-                  m.descripcion,
+                  (m.nombre != null && m.nombre!.isNotEmpty)
+                      ? m.nombre!
+                      : m.descripcion,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
-                Text(
-                  [
-                    Formato.cuandoRelativo(m.ocurridoEn),
-                    if (m.puntoAcceso != null) m.puntoAcceso!,
-                  ].join(' · '),
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: Colores.textoSuave,
+                // Segunda línea: RUT + unidad + autorizador cuando existen.
+                // Todo con separador " · " para no repetir labels; el guardia
+                // ya sabe qué es cada cosa a primera vista.
+                if (m.rut != null && m.rut!.isNotEmpty ||
+                    m.unidad != null && m.unidad!.isNotEmpty ||
+                    m.autorizadoPor != null && m.autorizadoPor!.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 1),
+                    child: Text(
+                      [
+                        if (m.rut != null && m.rut!.isNotEmpty)
+                          Formato.rut(m.rut),
+                        if (m.unidad != null && m.unidad!.isNotEmpty) m.unidad!,
+                        if (m.autorizadoPor != null &&
+                            m.autorizadoPor!.isNotEmpty)
+                          'autorizó ${m.autorizadoPor}',
+                      ].join(' · '),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        color: Colores.texto,
+                      ),
+                    ),
+                  ),
+                // Tercera línea: cuándo, tipo de acceso, punto de acceso.
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Text(
+                    [
+                      Formato.cuandoRelativo(m.ocurridoEn),
+                      m.descripcion.toLowerCase(),
+                      if (m.puntoAcceso != null) m.puntoAcceso!,
+                    ].join(' · '),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Colores.textoSuave,
+                    ),
                   ),
                 ),
               ],

@@ -129,15 +129,22 @@ final hayAutoImpacienteProvider = Provider<bool>((ref) {
 // ============================================================================
 
 final resumenProvider = FutureProvider<ResumenCondominio>((ref) {
+  // Al cambiar de instalación, el resumen tiene que volver a pedirse: los
+  // números son del condominio activo.
+  ref.watch(perfilProvider);
   return ref.watch(servicioGuardiaProvider).resumen();
 });
 
 final ultimosAccesosProvider = FutureProvider<List<Movimiento>>((ref) {
+  // Igual que resumen: si el guardia rota de instalación, la lista tiene
+  // que volver a pedirse contra el nuevo condominio activo.
+  ref.watch(perfilProvider);
   return ref.watch(servicioGuardiaProvider).ultimosAccesos();
 });
 
 final personasDentroProvider =
     FutureProvider<List<Map<String, dynamic>>>((ref) {
+  ref.watch(perfilProvider);
   return ref.watch(servicioGuardiaProvider).personasDentro();
 });
 

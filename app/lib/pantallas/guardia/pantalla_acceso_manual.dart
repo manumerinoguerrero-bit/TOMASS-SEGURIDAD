@@ -49,6 +49,7 @@ import '../../nucleo/errores.dart';
 import '../../servicios/servicio_fotos.dart';
 import '../comunes/componentes.dart';
 import 'acciones_de_turno.dart';
+import 'pantalla_personas_dentro.dart';
 
 class PantallaAccesoManual extends ConsumerStatefulWidget {
   const PantallaAccesoManual({super.key});
@@ -273,7 +274,23 @@ class _EstadoAccesoManual extends ConsumerState<PantallaAccesoManual> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Anotar ingreso'),
-        actions: const [MenuDelGuardia()],
+        actions: [
+          // Acceso rápido a "Personas dentro" desde acá: cuando el guardia
+          // está anotando un ingreso, muchas veces necesita chequear si la
+          // persona ya está adentro (para no anotar dos entradas seguidas),
+          // o quién más está de la misma casa. Antes había que ir hasta el
+          // panel para verlo.
+          IconButton(
+            icon: const Icon(Icons.groups_2_outlined),
+            tooltip: 'Personas dentro',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const PantallaPersonasDentro(),
+              ),
+            ),
+          ),
+          const MenuDelGuardia(),
+        ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(Medidas.margen),
