@@ -1,15 +1,15 @@
 // ============================================================================
 // Tomass Seguridad — Mapas estáticos para los PDFs
 // ============================================================================
-// Baja una imagen PNG con un mapa con calles y marcadores numerados encima.
-// Se usa para dibujar el recorrido de una ronda dentro del informe PDF de
-// turnos.
+// Baja una imagen PNG con un mapa con calles y marcadores encima. Se usa
+// para dibujar el recorrido de una ronda dentro del informe PDF.
 //
 // PROVEEDOR: Geoapify (https://www.geoapify.com/)
 //   * Cuota gratuita: 3.000 requests por día — sobra de sobra para el uso
-//     de la app (un turno son 5-8 mapas en el PDF).
+//     de la app (un informe son 1-2 mapas).
 //   * No requiere tarjeta de crédito para el plan gratuito.
-//   * Tiles derivados de OpenStreetMap con calles nítidas.
+//   * Tiles derivados de OpenStreetMap con calles nítidas. El estilo
+//     'osm-bright' se ve como el Mapa en vivo del admin.
 //
 // Antes intentamos con staticmap.openstreetmap.de (el servidor público
 // gratuito): era inestable, devolvía imágenes blancas seguido y quedaba
@@ -25,6 +25,36 @@
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 
+/// Un sector para pintar en el mapa: cartel con número y su radio de
+/// tolerancia en metros.
+class SectorMapa {
+  const SectorMapa({
+    required this.lat,
+    required this.lng,
+    required this.numero,
+    required this.toleranciaMetros,
+  });
+
+  final double lat;
+  final double lng;
+  final int numero;
+  final int toleranciaMetros;
+}
+
+/// Una marcación del guardia para pintar en el mapa. Verde si estuvo cerca
+/// (dentro de la tolerancia), roja si estuvo lejos.
+class MarcaMapa {
+  const MarcaMapa({
+    required this.lat,
+    required this.lng,
+    required this.lejos,
+  });
+
+  final double lat;
+  final double lng;
+  final bool lejos;
+}
+
 class ServicioMapaEstatico {
   const ServicioMapaEstatico();
 
@@ -34,29 +64,55 @@ class ServicioMapaEstatico {
   /// cuota o alguien la usa de más, se rota en 1 minuto desde el dashboard.
   static const _apiKey = '44dde378496349dda5132e78d3c11869';
 
-  /// Baja un PNG con el mapa centrado en [puntos] y los marcadores numerados.
-  /// Devuelve null si el servicio no responde en 8 s o si la respuesta no es
-  /// una imagen válida — el PDF debe seguir funcionando.
+  /// Colores del pin (Geoapify espera %23 = # url-encoded).
+  static const _colorSector = '%230D2B5E'; // grafito Tomass
+  static const _colorMarcaCerca = '%2316A34A'; // verde
+  static const _colorMarcaLejos = '%23DC2626'; // rojo
+
+  /// Baja un PNG con el mapa centrado en [sectores] y las [marcas] del
+  /// guardia superpuestas. Devuelve null si el servicio no responde en 8 s
+  /// o si la respuesta no es una imagen válida — el PDF debe seguir
+  /// funcionando aún sin mapa.
+  ///
+  /// El zoom se calcula para que TODO entre en el marco (sectores + marcas).
   static Future<Uint8List?> conRecorrido({
-    required List<({double lat, double lng, int numero})> puntos,
-    int ancho = 800,
-    int alto = 400,
+    required List<SectorMapa> sectores,
+    List<MarcaMapa> marcas = const [],
+    int ancho = 900,
+    int alto = 550,
   }) async {
-    if (puntos.isEmpty) return null;
+    if (sectores.isEmpty) return null;
 
-    final centro = _centroide(puntos);
-    final zoom = _zoomAdecuado(puntos);
+    final centro = _centroide(sectores, marcas);
+    final zoom = _zoomAdecuado(sectores, marcas);
 
-    // Marcadores Geoapify: uno por punto, color grafito Tomass, con el
-    // número dentro. Formato:
-    //   lonlat:LNG,LAT;color:%23xxxxxx;size:medium;text:N;textsize:small
-    final markers = puntos
-        .map((p) => 'lonlat:${p.lng},${p.lat};'
-            'color:%230D2B5E;'
+    // Marcadores Geoapify: primero los sectores (grafito con número), después
+    // las marcas del guardia (verdes o rojas, pequeñas y sin número).
+    // Formato:
+    //   lonlat:LNG,LAT;color:%23xxxxxx;size:small|medium|large;text:N
+    // Los sectores se dibujan MÁS GRANDES (medium) que las marcas (small)
+    // para que se distingan visualmente sin necesitar leyenda.
+    final marcadores = [
+      // Círculos de tolerancia (fondo semi-transparente): se dibujan como
+      // "circle" markers, uno por sector.
+      for (final s in sectores)
+        'lonlat:${s.lng},${s.lat};'
+            'type:material;'
+            'color:$_colorSector;'
             'size:medium;'
-            'text:${p.numero};'
-            'textsize:small')
-        .join('|');
+            'icon:map-marker;'
+            'text:${s.numero};'
+            'textsize:small;'
+            'whitecircle:no',
+      // Marcas del guardia: puntitos verdes o rojos, sin número.
+      for (final m in marcas)
+        'lonlat:${m.lng},${m.lat};'
+            'type:material;'
+            'color:${m.lejos ? _colorMarcaLejos : _colorMarcaCerca};'
+            'size:small;'
+            'icon:circle;'
+            'whitecircle:no',
+    ].join('|');
 
     final url = Uri.parse(
       'https://maps.geoapify.com/v1/staticmap'
@@ -65,7 +121,7 @@ class ServicioMapaEstatico {
       '&height=$alto'
       '&center=lonlat:${centro.lng},${centro.lat}'
       '&zoom=$zoom'
-      '&marker=$markers'
+      '&marker=$marcadores'
       '&apiKey=$_apiKey',
     );
 
@@ -86,27 +142,42 @@ class ServicioMapaEstatico {
   }
 
   static ({double lat, double lng}) _centroide(
-      List<({double lat, double lng, int numero})> puntos) {
+    List<SectorMapa> sectores,
+    List<MarcaMapa> marcas,
+  ) {
     var lat = 0.0, lng = 0.0;
-    for (final p in puntos) {
-      lat += p.lat;
-      lng += p.lng;
+    var n = 0;
+    for (final s in sectores) {
+      lat += s.lat;
+      lng += s.lng;
+      n++;
     }
-    return (lat: lat / puntos.length, lng: lng / puntos.length);
+    for (final m in marcas) {
+      lat += m.lat;
+      lng += m.lng;
+      n++;
+    }
+    return (lat: lat / n, lng: lng / n);
   }
 
   /// Zoom más ajustado posible para que todos los puntos entren en el marco.
   /// Aproximación: 18 = ~40 m/píxel, cada nivel duplica la escala.
   static int _zoomAdecuado(
-      List<({double lat, double lng, int numero})> puntos) {
-    if (puntos.length == 1) return 18;
+    List<SectorMapa> sectores,
+    List<MarcaMapa> marcas,
+  ) {
+    if (sectores.length + marcas.length == 1) return 18;
     double minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
-    for (final p in puntos) {
-      if (p.lat < minLat) minLat = p.lat;
-      if (p.lat > maxLat) maxLat = p.lat;
-      if (p.lng < minLng) minLng = p.lng;
-      if (p.lng > maxLng) maxLng = p.lng;
+    void expandir(double lat, double lng) {
+      if (lat < minLat) minLat = lat;
+      if (lat > maxLat) maxLat = lat;
+      if (lng < minLng) minLng = lng;
+      if (lng > maxLng) maxLng = lng;
     }
+
+    for (final s in sectores) expandir(s.lat, s.lng);
+    for (final m in marcas) expandir(m.lat, m.lng);
+
     final rangoLat = maxLat - minLat;
     final rangoLng = maxLng - minLng;
     final rango = rangoLat > rangoLng ? rangoLat : rangoLng;

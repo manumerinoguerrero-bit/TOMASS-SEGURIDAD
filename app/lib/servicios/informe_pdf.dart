@@ -97,19 +97,30 @@ class InformeDeRondasPdf {
     final hasta = DateTime.now();
     final desde = hasta.subtract(Duration(days: dias));
 
-    // Mapa real con calles (Geoapify) para acompañar al plano dibujado
-    // de la hoja 2. Marcadores: los sectores con su número, y las marcas
-    // del guardia en verde (si estuvo cerca) o rojo (si estuvo lejos).
-    // Si Geoapify no responde, mapaBytes queda null y la hoja 2 sólo
-    // muestra el plano CustomPaint.
+    // Mapa real con calles (Geoapify) para la hoja 2. Se pinta:
+    //   * cada sector con su número (grafito Tomass)
+    //   * cada marcación del guardia como punto verde (cerca) o rojo (lejos)
+    // Si Geoapify no responde, mapaBytes queda null y la hoja 2 explica
+    // por qué no está el mapa, y muestra solo el plano dibujado a mano.
     Uint8List? mapaBytes;
     final sectoresConUbicacion =
         sectores.where((s) => s.tieneUbicacion).toList();
+    final marcasConUbicacion =
+        marcas.where((m) => m.marcaLat != null && m.marcaLng != null).toList();
     if (sectoresConUbicacion.isNotEmpty) {
       mapaBytes = await ServicioMapaEstatico.conRecorrido(
-        puntos: [
+        sectores: [
           for (final s in sectoresConUbicacion)
-            (lat: s.latitud!, lng: s.longitud!, numero: s.orden),
+            SectorMapa(
+              lat: s.latitud!,
+              lng: s.longitud!,
+              numero: s.orden,
+              toleranciaMetros: s.tolerancia,
+            ),
+        ],
+        marcas: [
+          for (final m in marcasConUbicacion)
+            MarcaMapa(lat: m.marcaLat!, lng: m.marcaLng!, lejos: m.lejos),
         ],
         ancho: 900,
         alto: 550,
@@ -166,8 +177,41 @@ class InformeDeRondasPdf {
                   child: pw.Image(
                     pw.MemoryImage(mapaBytes),
                     width: double.infinity,
-                    height: 220,
+                    height: 340,
                     fit: pw.BoxFit.cover,
+                  ),
+                ),
+                pw.SizedBox(height: 6),
+                pw.Text(
+                  'Sectores en grafito con su número · marcas del guardia '
+                  'en verde (cerca) o rojo (lejos).',
+                  style: pw.TextStyle(
+                    fontSize: 8.5,
+                    color: _Tinta.gris,
+                    fontStyle: pw.FontStyle.italic,
+                  ),
+                ),
+                pw.SizedBox(height: 10),
+              ] else ...[
+                pw.Container(
+                  padding: const pw.EdgeInsets.all(14),
+                  decoration: pw.BoxDecoration(
+                    color: const PdfColor.fromInt(0xFFFFF7ED),
+                    border: pw.Border.all(
+                      color: const PdfColor.fromInt(0xFFF59E0B),
+                      width: 0.6,
+                    ),
+                    borderRadius: pw.BorderRadius.circular(4),
+                  ),
+                  child: pw.Text(
+                    'El mapa con calles no pudo cargarse desde el proveedor '
+                    'externo. Abajo queda el plano dibujado con las mismas '
+                    'coordenadas: los sectores y las marcas del guardia se '
+                    'ven igual.',
+                    style: const pw.TextStyle(
+                      fontSize: 9,
+                      color: PdfColor.fromInt(0xFF92400E),
+                    ),
                   ),
                 ),
                 pw.SizedBox(height: 10),

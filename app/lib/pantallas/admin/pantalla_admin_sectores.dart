@@ -122,11 +122,13 @@ class _EstadoSectores extends ConsumerState<PantallaAdminSectores> {
             nombre: nombre,
             latitud: donde?.latitud,
             longitud: donde?.longitud,
-            // Se le da margen al error que declaró el propio teléfono, con un
-            // mínimo de 60 metros: menos que eso da falsas alarmas.
+            // Tolerancia acotada a 10-15 metros: obliga al guardia a estar
+            // parado JUNTO al cartel, no en cualquier lado del predio. Si el
+            // GPS del teléfono declara más error, se sube hasta 15 m como
+            // máximo — más que eso es no verificar nada.
             tolerancia: donde == null
-                ? 60
-                : (donde.metrosDeError * 2).clamp(60, 200).round(),
+                ? 10
+                : donde.metrosDeError.clamp(10, 15).round(),
             puntoAccesoId: puntoAccesoId,
           );
       if (!mounted) return;
@@ -185,7 +187,7 @@ class _EstadoSectores extends ConsumerState<PantallaAdminSectores> {
             puntoId: punto.id,
             latitud: donde.latitud,
             longitud: donde.longitud,
-            tolerancia: (donde.metrosDeError * 2).clamp(60, 200).round(),
+            tolerancia: donde.metrosDeError.clamp(10, 15).round(),
           );
       if (!mounted) return;
       ref.invalidate(puntosDeControlAdminProvider);

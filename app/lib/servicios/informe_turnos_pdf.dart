@@ -97,12 +97,15 @@ class InformeDeTurnosPdf {
             .toList();
         if (marcasConGps.isEmpty) continue;
         mapas[entry.key] = await ServicioMapaEstatico.conRecorrido(
-          puntos: [
+          sectores: [
             for (var i = 0; i < marcasConGps.length; i++)
-              (
+              SectorMapa(
                 lat: marcasConGps[i].geoLat!,
                 lng: marcasConGps[i].geoLng!,
                 numero: i + 1,
+                // La tolerancia acá no se usa (no dibujamos círculo); se
+                // pasa 0 solo por completitud del constructor.
+                toleranciaMetros: 0,
               ),
           ],
         );
