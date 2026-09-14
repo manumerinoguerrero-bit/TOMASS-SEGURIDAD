@@ -597,7 +597,7 @@ class ServicioAdmin {
       var consulta = _supabase.from('movimientos_acceso').select('''
             id, tipo_acceso, sentido, estado, patente_snapshot,
             nombre_snapshot, unidad_snapshot, rut_snapshot, ocurrido_en,
-            motivo_denegacion,
+            motivo_denegacion, autorizado_por_texto,
             usuarios!movimientos_acceso_residente_id_fkey ( nombre_completo ),
             puntos_acceso ( nombre )
           ''');
@@ -1096,7 +1096,7 @@ class ServicioAdmin {
             .from('paquetes')
             .select('id, recibido_en, descripcion, empresa_courier, '
                 'usuarios!paquetes_residente_id_fkey ( nombre_completo ), '
-                'unidades ( etiqueta )')
+                'unidades ( numero, torre )')
             .filter('entregado_en', 'is', 'null')
             .lte('recibido_en',
                 DateTime.now().subtract(const Duration(days: 7)).toIso8601String())
@@ -1212,7 +1212,7 @@ class ServicioAdmin {
           empresaCourier: m['empresa_courier'] as String?,
           residente:
               u is Map ? u['nombre_completo'] as String? : null,
-          unidad: un is Map ? un['etiqueta'] as String? : null,
+          unidad: un is Map ? _etiquetaDeUnidad(un) : null,
         );
       }).toList();
 
@@ -1302,5 +1302,22 @@ class ServicioAdmin {
     } catch (falla) {
       throw Traductor.traducir(falla);
     }
+  }
+
+  /// Arma la etiqueta legible de una unidad a partir de sus campos crudos.
+  /// La tabla no guarda una columna "etiqueta" — se compone al leer.
+  ///
+  /// Ejemplos:
+  ///   { torre: 'B', numero: '401' } → 'Torre B · 401'
+  ///   { numero: '12' }              → 'Casa 12'
+  ///   {}                            → null
+  static String? _etiquetaDeUnidad(Map u) {
+    final numero = (u['numero'] as String?)?.trim();
+    final torre = (u['torre'] as String?)?.trim();
+    if (numero == null || numero.isEmpty) {
+      return (torre == null || torre.isEmpty) ? null : 'Torre $torre';
+    }
+    if (torre == null || torre.isEmpty) return 'Casa $numero';
+    return 'Torre $torre · $numero';
   }
 }

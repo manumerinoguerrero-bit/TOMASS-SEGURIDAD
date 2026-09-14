@@ -288,13 +288,19 @@ class MovimientoAdmin {
     // El nombre_snapshot es la persona que pasó por la puerta (la visita).
     final quien = m['nombre_snapshot'] as String?;
 
-    // El residente_id apunta a QUIÉN AUTORIZÓ el ingreso: ese usuario viene
-    // en la relación 'usuarios' del select. Antes se lo usaba de fallback
-    // para el nombre de la visita, lo que mezclaba dos conceptos distintos
-    // (residente que autoriza vs. visita que ingresa).
-    String? autorizo;
-    final u = m['usuarios'];
-    if (u is Map) autorizo = u['nombre_completo'] as String?;
+    // Quién autorizó viene de dos posibles fuentes, según cómo se cargó:
+    //   1. `autorizado_por_texto` — el guardia lo escribió a mano al
+    //      registrar un ingreso manual ("autorizó María Casa 12").
+    //   2. La relación con usuarios via residente_id — cuando el ingreso
+    //      apuntó a un residente registrado del sistema.
+    // Se prefiere el texto libre porque es lo que EL GUARDIA escribió en el
+    // momento: el residente_id puede quedar nulo o apuntar a otro registro
+    // en ingresos hechos desde la app del guardia.
+    String? autorizo = (m['autorizado_por_texto'] as String?)?.trim();
+    if (autorizo == null || autorizo.isEmpty) {
+      final u = m['usuarios'];
+      if (u is Map) autorizo = u['nombre_completo'] as String?;
+    }
 
     final p = m['puntos_acceso'];
 
