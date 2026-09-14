@@ -175,8 +175,12 @@ class ServicioMapaEstatico {
       if (lng > maxLng) maxLng = lng;
     }
 
-    for (final s in sectores) expandir(s.lat, s.lng);
-    for (final m in marcas) expandir(m.lat, m.lng);
+    for (final s in sectores) {
+      expandir(s.lat, s.lng);
+    }
+    for (final m in marcas) {
+      expandir(m.lat, m.lng);
+    }
 
     final rangoLat = maxLat - minLat;
     final rangoLng = maxLng - minLng;
