@@ -14,7 +14,7 @@
 //   Con 3 minutos es imperceptible. Para "dónde está el guardia AHORA"
 //   3 minutos es preciso de sobra.
 //
-// POR QUÉ HAY DOS FUENTES DE POSICIÓN (stream + timer)
+// POR QUÉ HAY DOS FUENTES DE POSICIÓN (stream + timer con freno)
 //
 //   El diseño anterior tenía solo `getPositionStream()`. En la práctica,
 //   cuando el foreground service NO arrancaba bien (por permiso de
@@ -26,12 +26,13 @@
 //   Ahora tenemos DOS caminos hacia la BD:
 //
 //     1. Stream de geolocator (rápido, ~cada 3 min si el service anda).
-//     2. Timer.periodic en Dart que cada 3 min pide getCurrentPosition().
+//     2. Timer.periodic con FRENO: cada 3 min despierta y solo pide una
+//        posición nueva SI el stream no emitió hace más de 6 min. Si el
+//        stream anda bien, el timer despierta y no gasta GPS. Si el
+//        stream se cayó, el timer toma la posta.
 //
-//   Si el foreground service anda, el timer es redundante pero no molesta.
-//   Si NO anda (proceso Dart pausado por sistema), el timer no va a
-//   ejecutar tampoco. Pero al menos mientras el guardia tenga la app
-//   abierta o volver a ella, el timer arma la sesión de nuevo y manda.
+//   Con el freno el consumo extra de batería es casi cero cuando el
+//   foreground service funciona, que es el caso normal.
 //
 // PERMISOS QUE PEDIMOS AL ARRANCAR
 //
@@ -64,6 +65,11 @@ class RastreadorGuardia {
   Timer? _watchdog;
   bool _enviando = false;
   DateTime? _ultimoEnvioExitoso;
+  DateTime? _ultimaPosicionDelStream;
+
+  /// Cuánto tiempo puede pasar sin recibir posición del stream antes de que
+  /// el watchdog decida que se cayó y pida una posición por su cuenta.
+  static const _umbralWatchdog = Duration(minutes: 6);
 
   bool get activo => _sub != null || _watchdog != null;
 
@@ -143,19 +149,22 @@ class RastreadorGuardia {
           );
 
     _sub = Geolocator.getPositionStream(locationSettings: settings)
-        .listen(_alRecibir, onError: (_) {
-      // Silencioso: el watchdog abajo vuelve a intentar cada `cada`.
+        .listen((p) {
+      _ultimaPosicionDelStream = DateTime.now();
+      _alRecibir(p);
+    }, onError: (_) {
+      // Silencioso: el watchdog abajo se despierta y toma la posta si hace
+      // falta.
     });
 
-    // 5) WATCHDOG: Timer.periodic redundante. Cada `cada` pide la posición
-    //    actual de forma directa. Sirve para:
-    //      * Si el stream murió sin avisar (fabricantes agresivos), este
-    //        toma la posta mientras la app siga viva.
-    //      * Al arrancar, dispara un envío inmediato para no esperar el
-    //        primer tick del intervalo del stream.
-    //    getCurrentPosition() con desiredAccuracy medium es más liviano
-    //    para la batería que el stream de alta precisión, y como esto es
-    //    un fallback no necesita la máxima precisión.
+    // 5) WATCHDOG con FRENO. Se despierta cada `cada`, pero solo prende el
+    //    GPS si el stream no emitió hace más de `_umbralWatchdog`. Si el
+    //    stream anda bien, el watchdog es un tick vacío (cero batería).
+    //    Sirve para dos cosas:
+    //      * Arranque del turno: el stream tarda hasta 3 min en dar la
+    //        primera posición, así que forzamos una lectura inmediata.
+    //      * Recuperación: si el stream murió sin avisar (fabricantes
+    //        agresivos con foreground services), el watchdog toma la posta.
     _watchdog = Timer.periodic(cada, (_) => _tickWatchdog());
     // Disparo inmediato para tener una posición apenas se abre el turno.
     unawaited(_tickWatchdog());
@@ -163,6 +172,17 @@ class RastreadorGuardia {
 
   Future<void> _tickWatchdog() async {
     if (_enviando) return;
+
+    // FRENO: si el stream emitió hace poco, no hay nada que hacer. Ahorra
+    // toda la energía del GPS chip cuando el foreground service funciona.
+    final ultimo = _ultimaPosicionDelStream;
+    if (ultimo != null && DateTime.now().difference(ultimo) < _umbralWatchdog) {
+      return;
+    }
+
+    // El stream se cayó (o todavía no arrancó). Pedimos una posición por
+    // nuestra cuenta. Precisión media alcanza sobrada para el mapa en vivo
+    // y consume menos que "high".
     try {
       final p = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
@@ -182,6 +202,7 @@ class RastreadorGuardia {
     _watchdog?.cancel();
     _watchdog = null;
     _ultimoEnvioExitoso = null;
+    _ultimaPosicionDelStream = null;
   }
 
   Future<void> _alRecibir(Position p) async {
