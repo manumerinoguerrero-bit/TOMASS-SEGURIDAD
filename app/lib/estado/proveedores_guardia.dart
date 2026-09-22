@@ -26,8 +26,33 @@ final servicioGuardiaProvider = Provider<ServicioGuardia>((ref) {
 final rastreadorGuardiaProvider = Provider<RastreadorGuardia>((ref) {
   final rastreador = RastreadorGuardia(ref.watch(servicioGuardiaProvider));
 
-  // Cuando hay un turno abierto, arranca el rastreo; cuando se cierra,
-  // se detiene. Si el guardia cierra sesión, ref.onDispose lo apaga.
+  // ARRANQUE INMEDIATO SI EL TURNO YA ESTABA ABIERTO
+  //
+  // Este bloque es la diferencia entre "el rastreador funciona" y "el
+  // rastreador nunca arranca" cuando el guardia REABRE la app con turno
+  // ya activo. Riverpod .listen() solo dispara cuando el valor observado
+  // cambia, no al momento de registrar el listener. Entonces si:
+  //
+  //   1) el guardia abrió turno hace horas,
+  //   2) Android mató la app en background (o él la cerró),
+  //   3) la reabre — miTurnoProvider carga con valor no-null desde el
+  //      primer momento — sin cambio, el listener de abajo nunca dispara.
+  //
+  // Reportado el 22/09/2026: Juan tenía turno abierto hace 1h 16min y
+  // ultima_ubicacion_en quedó NULL — cero llamadas al backend en toda la
+  // sesión, aunque el APK, los permisos y el GPS estaban OK. Ese era
+  // este bug.
+  //
+  // Chequeamos el valor actual y arrancamos si ya hay turno.
+  final turnoActual = ref.read(miTurnoProvider).valueOrNull;
+  if (turnoActual != null) {
+    rastreador.iniciar();
+  }
+
+  // Cuando el estado del turno CAMBIA (guardia recién abre, o cierra),
+  // arranca o detiene el rastreo acorde. Este listener sigue siendo
+  // necesario para el flujo normal (abrir turno con app en primer plano);
+  // no reemplaza al arranque de arriba, se complementan.
   ref.listen<AsyncValue<Turno?>>(miTurnoProvider, (_, actual) {
     if (actual.valueOrNull != null) {
       rastreador.iniciar();
