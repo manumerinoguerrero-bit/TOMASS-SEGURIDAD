@@ -52,10 +52,32 @@
 import 'dart:async';
 import 'dart:io' show Platform;
 
+import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart' as ph;
 
 import 'servicio_guardia.dart';
+
+/// Estado del rastreador visto desde el UI. La pantalla del guardia lee este
+/// enum para pintar el banner de estado del GPS.
+enum EstadoRastreador {
+  /// Nunca se llamó a iniciar(). El widget lo trata como "apagado".
+  apagado,
+
+  /// iniciar() salió temprano por permiso o servicio de ubicación negado.
+  /// El guardia tiene que ir a Ajustes.
+  bloqueado,
+
+  /// Arrancó pero todavía no llegó la primera posición.
+  esperandoPrimera,
+
+  /// Manda posiciones normalmente.
+  activo,
+
+  /// Arrancó pero hace rato que no manda. Puede haber perdido señal, o el
+  /// stream se cayó y el watchdog no logró tomar la posta.
+  demorado,
+}
 
 class RastreadorGuardia {
   RastreadorGuardia(this._servicio);
@@ -67,9 +89,22 @@ class RastreadorGuardia {
   DateTime? _ultimoEnvioExitoso;
   DateTime? _ultimaPosicionDelStream;
 
+  /// Estado observable que el UI escucha para pintar el banner. Se actualiza
+  /// cada vez que arranca, se detiene, o llega/no llega una posición.
+  final ValueNotifier<EstadoRastreador> estado =
+      ValueNotifier(EstadoRastreador.apagado);
+
+  /// Última hora en que se mandó una posición al servidor con éxito. El UI
+  /// la usa para mostrar "hace X min" en el banner.
+  final ValueNotifier<DateTime?> ultimoEnvio = ValueNotifier(null);
+
   /// Cuánto tiempo puede pasar sin recibir posición del stream antes de que
   /// el watchdog decida que se cayó y pida una posición por su cuenta.
   static const _umbralWatchdog = Duration(minutes: 6);
+
+  /// Después de este tiempo sin envío exitoso, el estado pasa a `demorado`
+  /// aunque el watchdog siga intentando en background.
+  static const _umbralDemorado = Duration(minutes: 6);
 
   bool get activo => _sub != null || _watchdog != null;
 
@@ -86,7 +121,10 @@ class RastreadorGuardia {
     if (activo) return;
 
     // 1) Servicio de ubicación prendido en el celular
-    if (!await Geolocator.isLocationServiceEnabled()) return;
+    if (!await Geolocator.isLocationServiceEnabled()) {
+      estado.value = EstadoRastreador.bloqueado;
+      return;
+    }
 
     // 2) Permiso de ubicación: pedimos "Always" a propósito, porque
     //    "WhileInUse" no alcanza para el foreground service en background.
@@ -98,6 +136,7 @@ class RastreadorGuardia {
     }
     if (permiso == LocationPermission.denied ||
         permiso == LocationPermission.deniedForever) {
+      estado.value = EstadoRastreador.bloqueado;
       return;
     }
 
@@ -168,6 +207,7 @@ class RastreadorGuardia {
     _watchdog = Timer.periodic(cada, (_) => _tickWatchdog());
     // Disparo inmediato para tener una posición apenas se abre el turno.
     unawaited(_tickWatchdog());
+    estado.value = EstadoRastreador.esperandoPrimera;
   }
 
   Future<void> _tickWatchdog() async {
@@ -203,6 +243,8 @@ class RastreadorGuardia {
     _watchdog = null;
     _ultimoEnvioExitoso = null;
     _ultimaPosicionDelStream = null;
+    ultimoEnvio.value = null;
+    estado.value = EstadoRastreador.apagado;
   }
 
   Future<void> _alRecibir(Position p) async {
@@ -214,11 +256,29 @@ class RastreadorGuardia {
         lat: p.latitude,
         lng: p.longitude,
       );
-      _ultimoEnvioExitoso = DateTime.now();
+      final ahora = DateTime.now();
+      _ultimoEnvioExitoso = ahora;
+      ultimoEnvio.value = ahora;
+      estado.value = EstadoRastreador.activo;
     } catch (_) {
       // Cualquier falla queda silenciada: la próxima posición vuelve a probar.
+      // El estado no cambia; si el envío exitoso queda viejo, el widget
+      // pasa a "demorado" solo (ver haceQueMandeUltimo).
     } finally {
       _enviando = false;
+    }
+  }
+
+  /// Evalúa si el estado debe pasar a `demorado` según cuánto hace del
+  /// último envío exitoso. La pantalla la llama en un timer local.
+  void evaluarDemora() {
+    if (estado.value == EstadoRastreador.apagado ||
+        estado.value == EstadoRastreador.bloqueado) return;
+
+    final ultimo = _ultimoEnvioExitoso;
+    if (ultimo == null) return; // sigue como esperandoPrimera
+    if (DateTime.now().difference(ultimo) >= _umbralDemorado) {
+      estado.value = EstadoRastreador.demorado;
     }
   }
 }

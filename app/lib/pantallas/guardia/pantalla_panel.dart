@@ -14,6 +14,8 @@
 //   Un panel que siempre muestra una alerta enseña al guardia a ignorarlas.
 // ============================================================================
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -23,6 +25,7 @@ import '../../estado/proveedores_guardia.dart';
 import '../../modelos/modelos.dart';
 import '../../nucleo/errores.dart';
 import '../../nucleo/formato.dart';
+import '../../servicios/rastreador_guardia.dart';
 import '../comunes/componentes.dart';
 import 'acciones_de_turno.dart';
 import 'pantalla_personas_dentro.dart';
@@ -77,6 +80,17 @@ class PantallaPanel extends ConsumerWidget {
         child: ListView(
           padding: const EdgeInsets.all(Medidas.margen),
           children: [
+            // ---- Estado del GPS ----
+            // Aviso visible al guardia si el rastreador esta activo,
+            // demorado o bloqueado. Antes esto era invisible: si Android
+            // mataba el foreground service, ni el guardia ni el admin se
+            // enteraban hasta que el mapa en vivo mostraba "Sin senal"
+            // muchas horas despues.
+            if (turno != null) ...[
+              const _BannerEstadoGps(),
+              const SizedBox(height: 14),
+            ],
+
             // ---- Los números ----
             //
             // La alerta de autos esperando se quitó del panel a pedido:
@@ -644,5 +658,153 @@ class _FilaAcceso extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+// ============================================================================
+// BANNER DE ESTADO DEL GPS
+// ============================================================================
+// Le dice al guardia — y de rebote al admin que le pregunte — si el rastreador
+// esta mandando la posicion o si algo esta roto. Antes eso era invisible:
+// solo el admin lo notaba dias despues mirando el mapa en vivo. Ahora si
+// falta un permiso, el guardia lo ve en la primera pantalla del turno.
+//
+// Se refresca cada 30 s con un Timer local para que el "hace X min" quede
+// al dia y para que el estado pase a demorado sin necesidad de que llegue
+// una posicion nueva.
+// ============================================================================
+
+class _BannerEstadoGps extends ConsumerStatefulWidget {
+  const _BannerEstadoGps();
+
+  @override
+  ConsumerState<_BannerEstadoGps> createState() => _EstadoBannerGps();
+}
+
+class _EstadoBannerGps extends ConsumerState<_BannerEstadoGps> {
+  Timer? _refresco;
+
+  @override
+  void initState() {
+    super.initState();
+    // Timer solo para forzar rebuild y para que el rastreador evalue si
+    // ya paso al estado "demorado". No dispara ningun GPS.
+    _refresco = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (!mounted) return;
+      ref.read(rastreadorGuardiaProvider).evaluarDemora();
+      setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _refresco?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final rastreador = ref.watch(rastreadorGuardiaProvider);
+
+    return ValueListenableBuilder<EstadoRastreador>(
+      valueListenable: rastreador.estado,
+      builder: (context, estado, _) {
+        return ValueListenableBuilder<DateTime?>(
+          valueListenable: rastreador.ultimoEnvio,
+          builder: (context, ultimo, __) => _pintar(context, estado, ultimo),
+        );
+      },
+    );
+  }
+
+  Widget _pintar(BuildContext context, EstadoRastreador estado, DateTime? ultimo) {
+    final (color, icono, titulo, detalle) = switch (estado) {
+      EstadoRastreador.apagado => (
+          Colores.textoSuave,
+          Icons.gps_off_outlined,
+          'GPS apagado',
+          'El rastreador no está corriendo.',
+        ),
+      EstadoRastreador.bloqueado => (
+          Colores.rojo,
+          Icons.location_disabled_rounded,
+          'GPS bloqueado',
+          'Faltan permisos. Ajustes → Apps → Tomass → Ubicación → '
+              'Permitir todo el tiempo.',
+        ),
+      EstadoRastreador.esperandoPrimera => (
+          Colores.naranjaOscuro,
+          Icons.gps_not_fixed_rounded,
+          'Buscando señal',
+          'Puede tardar hasta 1 minuto en dar la primera posición.',
+        ),
+      EstadoRastreador.activo => (
+          Colores.verde,
+          Icons.gps_fixed_rounded,
+          'GPS activo',
+          ultimo == null
+              ? 'Enviando ubicación al panel del admin.'
+              : 'Última posición ${_haceCuanto(ultimo)}.',
+        ),
+      EstadoRastreador.demorado => (
+          Colores.naranjaOscuro,
+          Icons.gps_not_fixed_rounded,
+          'GPS demorado',
+          ultimo == null
+              ? 'No mandaste posición todavía. Revisá permisos y señal.'
+              : 'Última posición ${_haceCuanto(ultimo)}. '
+                  'Puede ser mala señal o Android matando la app.',
+        ),
+    };
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(Medidas.redondeoChico),
+        border: Border.all(color: color.withValues(alpha: 0.35), width: 0.8),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icono, size: 22, color: color),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  titulo,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: color,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  detalle,
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    height: 1.35,
+                    color: Colores.texto,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// "hace 15 s", "hace 2 min", "hace 1 h 20 min".
+  static String _haceCuanto(DateTime cuando) {
+    final delta = DateTime.now().difference(cuando);
+    if (delta.inSeconds < 60) return 'hace ${delta.inSeconds} s';
+    if (delta.inMinutes < 60) return 'hace ${delta.inMinutes} min';
+    final horas = delta.inHours;
+    final min = delta.inMinutes % 60;
+    return min == 0 ? 'hace $horas h' : 'hace $horas h $min min';
   }
 }
