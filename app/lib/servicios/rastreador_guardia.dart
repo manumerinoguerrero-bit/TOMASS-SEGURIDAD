@@ -273,7 +273,9 @@ class RastreadorGuardia {
   /// último envío exitoso. La pantalla la llama en un timer local.
   void evaluarDemora() {
     if (estado.value == EstadoRastreador.apagado ||
-        estado.value == EstadoRastreador.bloqueado) return;
+        estado.value == EstadoRastreador.bloqueado) {
+      return;
+    }
 
     final ultimo = _ultimoEnvioExitoso;
     if (ultimo == null) return; // sigue como esperandoPrimera
