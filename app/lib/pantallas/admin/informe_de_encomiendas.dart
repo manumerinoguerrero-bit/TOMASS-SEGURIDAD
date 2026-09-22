@@ -56,6 +56,14 @@ class _EstadoPestanaEncomiendas extends ConsumerState<PestanaEncomiendas> {
   /// con los últimos N días del segmented button.
   ({DateTime desde, DateTime hasta})? _rango;
 
+  /// Filtro de la lista visible en la pantalla (no afecta el PDF).
+  ///
+  /// Se abre por defecto en "pendientes" porque es lo que el admin quiere
+  /// ver de un vistazo al entrar acá: cuántos paquetes quedaron en portería
+  /// esperando ser retirados. El PDF sigue tomando la lista completa del
+  /// período para el archivo histórico.
+  _FiltroEncomienda _filtro = _FiltroEncomienda.pendientes;
+
   // ==========================================================================
   // GENERAR EL INFORME
   // ==========================================================================
@@ -383,34 +391,38 @@ class _EstadoPestanaEncomiendas extends ConsumerState<PestanaEncomiendas> {
                   icono: Icons.inventory_2_outlined,
                   titulo: 'No hay encomiendas para informar',
                   explicacion:
-                      'Acá aparecen las encomiendas entregadas en el período '
-                      'que todavía tienen alguna foto. Las que ya se '
-                      'limpiaron no vuelven a salir.',
+                      'Acá aparecen las encomiendas del período. Las '
+                      'entregadas y las que quedaron pendientes en portería.',
                 );
               }
 
-              final conFoto = lista.where((e) => e.tieneFoto).length;
+              // Conteo por estado — la fuente para los chips y el contador.
+              final pendientes = lista.where((e) => !e.fueEntregado).toList();
+              final entregadas = lista.where((e) => e.fueEntregado).toList();
+
+              final visibles = switch (_filtro) {
+                _FiltroEncomienda.pendientes => pendientes,
+                _FiltroEncomienda.entregadas => entregadas,
+                _FiltroEncomienda.todas => lista,
+              };
 
               return RefreshIndicator(
-                onRefresh: () async => ref.invalidate(encomiendasDelInformeProvider),
+                onRefresh: () async =>
+                    ref.invalidate(encomiendasDelInformeProvider),
                 child: ListView.builder(
                   padding: const EdgeInsets.fromLTRB(
                       Medidas.margen, 0, Medidas.margen, Medidas.margen),
-                  itemCount: lista.length + 1,
+                  itemCount: visibles.length + 1,
                   itemBuilder: (_, i) {
                     if (i == 0) {
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: Text(
-                          '${lista.length} '
-                          '${lista.length == 1 ? "encomienda" : "encomiendas"} '
-                          'con foto · $conFoto lista${conFoto == 1 ? "" : "s"} '
-                          'para el informe',
-                          style: Theme.of(context).textTheme.labelSmall,
-                        ),
+                      return _CabeceraEncomiendas(
+                        pendientes: pendientes.length,
+                        entregadas: entregadas.length,
+                        filtro: _filtro,
+                        alCambiarFiltro: (f) => setState(() => _filtro = f),
                       );
                     }
-                    return _FilaEncomienda(encomienda: lista[i - 1]);
+                    return _FilaEncomienda(encomienda: visibles[i - 1]);
                   },
                 ),
               );
@@ -517,6 +529,170 @@ class _FilaEncomienda extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ============================================================================
+// CABECERA CON CONTADORES Y CHIPS DE FILTRO
+// ============================================================================
+// Se agrego porque el admin necesitaba ver, de un vistazo, cuantas encomiendas
+// habia PENDIENTES en porteria (sin retirar todavia). Antes se mezclaban con
+// las entregadas en una sola lista larga ordenada por fecha, y las pendientes
+// se perdian entre las demas. Ahora:
+//
+//   * El chip de "Pendientes" muestra el numero en el titulo y arranca
+//     seleccionado por defecto, asi se ven de una.
+//   * Cuando hay pendientes, la barra se pinta naranja para llamar la
+//     atencion. Cuando no hay, verde.
+//   * Los chips filtran solo la lista visible; el PDF sigue trayendo todo
+//     el periodo.
+// ============================================================================
+
+enum _FiltroEncomienda { pendientes, entregadas, todas }
+
+class _CabeceraEncomiendas extends StatelessWidget {
+  const _CabeceraEncomiendas({
+    required this.pendientes,
+    required this.entregadas,
+    required this.filtro,
+    required this.alCambiarFiltro,
+  });
+
+  final int pendientes;
+  final int entregadas;
+  final _FiltroEncomienda filtro;
+  final void Function(_FiltroEncomienda) alCambiarFiltro;
+
+  @override
+  Widget build(BuildContext context) {
+    final hayPendientes = pendientes > 0;
+    final colorAcento = hayPendientes ? Colores.naranjaOscuro : Colores.verdeOscuro;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ---- Estado destacado ----
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+            decoration: BoxDecoration(
+              color: colorAcento.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(Medidas.redondeoChico),
+              border: Border.all(
+                color: colorAcento.withValues(alpha: 0.35),
+                width: 0.8,
+              ),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  hayPendientes
+                      ? Icons.pending_actions_rounded
+                      : Icons.task_alt_rounded,
+                  size: 22,
+                  color: colorAcento,
+                ),
+                const SizedBox(width: 11),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        hayPendientes
+                            ? '$pendientes '
+                                '${pendientes == 1 ? "encomienda pendiente" : "encomiendas pendientes"} '
+                                'en portería'
+                            : 'No hay encomiendas pendientes',
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w800,
+                          color: colorAcento,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        hayPendientes
+                            ? 'Estas encomiendas ya llegaron pero todavía '
+                                'no las retiran los residentes.'
+                            : 'Todas las encomiendas del período ya fueron '
+                                'retiradas.',
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          height: 1.35,
+                          color: Colores.texto,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 10),
+
+          // ---- Chips de filtro ----
+          Wrap(
+            spacing: 6,
+            runSpacing: -4,
+            children: [
+              _chip(
+                context,
+                etiqueta: 'Pendientes ($pendientes)',
+                seleccionado: filtro == _FiltroEncomienda.pendientes,
+                color: Colores.naranjaOscuro,
+                alTocar: () => alCambiarFiltro(_FiltroEncomienda.pendientes),
+              ),
+              _chip(
+                context,
+                etiqueta: 'Entregadas ($entregadas)',
+                seleccionado: filtro == _FiltroEncomienda.entregadas,
+                color: Colores.verdeOscuro,
+                alTocar: () => alCambiarFiltro(_FiltroEncomienda.entregadas),
+              ),
+              _chip(
+                context,
+                etiqueta: 'Todas (${pendientes + entregadas})',
+                seleccionado: filtro == _FiltroEncomienda.todas,
+                color: Colores.grafito,
+                alTocar: () => alCambiarFiltro(_FiltroEncomienda.todas),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _chip(
+    BuildContext context, {
+    required String etiqueta,
+    required bool seleccionado,
+    required Color color,
+    required VoidCallback alTocar,
+  }) {
+    return FilterChip(
+      label: Text(
+        etiqueta,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: seleccionado ? FontWeight.w800 : FontWeight.w600,
+          color: seleccionado ? Colors.white : color,
+        ),
+      ),
+      selected: seleccionado,
+      onSelected: (_) => alTocar(),
+      backgroundColor: color.withValues(alpha: 0.08),
+      selectedColor: color,
+      showCheckmark: false,
+      side: BorderSide(
+        color: color.withValues(alpha: seleccionado ? 1 : 0.4),
+      ),
+      visualDensity: VisualDensity.compact,
     );
   }
 }
