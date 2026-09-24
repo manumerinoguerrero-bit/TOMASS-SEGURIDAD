@@ -8,8 +8,12 @@
 //   * Cuota gratuita: 3.000 requests por día — sobra de sobra para el uso
 //     de la app (un informe son 1-2 mapas).
 //   * No requiere tarjeta de crédito para el plan gratuito.
-//   * Tiles derivados de OpenStreetMap con calles nítidas. El estilo
-//     'osm-bright' se ve como el Mapa en vivo del admin.
+//   * Tiles derivados de OpenStreetMap con calles nítidas. Se usa
+//     el estilo 'osm-carto' porque es EL MISMO render (OSM Carto
+//     Standard) que sirve tile.openstreetmap.org, y ese es justo el
+//     tileset que muestra el Mapa en Vivo del admin. Así el mapa
+//     del PDF queda visualmente idéntico al que ve el admin dentro
+//     de la app.
 //
 // Antes intentamos con staticmap.openstreetmap.de (el servidor público
 // gratuito): era inestable, devolvía imágenes blancas seguido y quedaba
@@ -86,37 +90,33 @@ class ServicioMapaEstatico {
     final centro = _centroide(sectores, marcas);
     final zoom = _zoomAdecuado(sectores, marcas);
 
-    // Marcadores Geoapify: primero los sectores (grafito con número), después
-    // las marcas del guardia (verdes o rojas, pequeñas y sin número).
-    // Formato:
-    //   lonlat:LNG,LAT;color:%23xxxxxx;size:small|medium|large;text:N
-    // Los sectores se dibujan MÁS GRANDES (medium) que las marcas (small)
-    // para que se distingan visualmente sin necesitar leyenda.
+    // Marcadores Geoapify. Dos formatos distintos:
+    //   * Sectores → pin material grafito con el NÚMERO adentro. Se usa
+    //     `text:N` sin `icon`: Geoapify pone el texto centrado en el pin.
+    //     Antes había `icon:map-marker` (que es un nombre FontAwesome) y
+    //     `whitecircle:no`; esa combinación devolvía 400 y el PDF caía al
+    //     plano abstracto.
+    //   * Marcas del guardia → `type:circle` (nativo de Geoapify): un
+    //     punto redondo verde o rojo, sin pin ni sombra. Es exactamente
+    //     lo que se quería y no requiere ícono.
     final marcadores = [
-      // Círculos de tolerancia (fondo semi-transparente): se dibujan como
-      // "circle" markers, uno por sector.
       for (final s in sectores)
         'lonlat:${s.lng},${s.lat};'
             'type:material;'
             'color:$_colorSector;'
             'size:medium;'
-            'icon:map-marker;'
             'text:${s.numero};'
-            'textsize:small;'
-            'whitecircle:no',
-      // Marcas del guardia: puntitos verdes o rojos, sin número.
+            'textsize:medium',
       for (final m in marcas)
         'lonlat:${m.lng},${m.lat};'
-            'type:material;'
+            'type:circle;'
             'color:${m.lejos ? _colorMarcaLejos : _colorMarcaCerca};'
-            'size:small;'
-            'icon:circle;'
-            'whitecircle:no',
+            'size:small',
     ].join('|');
 
     final url = Uri.parse(
       'https://maps.geoapify.com/v1/staticmap'
-      '?style=osm-bright'
+      '?style=osm-carto'
       '&width=$ancho'
       '&height=$alto'
       '&center=lonlat:${centro.lng},${centro.lat}'
