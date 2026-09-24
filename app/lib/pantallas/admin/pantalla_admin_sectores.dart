@@ -122,13 +122,13 @@ class _EstadoSectores extends ConsumerState<PantallaAdminSectores> {
             nombre: nombre,
             latitud: donde?.latitud,
             longitud: donde?.longitud,
-            // Tolerancia acotada a 10-15 metros: obliga al guardia a estar
-            // parado JUNTO al cartel, no en cualquier lado del predio. Si el
-            // GPS del teléfono declara más error, se sube hasta 15 m como
-            // máximo — más que eso es no verificar nada.
-            tolerancia: donde == null
-                ? 10
-                : donde.metrosDeError.clamp(10, 15).round(),
+            // Tolerancia FIJA en 3 metros: el usuario pidió que el escaneo
+            // sea "máximo 3 metros de su posición". No se ajusta según el
+            // error del GPS — cueste lo que cueste, el guardia tiene que
+            // estar prácticamente junto al cartel. Si el GPS del teléfono
+            // tiene más error que eso, muchas marcas van a salir como
+            // "lejos" en el informe: es lo esperado, no es un bug.
+            tolerancia: 3,
             puntoAccesoId: puntoAccesoId,
           );
       if (!mounted) return;
@@ -187,7 +187,9 @@ class _EstadoSectores extends ConsumerState<PantallaAdminSectores> {
             puntoId: punto.id,
             latitud: donde.latitud,
             longitud: donde.longitud,
-            tolerancia: donde.metrosDeError.clamp(10, 15).round(),
+            // Tolerancia FIJA: igual criterio que _crear(). "Máximo 3 metros"
+            // significa que el guardia tiene que estar junto al cartel.
+            tolerancia: 3,
           );
       if (!mounted) return;
       ref.invalidate(puntosDeControlAdminProvider);
