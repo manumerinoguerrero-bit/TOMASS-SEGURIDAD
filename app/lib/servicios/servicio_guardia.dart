@@ -239,7 +239,8 @@ class ServicioGuardia {
     try {
       var consulta = _supabase
           .from('puntos_control')
-          .select('id, nombre, orden, descripcion')
+          .select('id, nombre, orden, descripcion, codigo_qr, '
+              'latitud, longitud, metros_de_tolerancia')
           .eq('activo', true);
       if (puntoAccesoId != null) {
         // Filtro OR: asignados a esa garita O sin garita (comunes).

@@ -438,7 +438,11 @@ class PuntoControl {
     required this.id,
     required this.nombre,
     required this.orden,
+    required this.codigoQr,
+    required this.metrosDeTolerancia,
     this.descripcion,
+    this.latitud,
+    this.longitud,
     this.marcadoEn,
   });
 
@@ -447,16 +451,36 @@ class PuntoControl {
   final int orden;
   final String? descripcion;
 
+  /// El texto que trae el QR pegado en el cartel. Se usa para hacer match
+  /// contra lo que el guardia escanea, ANTES de llamar al backend, y así
+  /// poder rechazar en el celular las marcas hechas desde lejos.
+  final String codigoQr;
+
+  /// Ubicación del cartel. Puede ser null si el sector fue creado pero
+  /// nunca se le tomó la ubicación (sectores "sin ubicación" en el admin).
+  final double? latitud;
+  final double? longitud;
+
+  /// Radio en metros dentro del cual el escaneo se considera válido. Fuera
+  /// de ese radio la app rechaza el escaneo y le pide al guardia que se
+  /// acerque al cartel.
+  final int metrosDeTolerancia;
+
   /// Cuándo se marcó en la ronda que está abierta, o null si todavía no.
   final DateTime? marcadoEn;
 
   bool get yaMarcado => marcadoEn != null;
+  bool get tieneUbicacion => latitud != null && longitud != null;
 
   PuntoControl conMarca(DateTime? cuando) => PuntoControl(
         id: id,
         nombre: nombre,
         orden: orden,
+        codigoQr: codigoQr,
+        metrosDeTolerancia: metrosDeTolerancia,
         descripcion: descripcion,
+        latitud: latitud,
+        longitud: longitud,
         marcadoEn: cuando,
       );
 
@@ -464,7 +488,11 @@ class PuntoControl {
         id: m['id'] as String,
         nombre: (m['nombre'] ?? '') as String,
         orden: (m['orden'] ?? 0) as int,
+        codigoQr: (m['codigo_qr'] ?? '') as String,
+        metrosDeTolerancia: (m['metros_de_tolerancia'] ?? 3) as int,
         descripcion: m['descripcion'] as String?,
+        latitud: (m['latitud'] as num?)?.toDouble(),
+        longitud: (m['longitud'] as num?)?.toDouble(),
       );
 }
 

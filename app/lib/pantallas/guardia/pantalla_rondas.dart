@@ -83,12 +83,74 @@ class _EstadoRondas extends ConsumerState<PantallaRondas> {
     });
 
     try {
-      // Se pide la ubicación pero NO se espera para siempre: si el GPS no
-      // contesta en unos segundos, la marca se anota igual sin ella. Un guardia
-      // que no puede registrar una ronda que sí hizo deja de usar la app.
+      // Se pide la ubicación con tope de tiempo — si el GPS no contesta
+      // en unos segundos seguimos con la validación (que va a rechazar la
+      // marca por falta de GPS).
       final donde = await Localizador.donde(
         esperaMaxima: const Duration(seconds: 8),
       );
+
+      // VALIDACIÓN DE DISTANCIA (nueva).
+      //
+      // El usuario pidió: "si no está en los 3 metros que debe escanear, la
+      // app NO debe dejarlo escanear, hasta que mejore su señal o GPS".
+      //
+      // Antes la app dejaba pasar cualquier marca y el backend la etiquetaba
+      // como "lejos" en el informe. Ahora la app rechaza directo — se
+      // sienten dos cosas distintas:
+      //
+      //   1) Si el guardia NO tiene señal GPS, no se puede validar que
+      //      esté cerca. Se le pide esperar.
+      //   2) Si tiene GPS pero está más lejos que la tolerancia del
+      //      cartel, se le dice a cuántos metros está y cuántos permite
+      //      este cartel.
+      //
+      // Se busca el punto en el provider por su código QR. Si el código
+      // escaneado NO corresponde a ningún punto de esta instalación, se
+      // deja pasar la marca hacia el backend — el backend responde con
+      // el error apropiado ("QR no reconocido"). No queremos duplicar
+      // esa validación acá.
+      final puntos =
+          ref.read(puntosDeControlProvider).valueOrNull ?? const [];
+      final punto = puntos.where((p) => p.codigoQr == codigo).firstOrNull;
+
+      if (punto != null && punto.tieneUbicacion) {
+        if (donde == null) {
+          setState(() {
+            _trabajando = false;
+            _problema = const ErrorAmigable(
+              'No tenés señal GPS todavía.',
+              detalle: 'Para poder registrar el escaneo tenemos que saber '
+                  'dónde estás. Salí a un lugar con cielo abierto, '
+                  'esperá 10 segundos y volvé a intentar.',
+              sePuedeReintentar: true,
+            );
+          });
+          return;
+        }
+
+        final distancia = _distanciaMetros(
+          donde.latitud,
+          donde.longitud,
+          punto.latitud!,
+          punto.longitud!,
+        );
+
+        if (distancia > punto.metrosDeTolerancia) {
+          setState(() {
+            _trabajando = false;
+            _problema = ErrorAmigable(
+              'Estás lejos del cartel de ${punto.nombre}.',
+              detalle: 'La app te ubica a ${distancia.round()} metros. '
+                  'Tenés que estar a máximo ${punto.metrosDeTolerancia} '
+                  'metros para que el escaneo cuente. Acercate al cartel '
+                  'y volvé a intentar.',
+              sePuedeReintentar: true,
+            );
+          });
+          return;
+        }
+      }
 
       final r = await ref.read(servicioGuardiaProvider).marcarPuntoDeControl(
             idLocal: _nuevoId(),
@@ -241,6 +303,24 @@ class _EstadoRondas extends ConsumerState<PantallaRondas> {
         _problema = Traductor.traducir(falla);
       });
     }
+  }
+
+  /// Distancia aproximada entre dos coordenadas GPS, en metros.
+  ///
+  /// A la escala de un condominio (metros, no kilómetros) la curvatura
+  /// de la Tierra no se nota y alcanza con la cuenta plana. No usamos
+  /// haversine — para 3-10 metros da lo mismo y es más rápido.
+  static double _distanciaMetros(
+    double lat1,
+    double lng1,
+    double lat2,
+    double lng2,
+  ) {
+    const metrosPorGradoLat = 110540.0;
+    final metrosPorGradoLng = 111320.0 * cos(lat1 * pi / 180);
+    final dy = (lat2 - lat1) * metrosPorGradoLat;
+    final dx = (lng2 - lng1) * metrosPorGradoLng;
+    return sqrt(dx * dx + dy * dy);
   }
 
   static String _nuevoId() {
