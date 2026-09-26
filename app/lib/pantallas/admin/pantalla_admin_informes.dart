@@ -20,6 +20,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:printing/printing.dart';
 
@@ -826,28 +827,39 @@ class _DetalleTurno extends ConsumerWidget {
               const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
-                child: OutlinedButton.icon(
+                child: FilledButton.icon(
+                  // Abre Google Maps en el navegador o en la app nativa
+                  // (Android decide qué usar). Antes se copiaba al
+                  // portapapeles y el admin tenía que pegar la URL a mano
+                  // en el navegador. Ahora un tap y aparece el mapa.
                   onPressed: () async {
                     final url = Uri.parse(
                       'https://www.google.com/maps/search/?api=1'
                       '&query=${t.geoLat},${t.geoLng}',
                     );
-                    // Copiamos por clipboard como fallback simple
-                    // (evitamos agregar dependencia url_launcher)
-                    await Clipboard.setData(
-                        ClipboardData(text: url.toString()));
-                    if (!context.mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Link a Google Maps copiado. Pegalo en el navegador.',
+                    try {
+                      await launchUrl(url,
+                          mode: LaunchMode.externalApplication);
+                    } catch (_) {
+                      // Fallback: copiar al portapapeles si el sistema no
+                      // puede abrir un browser.
+                      await Clipboard.setData(
+                          ClipboardData(text: url.toString()));
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Link copiado al portapapeles.'),
+                          backgroundColor: Colores.grafito,
                         ),
-                        backgroundColor: Colores.grafito,
-                      ),
-                    );
+                      );
+                    }
                   },
                   icon: const Icon(Icons.map_rounded, size: 18),
-                  label: const Text('Copiar link de Google Maps'),
+                  label: const Text('Ver en Google Maps'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colores.grafito,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
                 ),
               ),
             ] else

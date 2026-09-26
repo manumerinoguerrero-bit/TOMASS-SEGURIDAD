@@ -29,6 +29,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../config/tema.dart';
 import '../../estado/proveedores_admin.dart';
@@ -507,6 +508,29 @@ class _DetalleGuardia extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: 14),
+
+            // Botón grande "Llamar al guardia" — el caso urgente que
+            // Manuel puede tener: pasó algo grave y hay que contactar
+            // al guardia YA, sin ir a la agenda. Solo aparece si el
+            // guardia tiene teléfono cargado en su ficha.
+            if (g.guardiaTelefono != null && g.guardiaTelefono!.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    icon: const Icon(Icons.phone_rounded, size: 18),
+                    label: Text('Llamar a ${g.guardiaNombre.split(' ').first} '
+                        '(${g.guardiaTelefono})'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Colores.verdeOscuro,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    onPressed: () => _llamar(context, g.guardiaTelefono!),
+                  ),
+                ),
+              ),
+
             _fila('Instalación', instalacion),
             _fila('Puesto', g.puntoAccesoNombre ?? 'Todo el condominio'),
             _fila('Comenzó', Formato.fechaYHora(g.inicio)),
@@ -527,6 +551,25 @@ class _DetalleGuardia extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _llamar(BuildContext context, String telefono) async {
+    // El tel: URI acepta el número tal cual, sin dashes ni paréntesis.
+    // Le sacamos todo salvo dígitos y el + inicial.
+    final limpio = telefono.replaceAll(RegExp(r'[^0-9+]'), '');
+    final uri = Uri.parse('tel:$limpio');
+    try {
+      await launchUrl(uri);
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No se pudo abrir el discado. '
+              'Copiá el número a mano.'),
+          backgroundColor: Colores.rojo,
+        ),
+      );
+    }
   }
 
   Widget _fila(String etiqueta, String valor) {

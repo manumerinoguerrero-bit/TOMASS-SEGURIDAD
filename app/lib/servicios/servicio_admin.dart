@@ -104,6 +104,7 @@ class ServicioAdmin {
         _contarTodo('unidades'),
         _contarVacio('incidentes', 'resuelto_en'),
         _contarVacio('turnos', 'cerrado_en'),
+        _contarNovedadesCriticasAbiertas(),
       ]);
 
       return ResumenAdmin(
@@ -113,10 +114,24 @@ class ServicioAdmin {
         espacios: n[3],
         novedadesAbiertas: n[4],
         guardiasDeTurno: n[5],
+        novedadesCriticasAbiertas: n[6],
       );
     } catch (falla) {
       throw Traductor.traducir(falla);
     }
+  }
+
+  /// Cuenta las novedades sin resolver de gravedad alta o critica. Se
+  /// separan del total del dashboard para que Manuel las vea de una — antes
+  /// pasaban desapercibidas mezcladas con las bajas.
+  Future<int> _contarNovedadesCriticasAbiertas() async {
+    final r = await _supabase
+        .from('incidentes')
+        .select('id')
+        .filter('resuelto_en', 'is', null)
+        .inFilter('gravedad', ['critica', 'alta'])
+        .count(CountOption.exact);
+    return r.count;
   }
 
   Future<int> _contarTodo(String tabla) async {

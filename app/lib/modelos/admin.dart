@@ -26,6 +26,7 @@ class ResumenAdmin {
     required this.paquetesEnPorteria,
     required this.espacios,
     required this.novedadesAbiertas,
+    required this.novedadesCriticasAbiertas,
     required this.guardiasDeTurno,
   });
 
@@ -34,10 +35,19 @@ class ResumenAdmin {
   final int paquetesEnPorteria;
   final int espacios;
   final int novedadesAbiertas;
+
+  /// Subconjunto de `novedadesAbiertas` que tienen gravedad crítica o alta.
+  /// Se separa del total para llamar la atención — antes en el dashboard
+  /// aparecían mezcladas 7 bajas + 1 crítica que llevaba días sin resolver.
+  final int novedadesCriticasAbiertas;
+
   final int guardiasDeTurno;
 
   /// Si hay algo esperando que el administrador haga.
   bool get hayPendientes => vehiculosPorAprobar > 0 || novedadesAbiertas > 0;
+
+  /// Si hay novedades críticas sin resolver — pinta rojo y grande.
+  bool get hayCriticas => novedadesCriticasAbiertas > 0;
 }
 
 // ============================================================================
@@ -1010,6 +1020,7 @@ class GuardiaEnVivo {
     required this.inicio,
     required this.condominioId,
     required this.condominioNombre,
+    this.guardiaTelefono,
     this.fotoUrl,
     this.puntoAccesoNombre,
     this.ultimaLat,
@@ -1021,6 +1032,12 @@ class GuardiaEnVivo {
   final String turnoId;
   final String guardiaId;
   final String guardiaNombre;
+
+  /// Teléfono del guardia. Se muestra clickeable en la tarjeta del mapa
+  /// en vivo — un tap y sale `tel:` para llamar en emergencia sin tener
+  /// que ir a la agenda.
+  final String? guardiaTelefono;
+
   final DateTime inicio;
   final String? fotoUrl;
   final String? puntoAccesoNombre;
@@ -1073,6 +1090,7 @@ class GuardiaEnVivo {
       guardiaId: m['guardia_id'] as String,
       guardiaNombre:
           (m['guardia_nombre'] as String?) ?? 'Guardia sin nombre',
+      guardiaTelefono: (m['guardia_telefono'] as String?)?.trim(),
       inicio: DateTime.parse(m['inicio'] as String),
       fotoUrl: m['foto_url'] as String?,
       puntoAccesoNombre: m['punto_acceso_nombre'] as String?,

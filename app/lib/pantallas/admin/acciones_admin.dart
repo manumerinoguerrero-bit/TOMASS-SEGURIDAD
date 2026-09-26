@@ -24,6 +24,9 @@ class MenuDelAdmin extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final perfil = ref.watch(perfilProvider).valueOrNull;
+    final atiendeVarias = ref.watch(atiendeVariasProvider);
+    final instalaciones =
+        ref.watch(misInstalacionesProvider).valueOrNull ?? const [];
 
     return PopupMenuButton<String>(
       icon: const Icon(Icons.more_vert_rounded),
@@ -31,6 +34,9 @@ class MenuDelAdmin extends ConsumerWidget {
       position: PopupMenuPosition.under,
       onSelected: (elegido) {
         if (elegido == 'salir') _cerrarSesion(context, ref);
+        if (elegido == 'cambiarInstalacion') {
+          _abrirSelectorInstalacion(context, ref, instalaciones);
+        }
       },
       itemBuilder: (context) => [
         PopupMenuItem<String>(
@@ -58,6 +64,23 @@ class MenuDelAdmin extends ConsumerWidget {
           ),
         ),
         const PopupMenuDivider(),
+
+        // Cuando el admin atiende más de una instalación, se le ofrece
+        // cambiar desde acá — antes solo estaba en el Inicio, y para
+        // pasar de Milagros a Cerro Grande había que volver a Inicio,
+        // cambiar, y navegar de nuevo.
+        if (atiendeVarias)
+          const PopupMenuItem<String>(
+            value: 'cambiarInstalacion',
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+              leading: Icon(Icons.apartment_rounded, size: 20),
+              title: Text('Cambiar de instalación'),
+            ),
+          ),
+        if (atiendeVarias) const PopupMenuDivider(),
+
         const PopupMenuItem<String>(
           value: 'salir',
           child: ListTile(
@@ -69,6 +92,122 @@ class MenuDelAdmin extends ConsumerWidget {
         ),
       ],
     );
+  }
+
+  Future<void> _abrirSelectorInstalacion(
+    BuildContext context,
+    WidgetRef ref,
+    List<Instalacion> instalaciones,
+  ) async {
+    if (instalaciones.isEmpty || !context.mounted) return;
+
+    final elegida = await showModalBottomSheet<Instalacion>(
+      context: context,
+      backgroundColor: Colores.superficie,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => SafeArea(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(context).height * 0.82,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 12),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colores.linea,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text('¿A cuál pasás?',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 4),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 30),
+                child: Text(
+                  'Los datos que veas (números, informes, mapa) van a ser '
+                  'de la instalación que elijas.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                      fontSize: 12.5, height: 1.4, color: Colores.textoSuave),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  padding: EdgeInsets.zero,
+                  itemCount: instalaciones.length,
+                  itemBuilder: (context, n) {
+                    final i = instalaciones[n];
+                    return ListTile(
+                      key: ValueKey(i.id),
+                      onTap: () => Navigator.pop(context, i),
+                      leading: Icon(
+                        switch (i.tipo) {
+                          'colegio' => Icons.school_rounded,
+                          'empresa' => Icons.warehouse_rounded,
+                          _ => Icons.apartment_rounded,
+                        },
+                        color: i.esLaActiva
+                            ? Colores.verdeOscuro
+                            : Colores.textoTenue,
+                      ),
+                      title: Text(
+                        i.nombre,
+                        style: TextStyle(
+                          fontSize: 14.5,
+                          fontWeight: i.esLaActiva
+                              ? FontWeight.w800
+                              : FontWeight.w600,
+                        ),
+                      ),
+                      subtitle: i.ciudad == null ? null : Text(i.ciudad!),
+                      trailing: i.esLaActiva
+                          ? const Icon(Icons.check_circle_rounded,
+                              color: Colores.verde)
+                          : null,
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (elegida == null || elegida.esLaActiva || !context.mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref.read(servicioAdminProvider).cambiarDeInstalacion(elegida.id);
+      ref.invalidate(perfilProvider);
+      refrescarPanel(ref);
+      if (!context.mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Ahora estás administrando ${elegida.nombre}.'),
+          backgroundColor: Colores.grafito,
+        ),
+      );
+    } catch (falla) {
+      if (!context.mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(Traductor.traducir(falla).mensaje),
+          backgroundColor: Colores.rojo,
+        ),
+      );
+    }
   }
 
   Future<void> _cerrarSesion(BuildContext context, WidgetRef ref) async {

@@ -253,12 +253,24 @@ class _LoQueFalta extends StatelessWidget {
                 explicacion: 'Hasta que los apruebes, esas personas no pueden '
                     'entrar con su auto.',
               ),
-            if (resumen.novedadesAbiertas > 0)
+            // CRÍTICAS primero, en rojo, para que salten a la vista. Antes
+            // aparecían mezcladas con las bajas y podían pasar dias sin
+            // resolver.
+            if (resumen.novedadesCriticasAbiertas > 0)
               _Punto(
-                texto: '${resumen.novedadesAbiertas} '
-                    '${resumen.novedadesAbiertas == 1 ? "novedad" : "novedades"} '
+                texto: '${resumen.novedadesCriticasAbiertas} '
+                    '${resumen.novedadesCriticasAbiertas == 1 ? "novedad CRÍTICA" : "novedades CRÍTICAS"} '
                     'sin resolver',
-                explicacion: 'Cosas que anotaron los guardias y siguen abiertas.',
+                explicacion: 'Alta o crítica: revisá y resolvé prioridad.',
+                colorTexto: Colores.rojo,
+              ),
+            if (resumen.novedadesAbiertas - resumen.novedadesCriticasAbiertas > 0)
+              _Punto(
+                texto:
+                    '${resumen.novedadesAbiertas - resumen.novedadesCriticasAbiertas} '
+                    '${(resumen.novedadesAbiertas - resumen.novedadesCriticasAbiertas) == 1 ? "novedad" : "novedades"} '
+                    'sin resolver',
+                explicacion: 'Otras novedades anotadas por los guardias.',
               ),
           ],
         ),
@@ -268,10 +280,15 @@ class _LoQueFalta extends StatelessWidget {
 }
 
 class _Punto extends StatelessWidget {
-  const _Punto({required this.texto, required this.explicacion});
+  const _Punto({
+    required this.texto,
+    required this.explicacion,
+    this.colorTexto,
+  });
 
   final String texto;
   final String explicacion;
+  final Color? colorTexto;
 
   @override
   Widget build(BuildContext context) {
@@ -281,7 +298,11 @@ class _Punto extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(texto,
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: colorTexto,
+              )),
           Text(
             explicacion,
             style: const TextStyle(
