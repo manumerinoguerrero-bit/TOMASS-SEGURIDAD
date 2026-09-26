@@ -351,7 +351,7 @@ class ServicioAdmin {
     double? latitud,
     double? longitud,
     String? descripcion,
-    int tolerancia = 3,
+    int tolerancia = 5,
     String? puntoAccesoId,
   }) async {
     try {

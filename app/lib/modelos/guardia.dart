@@ -489,7 +489,7 @@ class PuntoControl {
         nombre: (m['nombre'] ?? '') as String,
         orden: (m['orden'] ?? 0) as int,
         codigoQr: (m['codigo_qr'] ?? '') as String,
-        metrosDeTolerancia: (m['metros_de_tolerancia'] ?? 3) as int,
+        metrosDeTolerancia: (m['metros_de_tolerancia'] ?? 5) as int,
         descripcion: m['descripcion'] as String?,
         latitud: (m['latitud'] as num?)?.toDouble(),
         longitud: (m['longitud'] as num?)?.toDouble(),

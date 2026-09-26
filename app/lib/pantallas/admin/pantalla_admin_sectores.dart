@@ -122,13 +122,11 @@ class _EstadoSectores extends ConsumerState<PantallaAdminSectores> {
             nombre: nombre,
             latitud: donde?.latitud,
             longitud: donde?.longitud,
-            // Tolerancia FIJA en 3 metros: el usuario pidió que el escaneo
-            // sea "máximo 3 metros de su posición". No se ajusta según el
-            // error del GPS — cueste lo que cueste, el guardia tiene que
-            // estar prácticamente junto al cartel. Si el GPS del teléfono
-            // tiene más error que eso, muchas marcas van a salir como
-            // "lejos" en el informe: es lo esperado, no es un bug.
-            tolerancia: 3,
+            // Tolerancia FIJA en 5 metros: el usuario ajustó de 3 a 5 para
+            // dejar margen al error del GPS del teléfono. El guardia igual
+            // tiene que estar prácticamente al lado del cartel para que
+            // el escaneo se acepte.
+            tolerancia: 5,
             puntoAccesoId: puntoAccesoId,
           );
       if (!mounted) return;
@@ -187,9 +185,10 @@ class _EstadoSectores extends ConsumerState<PantallaAdminSectores> {
             puntoId: punto.id,
             latitud: donde.latitud,
             longitud: donde.longitud,
-            // Tolerancia FIJA: igual criterio que _crear(). "Máximo 3 metros"
-            // significa que el guardia tiene que estar junto al cartel.
-            tolerancia: 3,
+            // Tolerancia FIJA: mismo valor que _crear(). Ajustado de 3 a 5
+            // porque el error del GPS urbano supera los 3 m y el guardia
+            // no podía escanear ni parado al lado del cartel.
+            tolerancia: 5,
           );
       if (!mounted) return;
       ref.invalidate(puntosDeControlAdminProvider);
