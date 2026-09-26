@@ -32,6 +32,26 @@ class ServicioAdmin {
   final SupabaseClient _supabase;
 
   // ==========================================================================
+  // HELPER: ID DEL CONDOMINIO ACTIVO
+  // ==========================================================================
+  // Muchas queries del admin dependen del condominio activo. Antes se
+  // confiaba solo en RLS, pero un admin de varias instalaciones (Manuel)
+  // puede terminar viendo datos mezclados si el contexto RLS cache queda
+  // desincronizado o si hay dos pestañas abiertas. Es el mismo bug del
+  // 14/09/2026 que ya se arregló en servicio_guardia (ultimosAccesos y
+  // personasDentro). Acá se aplica el mismo patrón a movimientos, turnos,
+  // incidentes, encomiendas y estadisticas.
+  //
+  // La RPC mi_condominio() es la misma que usan las policies RLS del
+  // servidor, así que cliente y servidor coinciden.
+  Future<String?> _condominioActivo() async {
+    final id = await _supabase
+        .rpc('mi_condominio')
+        .timeout(Entorno.esperaMaxima);
+    return id as String?;
+  }
+
+  // ==========================================================================
   // LAS INSTALACIONES QUE ATIENDE
   // ==========================================================================
   // Tomass Seguridad Privada atiende varias. El administrador trabaja en UNA a
@@ -159,7 +179,7 @@ class ServicioAdmin {
     try {
       await _supabase.from('vehiculos').update({
         'estado': 'aprobado',
-        'aprobado_en': DateTime.now().toIso8601String(),
+        'aprobado_en': DateTime.now().toUtc().toIso8601String(),
         'aprobado_por': _supabase.auth.currentUser?.id,
         'motivo_rechazo': null,
       }).eq('id', vehiculoId);
@@ -458,8 +478,8 @@ class ServicioAdmin {
     try {
       final filas = await _supabase.rpc('detalle_de_rondas', params: {
         'p_dias': dias,
-        if (desde != null) 'p_desde': desde.toIso8601String(),
-        if (hasta != null) 'p_hasta': hasta.toIso8601String(),
+        if (desde != null) 'p_desde': desde.toUtc().toIso8601String(),
+        if (hasta != null) 'p_hasta': hasta.toUtc().toIso8601String(),
       }).timeout(Entorno.esperaMaxima);
 
       return (filas as List)
@@ -499,8 +519,8 @@ class ServicioAdmin {
     try {
       final filas = await _supabase.rpc('informe_de_rondas', params: {
         'p_dias': dias,
-        if (desde != null) 'p_desde': desde.toIso8601String(),
-        if (hasta != null) 'p_hasta': hasta.toIso8601String(),
+        if (desde != null) 'p_desde': desde.toUtc().toIso8601String(),
+        if (hasta != null) 'p_hasta': hasta.toUtc().toIso8601String(),
       }).timeout(Entorno.esperaMaxima);
 
       return (filas as List)
@@ -594,19 +614,22 @@ class ServicioAdmin {
       //    el guardia). Si no se dice cuál, la consulta falla entera con
       //    "more than one relationship was found". Ya nos rompió el login una
       //    vez por este mismo motivo.
+      final condominioId = await _condominioActivo();
+      if (condominioId == null) return const [];
+
       var consulta = _supabase.from('movimientos_acceso').select('''
             id, tipo_acceso, sentido, estado, patente_snapshot,
             nombre_snapshot, unidad_snapshot, rut_snapshot, ocurrido_en,
             motivo_denegacion, autorizado_por_texto,
             usuarios!movimientos_acceso_residente_id_fkey ( nombre_completo ),
             puntos_acceso ( nombre )
-          ''');
+          ''').eq('condominio_id', condominioId);
 
       if (desde != null) {
-        consulta = consulta.gte('ocurrido_en', desde.toIso8601String());
+        consulta = consulta.gte('ocurrido_en', desde.toUtc().toIso8601String());
       }
       if (hasta != null) {
-        consulta = consulta.lte('ocurrido_en', hasta.toIso8601String());
+        consulta = consulta.lte('ocurrido_en', hasta.toUtc().toIso8601String());
       }
       if (tipo != null) consulta = consulta.eq('tipo_acceso', tipo);
 
@@ -629,16 +652,20 @@ class ServicioAdmin {
 
   Future<List<TurnoAdmin>> turnos({int ultimosDias = 14}) async {
     try {
+      final condominioId = await _condominioActivo();
+      if (condominioId == null) return const [];
+
       final desde = DateTime.now().subtract(Duration(days: ultimosDias));
       final filas = await _supabase
           .from('turnos')
           .select('''
             id, inicio, cerrado_en, notas_entrega,
-            foto_url, geo_lat, geo_lng,
+            foto_url, geo_lat, geo_lng, guardia_id,
             usuarios!turnos_guardia_id_fkey ( nombre_completo ),
             puntos_acceso ( nombre )
           ''')
-          .gte('inicio', desde.toIso8601String())
+          .eq('condominio_id', condominioId)
+          .gte('inicio', desde.toUtc().toIso8601String())
           .order('inicio', ascending: false)
           .timeout(Entorno.esperaMaxima);
 
@@ -675,6 +702,9 @@ class ServicioAdmin {
       //    caminos (el residente y el guardia que entregó). Sin nombrar cada
       //    relación, la consulta falla entera con "more than one relationship
       //    was found".
+      final condominioId = await _condominioActivo();
+      if (condominioId == null) return const [];
+
       final filas = await _supabase
           .from('paquetes')
           .select('''
@@ -686,10 +716,11 @@ class ServicioAdmin {
             unidades ( numero, torre ),
             guardia:usuarios!paquetes_guardia_entrega_id_fkey ( nombre_completo )
           ''')
+          .eq('condominio_id', condominioId)
           .isFilter('fotos_borradas_en', null)
           .or('foto_url.not.is.null,foto_entrega_url.not.is.null,firma_url.not.is.null')
-          .gte('recibido_en', desde.toIso8601String())
-          .lte('recibido_en', hasta.toIso8601String())
+          .gte('recibido_en', desde.toUtc().toIso8601String())
+          .lte('recibido_en', hasta.toUtc().toIso8601String())
           .order('recibido_en', ascending: false)
           .timeout(Entorno.esperaMaxima);
 
@@ -756,8 +787,8 @@ class ServicioAdmin {
     required DateTime hasta,
   }) async {
     try {
-      final desdeIso = desde.toIso8601String();
-      final hastaIso = hasta.toIso8601String();
+      final desdeIso = desde.toUtc().toIso8601String();
+      final hastaIso = hasta.toUtc().toIso8601String();
 
       // Primero traemos los ids de rondas de este guardia, para después
       // pedir las marcas usando inFilter. El filtro sobre columna joineada
@@ -959,6 +990,9 @@ class ServicioAdmin {
     required DateTime hasta,
   }) async {
     try {
+      final condominioId = await _condominioActivo();
+      if (condominioId == null) return const [];
+
       final filas = await _supabase
           .from('incidentes')
           .select('''
@@ -968,8 +1002,9 @@ class ServicioAdmin {
             usuarios!incidentes_reportado_por_fkey ( nombre_completo ),
             unidades ( numero, torre )
           ''')
-          .gte('ocurrido_en', desde.toIso8601String())
-          .lte('ocurrido_en', hasta.toIso8601String())
+          .eq('condominio_id', condominioId)
+          .gte('ocurrido_en', desde.toUtc().toIso8601String())
+          .lte('ocurrido_en', hasta.toUtc().toIso8601String())
           .order('ocurrido_en', ascending: false)
           .limit(500)
           .timeout(Entorno.esperaMaxima);
@@ -1033,7 +1068,7 @@ class ServicioAdmin {
       await _supabase.from('paquetes').update({
         'foto_url': null,
         'foto_entrega_url': null,
-        'fotos_borradas_en': DateTime.now().toIso8601String(),
+        'fotos_borradas_en': DateTime.now().toUtc().toIso8601String(),
       }).inFilter('id', encomiendas.map((e) => e.id).toList());
     } catch (falla) {
       throw Traductor.traducir(falla);
@@ -1065,8 +1100,19 @@ class ServicioAdmin {
               !t.inicio.isBefore(desde) && !t.inicio.isAfter(hasta))
           .toList();
 
-      final desdeIso = desde.toIso8601String();
-      final hastaIso = hasta.toIso8601String();
+      final desdeIso = desde.toUtc().toIso8601String();
+      final hastaIso = hasta.toUtc().toIso8601String();
+
+      // Filtro explícito por condominio activo — mismo criterio que
+      // movimientos()/turnos()/etc. Sin esto, un admin de varias
+      // instalaciones puede terminar mezclando datos si RLS cachea.
+      final condominioId = await _condominioActivo();
+      if (condominioId == null) {
+        return (
+          EstadisticasTurnos.vacia(desde: desde, hasta: hasta),
+          const <TurnoAdmin>[],
+        );
+      }
 
       // Todo lo demás en paralelo — cinco viajes al servidor a la vez
       final resultados = await Future.wait([
@@ -1075,6 +1121,7 @@ class ServicioAdmin {
             .from('rondas')
             .select('id, guardia_id, inicio, cerrada_en, '
                 'marcas_de_ronda ( id )')
+            .eq('condominio_id', condominioId)
             .gte('inicio', desdeIso)
             .lte('inicio', hastaIso)
             .timeout(Entorno.esperaMaxima),
@@ -1082,12 +1129,14 @@ class ServicioAdmin {
         _supabase
             .from('puntos_control')
             .select('id')
+            .eq('condominio_id', condominioId)
             .eq('activo', true)
             .timeout(Entorno.esperaMaxima),
         // accesos del período (para gráfico por hora + actividad por turno)
         _supabase
             .from('movimientos_acceso')
             .select('id, ocurrido_en, turno_id')
+            .eq('condominio_id', condominioId)
             .gte('ocurrido_en', desdeIso)
             .lte('ocurrido_en', hastaIso)
             .timeout(Entorno.esperaMaxima),
@@ -1097,9 +1146,10 @@ class ServicioAdmin {
             .select('id, recibido_en, descripcion, empresa_courier, '
                 'usuarios!paquetes_residente_id_fkey ( nombre_completo ), '
                 'unidades ( numero, torre )')
+            .eq('condominio_id', condominioId)
             .filter('entregado_en', 'is', 'null')
             .lte('recibido_en',
-                DateTime.now().subtract(const Duration(days: 7)).toIso8601String())
+                DateTime.now().subtract(const Duration(days: 7)).toUtc().toIso8601String())
             .order('recibido_en', ascending: true)
             .limit(20)
             .timeout(Entorno.esperaMaxima),
@@ -1107,6 +1157,7 @@ class ServicioAdmin {
         _supabase
             .from('paquetes')
             .select('id, recibido_en, turno_recepcion_id')
+            .eq('condominio_id', condominioId)
             .gte('recibido_en', desdeIso)
             .lte('recibido_en', hastaIso)
             .timeout(Entorno.esperaMaxima),
@@ -1221,25 +1272,21 @@ class ServicioAdmin {
       for (final t in turnosEnRango) {
         porGuardia.putIfAbsent(t.guardia, () => []).add(t);
       }
+      // Mapa guardia_id -> nombre_guardia, armado desde los turnos del
+      // rango (los guardias que hicieron ronda también hicieron turno).
+      // Con ese mapa cruzamos rondasCrudo (que trae guardia_id) al nombre
+      // usado como clave del ranking.
+      final nombreDeGuardia = <String, String>{
+        for (final t in turnosEnRango) t.guardiaId: t.guardia,
+      };
       final rondasPorGuardia = <String, int>{};
       for (final r in rondasCrudo) {
-        // Buscamos el nombre del guardia a partir del guardia_id + turnos
         final gid = r['guardia_id'] as String?;
         if (gid == null) continue;
-        // Cruzamos con los turnos que ya tenemos para inferir el nombre
-        // (evitamos otra query — el guardia siempre está en turnosEnRango)
-        for (final t in turnosEnRango) {
-          if (t.id.isNotEmpty) {
-            rondasPorGuardia[t.guardia] =
-                (rondasPorGuardia[t.guardia] ?? 0);
-          }
-        }
-        // Contamos las rondas realmente por guardia (aproximado: por nombre)
+        final nombre = nombreDeGuardia[gid];
+        if (nombre == null) continue; // guardia sin turno en el rango
+        rondasPorGuardia[nombre] = (rondasPorGuardia[nombre] ?? 0) + 1;
       }
-      // Recalculo simple de rondas por guardia (usando cruce indirecto):
-      // como no tenemos join directo, cada guardia queda con 0.
-      // Es intencional: el ranking prioriza cumplimiento visible (selfie/GPS)
-      // que es lo que Manuel realmente evalúa en producción.
       final ranking = porGuardia.entries.map((e) {
         final lista = e.value;
         final conSelfie = lista.where((t) => t.tieneFoto).length;

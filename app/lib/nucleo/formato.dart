@@ -94,6 +94,14 @@ class Formato {
     return '$cuerpo-$dv';
   }
 
+  /// ISO-8601 en UTC, para filtros contra columnas timestamptz de Postgres.
+  ///
+  /// `DateTime.now().toIso8601String()` en Chile devuelve un string sin sufijo
+  /// de zona horaria: PostgREST lo interpreta con la TZ de sesión del servidor
+  /// (UTC), y los filtros de "el día X" quedan desfasados 3-4 h. Este helper
+  /// fuerza el UTC explícito ("2026-09-25T14:30:00.000Z") y evita el bug.
+  static String isoUtc(DateTime cuando) => cuando.toUtc().toIso8601String();
+
   /// Pone el nombre con la primera letra de cada palabra en mayúscula.
   static String nombrePropio(String texto) {
     return texto

@@ -86,6 +86,13 @@ class RastreadorGuardia {
   StreamSubscription<Position>? _sub;
   Timer? _watchdog;
   bool _enviando = false;
+
+  /// Marca que detener() ya se llamó. Evita que un _alRecibir() en curso
+  /// (que estaba en el await del envío) vuelva y sobrescriba el estado
+  /// "apagado" con "activo". Sin este flag el banner del panel podía
+  /// quedar en verde después de cerrar turno.
+  bool _cancelado = false;
+
   DateTime? _ultimoEnvioExitoso;
   DateTime? _ultimaPosicionDelStream;
 
@@ -119,6 +126,7 @@ class RastreadorGuardia {
   /// señal" y ya está.
   Future<void> iniciar({Duration cada = const Duration(minutes: 3)}) async {
     if (activo) return;
+    _cancelado = false;
 
     // 1) Servicio de ubicación prendido en el celular
     if (!await Geolocator.isLocationServiceEnabled()) {
@@ -237,6 +245,7 @@ class RastreadorGuardia {
   }
 
   void detener() {
+    _cancelado = true;
     _sub?.cancel();
     _sub = null;
     _watchdog?.cancel();
@@ -256,6 +265,11 @@ class RastreadorGuardia {
         lat: p.latitude,
         lng: p.longitude,
       );
+      // Chequeo post-await: si mientras se enviaba al servidor el guardia
+      // cerró turno (detener() setea _cancelado=true), NO tocamos el
+      // estado — quedaría en "activo" con el banner verde después de
+      // cerrar. Race real, se veía en producción.
+      if (_cancelado) return;
       final ahora = DateTime.now();
       _ultimoEnvioExitoso = ahora;
       ultimoEnvio.value = ahora;

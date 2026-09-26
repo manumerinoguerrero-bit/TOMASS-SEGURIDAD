@@ -340,6 +340,7 @@ class TurnoAdmin {
     required this.id,
     required this.inicio,
     required this.guardia,
+    required this.guardiaId,
     this.cerradoEn,
     this.puesto,
     this.notas,
@@ -354,6 +355,7 @@ class TurnoAdmin {
         id: id,
         inicio: inicio,
         guardia: guardia,
+        guardiaId: guardiaId,
         cerradoEn: cerradoEn,
         puesto: puesto,
         notas: notas,
@@ -366,6 +368,11 @@ class TurnoAdmin {
   final String id;
   final DateTime inicio;
   final String guardia;
+
+  /// ID del guardia. Se usa para cruzar contra `rondas.guardia_id` sin
+  /// depender del nombre (que puede tener homónimos).
+  final String guardiaId;
+
   final DateTime? cerradoEn;
   final String? puesto;
   final String? notas;
@@ -409,6 +416,7 @@ class TurnoAdmin {
       guardia: g is Map
           ? (g['nombre_completo'] ?? 'Sin nombre') as String
           : 'Sin nombre',
+      guardiaId: (m['guardia_id'] ?? '') as String,
       // Vacío significa que ese guardia cubría TODAS las entradas, que es el
       // caso normal cuando hay un solo guardia.
       puesto: p is Map ? p['nombre'] as String? : null,
@@ -851,6 +859,29 @@ class EstadisticasTurnos {
     }
     return maxIdx;
   }
+
+  /// Devuelve estadísticas vacías del período. Se usa cuando no hay
+  /// condominio activo — mejor devolver la estructura vacía que crashear.
+  factory EstadisticasTurnos.vacia({
+    required DateTime desde,
+    required DateTime hasta,
+  }) =>
+      EstadisticasTurnos(
+        desde: desde,
+        hasta: hasta,
+        kpi: const KpiCumplimiento(
+          totalTurnos: 0,
+          turnosConSelfie: 0,
+          turnosConGps: 0,
+          totalRondas: 0,
+          rondasCompletas: 0,
+          horasCubiertas: 0.0,
+        ),
+        accesosPorHora: List.filled(24, 0),
+        alertas: const [],
+        encomiendasPendientes: const [],
+        ranking: const [],
+      );
 }
 
 class KpiCumplimiento {
