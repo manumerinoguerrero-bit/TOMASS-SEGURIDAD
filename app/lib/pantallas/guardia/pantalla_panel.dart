@@ -18,6 +18,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:permission_handler/permission_handler.dart' as ph;
 
 import '../../config/tema.dart';
 import '../../estado/proveedores.dart';
@@ -556,7 +557,13 @@ class _FilaAcceso extends StatelessWidget {
         ? (m.esEntrada ? Colores.verde : Colores.grafito)
         : Colores.rojo;
 
-    return Padding(
+    // Tocar el registro abre un modal con la ficha completa: RUT sin
+    // truncar, autorizador, motivo de denegación, guardia que lo registró,
+    // hora exacta, y si fue offline. Antes esa data estaba en el modelo
+    // pero no había forma de verla desde la app del guardia.
+    return InkWell(
+      onTap: () => _abrirDetalle(context, m),
+      child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
       child: Row(
         children: [
@@ -657,6 +664,160 @@ class _FilaAcceso extends StatelessWidget {
             const Etiqueta(texto: 'Denegado', tono: TonoEtiqueta.malo),
         ],
       ),
+      ),
+    );
+  }
+
+  static Future<void> _abrirDetalle(BuildContext context, Movimiento m) {
+    return showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colores.superficie,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => _DetalleMovimiento(movimiento: m),
+    );
+  }
+}
+
+class _DetalleMovimiento extends StatelessWidget {
+  const _DetalleMovimiento({required this.movimiento});
+
+  final Movimiento movimiento;
+
+  @override
+  Widget build(BuildContext context) {
+    final m = movimiento;
+    final color = m.aprobado
+        ? (m.esEntrada ? Colores.verde : Colores.grafito)
+        : Colores.rojo;
+
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle bar
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 18),
+                decoration: BoxDecoration(
+                  color: Colores.linea,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+
+            // Título con nombre y estado
+            Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    m.esVehicular
+                        ? Icons.directions_car_rounded
+                        : Icons.directions_walk_rounded,
+                    size: 22,
+                    color: color,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        (m.nombre != null && m.nombre!.isNotEmpty)
+                            ? m.nombre!
+                            : m.descripcion,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      Text(
+                        m.descripcion,
+                        style: const TextStyle(
+                          fontSize: 12.5,
+                          color: Colores.textoSuave,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (!m.aprobado)
+                  const Etiqueta(
+                      texto: 'Denegado', tono: TonoEtiqueta.malo),
+                if (m.sincronizadoOffline) ...[
+                  const SizedBox(width: 6),
+                  const Etiqueta(
+                      texto: 'Offline', tono: TonoEtiqueta.neutro),
+                ],
+              ],
+            ),
+
+            const SizedBox(height: 18),
+            const Divider(height: 1),
+            const SizedBox(height: 12),
+
+            _fila('Hora', Formato.fechaYHora(m.ocurridoEn)),
+            if (m.rut != null && m.rut!.isNotEmpty)
+              _fila('RUT', Formato.rut(m.rut)),
+            if (m.unidad != null && m.unidad!.isNotEmpty)
+              _fila('Unidad', m.unidad!),
+            if (m.patente != null && m.patente!.isNotEmpty)
+              _fila('Patente', m.patente!),
+            if (m.puntoAcceso != null)
+              _fila('Punto de acceso', m.puntoAcceso!),
+            if (m.autorizadoPor != null && m.autorizadoPor!.isNotEmpty)
+              _fila('Autorizó', m.autorizadoPor!),
+            if (m.nombreGuardia != null)
+              _fila('Registrado por', m.nombreGuardia!),
+            if (m.motivoDenegacion != null && m.motivoDenegacion!.isNotEmpty)
+              _fila('Motivo de denegación', m.motivoDenegacion!,
+                  color: Colores.rojo),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _fila(String label, String valor, {Color? color}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 130,
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontSize: 12,
+                color: Colores.textoSuave,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              valor,
+              style: TextStyle(
+                fontSize: 13.5,
+                color: color ?? Colores.texto,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -729,8 +890,8 @@ class _EstadoBannerGps extends ConsumerState<_BannerEstadoGps> {
           Colores.rojo,
           Icons.location_disabled_rounded,
           'GPS bloqueado',
-          'Faltan permisos. Ajustes → Apps → Tomass → Ubicación → '
-              'Permitir todo el tiempo.',
+          'Faltan permisos. Tocá "Abrir ajustes" y activá Ubicación '
+              'en Permitir todo el tiempo.',
         ),
       EstadoRastreador.esperandoPrimera => (
           Colores.naranjaOscuro,
@@ -790,6 +951,30 @@ class _EstadoBannerGps extends ConsumerState<_BannerEstadoGps> {
                     color: Colores.texto,
                   ),
                 ),
+                // Cuando el GPS está BLOQUEADO ofrecemos un botón que
+                // abre directo la pantalla de permisos de la app. Cada
+                // fabricante (Xiaomi, Samsung, etc.) esconde ese menú en
+                // un lugar distinto — con un tap el guardia va derecho.
+                if (estado == EstadoRastreador.bloqueado) ...[
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: FilledButton.icon(
+                      icon: const Icon(Icons.settings_rounded, size: 16),
+                      label: const Text('Abrir ajustes'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: color,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 6),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        textStyle: const TextStyle(
+                            fontSize: 12, fontWeight: FontWeight.w700),
+                      ),
+                      onPressed: () => ph.openAppSettings(),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

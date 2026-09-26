@@ -579,7 +579,7 @@ class _EstadoFormulario extends ConsumerState<_FormularioNovedad> {
               const SizedBox(height: 16),
 
               // ---- Fotos ----
-              Text('FOTOS (OPCIONAL, HASTA 3)',
+              Text('FOTOS (OPCIONAL, HASTA 6)',
                   style: Theme.of(context).textTheme.labelSmall),
               const SizedBox(height: 9),
               Row(
@@ -614,7 +614,7 @@ class _EstadoFormulario extends ConsumerState<_FormularioNovedad> {
                         ],
                       ),
                     ),
-                  if (_fotos.length < 3)
+                  if (_fotos.length < 6)
                     GestureDetector(
                       onTap: _guardando ? null : _agregarFoto,
                       child: Container(

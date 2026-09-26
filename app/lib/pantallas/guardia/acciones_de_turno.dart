@@ -116,18 +116,91 @@ abstract final class AccionesDeTurno {
   static Future<void> cerrarSesion(BuildContext context, WidgetRef ref) async {
     final hayTurnoAbierto = ref.read(miTurnoProvider).valueOrNull != null;
 
+    if (hayTurnoAbierto) {
+      // Con turno abierto: TRES opciones claras en vez de solo un cartel de
+      // advertencia. El caso más común (guardia terminando su jornada) queda
+      // en un tap sin poder equivocarse:
+      //   * "Cerrar turno y salir"  (default, verde)  — lo que casi todos
+      //     quieren pero antes había que hacer en dos pasos.
+      //   * "Salir dejando turno abierto" (rojo)     — solo si el guardia
+      //     se va y el relevo va a seguir en su misma sesión.
+      //   * "Cancelar"
+      final opcion = await showDialog<String>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('¿Terminaste tu turno?'),
+          content: const Text(
+            'Tenés un turno abierto. Elegí qué hacer:',
+            style: TextStyle(fontSize: 13.5, height: 1.45),
+          ),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          actions: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                FilledButton.icon(
+                  icon: const Icon(Icons.swap_horiz_rounded),
+                  label: const Text('Cerrar turno y salir'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colores.verdeOscuro,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  onPressed: () => Navigator.pop(context, 'cerrarYSalir'),
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.warning_amber_rounded,
+                      color: Colores.rojo),
+                  label: const Text(
+                    'Salir dejando turno abierto',
+                    style: TextStyle(color: Colores.rojo),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Colores.rojo),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  onPressed: () => Navigator.pop(context, 'soloSalir'),
+                ),
+                const SizedBox(height: 4),
+                TextButton(
+                  onPressed: () => Navigator.pop(context, 'cancelar'),
+                  child: const Text('Cancelar'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+
+      if (opcion == null || opcion == 'cancelar' || !context.mounted) return;
+
+      if (opcion == 'cerrarYSalir') {
+        // Cerrar el turno primero. Si el usuario cancela ese diálogo, se
+        // aborta también la salida — así no queda a medio camino.
+        final antesDeSalir = ref.read(miTurnoProvider).valueOrNull;
+        await cerrarTurno(context, ref);
+        final despuesDeCerrar = ref.read(miTurnoProvider).valueOrNull;
+        // Si el turno no cambió (el guardia canceló) no cerramos sesión.
+        if (despuesDeCerrar != null && antesDeSalir != null &&
+            despuesDeCerrar.id == antesDeSalir.id) {
+          return;
+        }
+      }
+
+      await ref.read(servicioSesionProvider).salir();
+      return;
+    }
+
+    // Sin turno abierto: confirmación simple, un tap.
     final seguro = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('¿Cerrar sesión?'),
-        content: Text(
-          hayTurnoAbierto
-              ? 'Ojo: tu turno sigue ABIERTO. Los avisos van a seguir yendo a '
-                  'tu nombre aunque te vayas, y el guardia que entra no los va a '
-                  'recibir.\n\nSi terminaste, cancelá y cerrá primero el turno.'
-              : 'Vas a volver a la pantalla de inicio para que entre otro '
-                  'guardia con su usuario.',
-          style: const TextStyle(fontSize: 13.5, height: 1.45),
+        content: const Text(
+          'Vas a volver a la pantalla de inicio para que entre otro '
+          'guardia con su usuario.',
+          style: TextStyle(fontSize: 13.5, height: 1.45),
         ),
         actions: [
           TextButton(
@@ -136,9 +209,7 @@ abstract final class AccionesDeTurno {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            style: FilledButton.styleFrom(
-              backgroundColor: hayTurnoAbierto ? Colores.rojo : Colores.grafito,
-            ),
+            style: FilledButton.styleFrom(backgroundColor: Colores.grafito),
             child: const Text('Cerrar sesión'),
           ),
         ],
@@ -147,7 +218,6 @@ abstract final class AccionesDeTurno {
 
     if (seguro != true) return;
     await ref.read(servicioSesionProvider).salir();
-    // La vuelta al login la hace sola la app al ver que ya no hay sesión
   }
 }
 

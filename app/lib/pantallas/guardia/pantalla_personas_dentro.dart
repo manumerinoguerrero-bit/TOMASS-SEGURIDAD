@@ -15,6 +15,8 @@
 //   servidor: se hace en memoria sobre la lista que ya tiene el provider.
 // ============================================================================
 
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -224,13 +226,97 @@ class _EstadoPersonasDentro extends ConsumerState<PantallaPersonasDentro> {
 // Tarjeta de una persona
 // ============================================================================
 
-class _TarjetaPersona extends StatelessWidget {
+class _TarjetaPersona extends ConsumerStatefulWidget {
   const _TarjetaPersona({required this.persona});
 
   final Map<String, dynamic> persona;
 
   @override
+  ConsumerState<_TarjetaPersona> createState() => _EstadoTarjetaPersona();
+}
+
+class _EstadoTarjetaPersona extends ConsumerState<_TarjetaPersona> {
+  bool _cerrando = false;
+
+  Future<void> _marcarSalida() async {
+    final persona = widget.persona;
+    final tipo = persona['persona_tipo']?.toString();
+    final id = persona['persona_id']?.toString();
+    if (tipo == null || id == null) return;
+
+    final nombre = persona['nombre']?.toString() ?? 'esta persona';
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('¿Marcar salida?'),
+        content: Text(
+          'Se va a registrar la salida de $nombre con la hora de ahora. '
+          'Los datos (unidad, patente, quién autorizó) se copian del último '
+          'ingreso.',
+          style: const TextStyle(fontSize: 13.5, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(backgroundColor: Colores.grafito),
+            child: const Text('Sí, marcar salida'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+
+    setState(() => _cerrando = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref.read(servicioGuardiaProvider).registrarSalidaRapida(
+            personaTipo: tipo,
+            personaId: id,
+            idLocal: _nuevoUuidV4(),
+          );
+      ref.invalidate(personasDentroProvider);
+      ref.invalidate(ultimosAccesosProvider);
+      ref.invalidate(resumenProvider);
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Salida marcada: $nombre.'),
+          backgroundColor: Colores.verde,
+        ),
+      );
+    } catch (falla) {
+      if (!mounted) return;
+      setState(() => _cerrando = false);
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(Traductor.traducir(falla).mensaje),
+          backgroundColor: Colores.rojo,
+        ),
+      );
+    }
+  }
+
+  /// UUID v4 idempotency key para que si el guardia toca dos veces por
+  /// lag, la salida se registre una sola vez en el servidor.
+  static String _nuevoUuidV4() {
+    final azar = Random.secure();
+    String b(int n) => List.generate(
+          n,
+          (_) => azar.nextInt(256).toRadixString(16).padLeft(2, '0'),
+        ).join();
+    return '${b(4)}-${b(2)}-4${b(2).substring(1)}-'
+        '${(8 + azar.nextInt(4)).toRadixString(16)}${b(2).substring(1)}-'
+        '${b(6)}';
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final persona = widget.persona;
     final tipo = persona['persona_tipo']?.toString() ?? 'residente';
     final raro = persona['estadia_inusual'] == true;
     final entro = DateTime.tryParse(persona['entro_en']?.toString() ?? '');
@@ -261,7 +347,7 @@ class _TarjetaPersona extends StatelessWidget {
         ),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
         child: Row(
           children: [
             Container(
@@ -315,7 +401,7 @@ class _TarjetaPersona extends StatelessWidget {
               ),
             ),
             if (persona['patente'] != null) ...[
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
@@ -334,6 +420,24 @@ class _TarjetaPersona extends StatelessWidget {
                 ],
               ),
             ],
+            const SizedBox(width: 4),
+            // Botón "Marcar salida" — el flujo más frecuente al final del
+            // turno. Antes había que ir a Registrar y reescribir todo.
+            IconButton(
+              tooltip: 'Marcar salida',
+              icon: _cerrando
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colores.grafito,
+                      ),
+                    )
+                  : const Icon(Icons.logout_rounded, size: 20),
+              color: Colores.grafito,
+              onPressed: _cerrando ? null : _marcarSalida,
+            ),
           ],
         ),
       ),

@@ -447,6 +447,33 @@ class ServicioGuardia {
     }
   }
 
+  /// Registra la salida de una persona que está dentro, clonando los datos
+  /// (nombre, RUT, unidad, patente, garita, vehículo) de su último ingreso.
+  ///
+  /// El guardia lo dispara con un botón desde "Personas dentro" — evita
+  /// tener que reescribir todo el formulario para cerrar una persona que
+  /// ya está en la lista. La RPC en el servidor rechaza si ya se marcó
+  /// salida o si no hay entrada previa.
+  Future<void> registrarSalidaRapida({
+    required String personaTipo,
+    required String personaId,
+    required String idLocal,
+    double? latitud,
+    double? longitud,
+  }) async {
+    try {
+      await _supabase.rpc('registrar_salida_rapida', params: {
+        'p_persona_tipo': personaTipo,
+        'p_persona_id': personaId,
+        'p_id_local': idLocal,
+        'p_geo_lat': latitud,
+        'p_geo_lng': longitud,
+      }).timeout(Entorno.esperaMaxima);
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+
   Future<Turno> abrirTurno({
     required String condominioId,
     String? puntoAccesoId,
