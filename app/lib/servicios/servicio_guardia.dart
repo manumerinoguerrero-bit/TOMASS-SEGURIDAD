@@ -43,6 +43,24 @@ class ServicioGuardia {
     return usuario.id;
   }
 
+  /// ID del condominio activo del guardia. Se llama a la RPC mi_condominio
+  /// (la misma que usan las policies RLS) para filtrar explícitamente en
+  /// las queries que no van via RPC.
+  ///
+  /// Reportado el 27/09/2026: Miguel Sotelo (guardia de Encomenderos) veía
+  /// en Encomiendas e Inventario paquetes del Condominio Milagros. Fue el
+  /// mismo bug que ya se había arreglado en ultimosAccesos y personasDentro
+  /// pero varias queries de paquetes y de búsqueda de residentes seguían
+  /// sin filtro por condominio_id — dependían solo de RLS, y con admin de
+  /// múltiples instalaciones (o cambio de instalación mid-session) se
+  /// mezclaban datos.
+  Future<String?> _condominioActivo() async {
+    final id = await _supabase
+        .rpc('mi_condominio')
+        .timeout(Entorno.esperaMaxima);
+    return id as String?;
+  }
+
   // ==========================================================================
   // LAS INSTALACIONES QUE ATIENDE
   // ==========================================================================
@@ -83,12 +101,19 @@ class ServicioGuardia {
   // TURNOS
   // ==========================================================================
 
-  /// Los puestos donde el guardia puede abrir turno.
+  /// Los puestos donde el guardia puede abrir turno EN EL CONDOMINIO ACTIVO.
+  ///
+  /// El filtro por condominio_id es explícito: sin él, un guardia que
+  /// atiende varias instalaciones veía puestos de todas mezclados.
   Future<List<PuntoAcceso>> puestosDisponibles() async {
     try {
+      final condominioId = await _condominioActivo();
+      if (condominioId == null) return const [];
+
       final filas = await _supabase
           .from('puntos_acceso')
           .select('id, nombre, tipo, modo, ubicacion, activo')
+          .eq('condominio_id', condominioId)
           .eq('activo', true)
           .order('tipo')
           .timeout(Entorno.esperaMaxima);
@@ -237,10 +262,16 @@ class ServicioGuardia {
     String? puntoAccesoId,
   }) async {
     try {
+      // Filtro explícito por condominio activo — sin esto un guardia de
+      // Encomenderos vería puntos QR de Milagros y podría escanearlos.
+      final condominioId = await _condominioActivo();
+      if (condominioId == null) return const [];
+
       var consulta = _supabase
           .from('puntos_control')
           .select('id, nombre, orden, descripcion, codigo_qr, '
               'latitud, longitud, metros_de_tolerancia')
+          .eq('condominio_id', condominioId)
           .eq('activo', true);
       if (puntoAccesoId != null) {
         // Filtro OR: asignados a esa garita O sin garita (comunes).
@@ -545,8 +576,13 @@ class ServicioGuardia {
   /// condominio: es lo que corresponde cuando el guardia cubre todo.
   Future<List<AutoEsperando>> autosEsperando([String? puntoAccesoId]) async {
     try {
-      var consulta =
-          _supabase.from('v_solicitudes_vehiculares_pendientes').select();
+      final condominioId = await _condominioActivo();
+      if (condominioId == null) return const [];
+
+      var consulta = _supabase
+          .from('v_solicitudes_vehiculares_pendientes')
+          .select()
+          .eq('condominio_id', condominioId);
 
       if (puntoAccesoId != null) {
         consulta = consulta.eq('punto_acceso_id', puntoAccesoId);
@@ -736,9 +772,17 @@ class ServicioGuardia {
     String? empezandoCon,
   }) async {
     try {
+      // Filtro por condominio activo: antes las sugerencias mezclaban
+      // destinatarios escritos a mano de todos los condominios donde el
+      // usuario tenía permiso. Miguel Sotelo (Encomenderos) veía nombres
+      // de residentes de Milagros que había escrito otro guardia.
+      final condominioId = await _condominioActivo();
+      if (condominioId == null) return const [];
+
       var consulta = _supabase
           .from('paquetes')
           .select('destinatario_texto, unidad_texto')
+          .eq('condominio_id', condominioId)
           .not('destinatario_texto', 'is', null);
 
       if (empezandoCon != null && empezandoCon.trim().isNotEmpty) {
@@ -783,9 +827,17 @@ class ServicioGuardia {
   /// forma el patrón (la nana los martes, la señora en la tarde).
   Future<List<String>> quienSueleRetirar({required String residenteId}) async {
     try {
+      // Defensa en profundidad: el filtro por residente_id ya limita a un
+      // residente puntual, pero además restringimos al condominio activo
+      // para el caso improbable de residentes homónimos en distintos
+      // condominios que administra el mismo usuario.
+      final condominioId = await _condominioActivo();
+      if (condominioId == null) return const [];
+
       final filas = await _supabase
           .from('paquetes')
           .select('retirado_por')
+          .eq('condominio_id', condominioId)
           .eq('residente_id', residenteId)
           .eq('estado', 'entregado')
           .not('retirado_por', 'is', null)
@@ -882,12 +934,20 @@ class ServicioGuardia {
     }
   }
 
-  /// El inventario de portería, ordenado por antigüedad.
+  /// El inventario de portería del CONDOMINIO ACTIVO, ordenado por antigüedad.
+  ///
+  /// Filtro explícito por condominio_id — reportado el 27/09/2026 por Miguel
+  /// Sotelo: veía paquetes de otro condominio al abrir el inventario. La
+  /// vista v_paquetes_porteria expone la columna pero no filtra por sí sola.
   Future<List<Map<String, dynamic>>> inventarioDePaquetes() async {
     try {
+      final condominioId = await _condominioActivo();
+      if (condominioId == null) return const [];
+
       final filas = await _supabase
           .from('v_paquetes_porteria')
           .select()
+          .eq('condominio_id', condominioId)
           .order('recibido_en')
           .timeout(Entorno.esperaMaxima);
 
@@ -969,10 +1029,16 @@ class ServicioGuardia {
     ''';
 
     try {
+      // Filtro por condominio activo — sin esto un guardia de Encomenderos
+      // podía ver residentes de Milagros al buscar destinatario del paquete.
+      final condominioId = await _condominioActivo();
+      if (condominioId == null) return const [];
+
       // 1) Por nombre o cédula del residente.
       final porNombre = await _supabase
           .from('usuarios')
           .select(seleccion)
+          .eq('condominio_id', condominioId)
           .eq('rol', 'residente')
           .eq('estado', 'activo')
           .or('nombre_completo.ilike.%$busqueda%,cedula.ilike.%$busqueda%')
@@ -986,6 +1052,7 @@ class ServicioGuardia {
       final unidadesMatch = await _supabase
           .from('unidades')
           .select('id')
+          .eq('condominio_id', condominioId)
           .or('numero.ilike.%$busqueda%,torre.ilike.%$busqueda%')
           .limit(20)
           .timeout(Entorno.esperaMaxima);
@@ -999,6 +1066,7 @@ class ServicioGuardia {
         porUnidad = await _supabase
             .from('usuarios')
             .select(seleccion)
+            .eq('condominio_id', condominioId)
             .eq('rol', 'residente')
             .eq('estado', 'activo')
             .inFilter('unidad_id', idsUnidades)
@@ -1026,12 +1094,18 @@ class ServicioGuardia {
 
   Future<List<Incidente>> incidentes({bool soloAbiertos = false}) async {
     try {
+      // Filtro explícito por condominio_id — misma clase de bug que se
+      // reportó el 27/09/2026 en paquetes: un guardia veía novedades de
+      // otro condominio.
+      final condominioId = await _condominioActivo();
+      if (condominioId == null) return const [];
+
       var consulta = _supabase.from('incidentes').select('''
             id, tipo, gravedad, titulo, descripcion, fotos, patente,
             ocurrido_en, estado, nota_resolucion, sincronizado_offline,
             unidades ( numero, torre ),
             reportante:usuarios!incidentes_reportado_por_fkey ( nombre_completo )
-          ''');
+          ''').eq('condominio_id', condominioId);
 
       if (soloAbiertos) consulta = consulta.neq('estado', 'cerrado');
 
