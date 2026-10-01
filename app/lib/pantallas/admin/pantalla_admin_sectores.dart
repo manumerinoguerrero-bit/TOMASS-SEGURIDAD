@@ -122,11 +122,11 @@ class _EstadoSectores extends ConsumerState<PantallaAdminSectores> {
             nombre: nombre,
             latitud: donde?.latitud,
             longitud: donde?.longitud,
-            // Tolerancia FIJA en 5 metros: el usuario ajustó de 3 a 5 para
-            // dejar margen al error del GPS del teléfono. El guardia igual
-            // tiene que estar prácticamente al lado del cartel para que
-            // el escaneo se acepte.
-            tolerancia: 5,
+            // Tolerancia FIJA en 20 metros: con 5m los guardias no podían
+            // escanear ni parados al lado del cartel porque el GPS urbano
+            // tiene error típico de 6 a 12m. 20m es el margen pedido por
+            // el usuario el 01/10/2026.
+            tolerancia: 20,
             puntoAccesoId: puntoAccesoId,
           );
       if (!mounted) return;
@@ -185,10 +185,10 @@ class _EstadoSectores extends ConsumerState<PantallaAdminSectores> {
             puntoId: punto.id,
             latitud: donde.latitud,
             longitud: donde.longitud,
-            // Tolerancia FIJA: mismo valor que _crear(). Ajustado de 3 a 5
-            // porque el error del GPS urbano supera los 3 m y el guardia
-            // no podía escanear ni parado al lado del cartel.
-            tolerancia: 5,
+            // Tolerancia FIJA: mismo valor que _crear(). 20m: con 5m los
+            // guardias no podían escanear ni al lado del cartel porque el
+            // GPS urbano tiene error típico de 6 a 12m.
+            tolerancia: 20,
           );
       if (!mounted) return;
       ref.invalidate(puntosDeControlAdminProvider);

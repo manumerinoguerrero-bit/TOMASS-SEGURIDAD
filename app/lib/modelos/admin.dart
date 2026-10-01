@@ -535,7 +535,7 @@ class PuntoControlAdmin {
       nombre: (m['nombre'] ?? '') as String,
       orden: (m['orden'] ?? 0) as int,
       codigoQr: (m['codigo_qr'] ?? '') as String,
-      metrosDeTolerancia: (m['metros_de_tolerancia'] ?? 5) as int,
+      metrosDeTolerancia: (m['metros_de_tolerancia'] ?? 20) as int,
       descripcion: m['descripcion'] as String?,
       latitud: (m['latitud'] as num?)?.toDouble(),
       longitud: (m['longitud'] as num?)?.toDouble(),
@@ -633,7 +633,7 @@ class MarcaDelInforme {
     this.marcaLat,
     this.marcaLng,
     this.metrosDeLejos,
-    this.tolerancia = 5,
+    this.tolerancia = 20,
   });
 
   final String rondaId;
@@ -676,7 +676,7 @@ class MarcaDelInforme {
         novedad: m['novedad'] as String?,
         sectorLat: (m['sector_lat'] as num?)?.toDouble(),
         sectorLng: (m['sector_lng'] as num?)?.toDouble(),
-        tolerancia: (m['tolerancia'] ?? 5) as int,
+        tolerancia: (m['tolerancia'] ?? 20) as int,
         marcaLat: (m['marca_lat'] as num?)?.toDouble(),
         marcaLng: (m['marca_lng'] as num?)?.toDouble(),
         metrosDeLejos: (m['metros_de_lejos'] as num?)?.toDouble(),
@@ -708,7 +708,7 @@ class SectorDelPlano {
         id: m['id'] as String,
         nombre: (m['nombre'] ?? '') as String,
         orden: (m['orden'] ?? 0) as int,
-        tolerancia: (m['tolerancia'] ?? 5) as int,
+        tolerancia: (m['tolerancia'] ?? 20) as int,
         latitud: (m['latitud'] as num?)?.toDouble(),
         longitud: (m['longitud'] as num?)?.toDouble(),
       );
