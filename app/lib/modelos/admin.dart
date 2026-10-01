@@ -257,6 +257,7 @@ class MovimientoAdmin {
     this.entrada,
     this.autorizadoPor,
     this.motivoDenegacion,
+    this.guardia,
   });
 
   final String id;
@@ -291,6 +292,12 @@ class MovimientoAdmin {
 
   final String? motivoDenegacion;
 
+  /// Nombre del guardia que registró este movimiento. Puede ser null para
+  /// movimientos muy viejos (antes de que la columna existiera) o para
+  /// ingresos hechos con un dispositivo sin sesión. Se usa para filtrar los
+  /// informes por guardia.
+  final String? guardia;
+
   bool get esVehicular => tipoAcceso == 'vehicular';
   bool get esEntrada => sentido == 'entrada';
 
@@ -308,11 +315,15 @@ class MovimientoAdmin {
     // en ingresos hechos desde la app del guardia.
     String? autorizo = (m['autorizado_por_texto'] as String?)?.trim();
     if (autorizo == null || autorizo.isEmpty) {
-      final u = m['usuarios'];
+      // El SELECT en servicio_admin aliasa el join como "residente" porque
+      // movimientos_acceso toca usuarios por DOS caminos (residente y
+      // guardia) — sin alias PostgREST falla con "ambiguous relationship".
+      final u = m['residente'];
       if (u is Map) autorizo = u['nombre_completo'] as String?;
     }
 
     final p = m['puntos_acceso'];
+    final g = m['guardia'];
 
     return MovimientoAdmin(
       id: m['id'] as String,
@@ -337,6 +348,7 @@ class MovimientoAdmin {
           ? autorizo
           : null,
       motivoDenegacion: m['motivo_denegacion'] as String?,
+      guardia: g is Map ? g['nombre_completo'] as String? : null,
     );
   }
 }

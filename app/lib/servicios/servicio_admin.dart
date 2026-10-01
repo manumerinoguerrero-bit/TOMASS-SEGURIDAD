@@ -632,11 +632,15 @@ class ServicioAdmin {
       final condominioId = await _condominioActivo();
       if (condominioId == null) return const [];
 
+      // Alias "residente:" y "guardia:" porque movimientos_acceso apunta
+      // a usuarios por DOS caminos (residente_id y guardia_id). Sin alias
+      // PostgREST responde con "ambiguous relationship" y la query falla.
       var consulta = _supabase.from('movimientos_acceso').select('''
             id, tipo_acceso, sentido, estado, patente_snapshot,
             nombre_snapshot, unidad_snapshot, rut_snapshot, ocurrido_en,
             motivo_denegacion, autorizado_por_texto,
-            usuarios!movimientos_acceso_residente_id_fkey ( nombre_completo ),
+            residente:usuarios!movimientos_acceso_residente_id_fkey ( nombre_completo ),
+            guardia:usuarios!movimientos_acceso_guardia_id_fkey ( nombre_completo ),
             puntos_acceso ( nombre )
           ''').eq('condominio_id', condominioId);
 

@@ -106,7 +106,9 @@ class _EstadoPestanaAccesos extends ConsumerState<_PestanaAccesos> {
   @override
   Widget build(BuildContext context) {
     final movimientos = ref.watch(movimientosAdminProvider);
-    final dias = ref.watch(diasDelInformeProvider);
+    final dias = ref.watch(diasAccesosProvider);
+    final filtro = ref.watch(filtroAccesosProvider);
+    final guardiaFiltrado = ref.watch(filtroGuardiaAccesosProvider);
 
     return Column(
       children: [
@@ -129,7 +131,7 @@ class _EstadoPestanaAccesos extends ConsumerState<_PestanaAccesos> {
                 onSelectionChanged: _rango != null
                     ? null
                     : (s) => ref
-                        .read(diasDelInformeProvider.notifier)
+                        .read(diasAccesosProvider.notifier)
                         .state = s.first,
                 showSelectedIcon: false,
               ),
@@ -166,48 +168,96 @@ class _EstadoPestanaAccesos extends ConsumerState<_PestanaAccesos> {
                 );
               }
 
-              final denegados = lista.where((m) => !m.aprobado).length;
+              // Aplicar los filtros en memoria. La lista YA viene recortada
+              // por días desde el provider; los chips y el dropdown son
+              // refinamiento visual (más rápido que ir a la BD).
+              Iterable<MovimientoAdmin> filtrada = lista;
+              switch (filtro) {
+                case FiltroAcceso.todos:
+                  break;
+                case FiltroAcceso.denegados:
+                  filtrada = filtrada.where((m) => !m.aprobado);
+                  break;
+                case FiltroAcceso.peatonales:
+                  filtrada = filtrada.where((m) => !m.esVehicular);
+                  break;
+                case FiltroAcceso.vehiculares:
+                  filtrada = filtrada.where((m) => m.esVehicular);
+                  break;
+              }
+              if (guardiaFiltrado != null) {
+                filtrada = filtrada.where((m) => m.guardia == guardiaFiltrado);
+              }
+              final filtradaList = filtrada.toList();
+              final denegados = filtradaList.where((m) => !m.aprobado).length;
+
+              // Guardias distintos que aparecen en el período original (NO
+              // filtrados por chip), ordenados alfabéticamente. Si no hay
+              // ningún movimiento con guardia asignado, el dropdown no se
+              // dibuja.
+              final guardias = _guardiasDistintos(lista);
 
               return RefreshIndicator(
                 onRefresh: () async => ref.invalidate(movimientosAdminProvider),
-                child: ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(
-                      Medidas.margen, 0, Medidas.margen, Medidas.margen),
-                  itemCount: lista.length + 2,
-                  itemBuilder: (_, i) {
-                    if (i == 0) {
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: SizedBox(
-                          width: double.infinity,
-                          child: FilledButton.icon(
-                            onPressed: () =>
-                                _descargarPdfIngresos(lista, dias),
-                            icon: const Icon(
-                                Icons.picture_as_pdf_rounded, size: 18),
-                            label:
-                                const Text('Descargar informe en PDF'),
-                            style: FilledButton.styleFrom(
-                              backgroundColor: Colores.grafito,
-                              minimumSize: const Size(0, 42),
+                child: Column(
+                  children: [
+                    _BarraFiltrosAccesos(guardias: guardias),
+                    Expanded(
+                      child: filtradaList.isEmpty
+                          ? const ListaVacia(
+                              icono: Icons.filter_alt_off_rounded,
+                              titulo: 'No hay accesos con esos filtros',
+                              explicacion:
+                                  'Probá quitar el filtro de guardia o el chip '
+                                  'de tipo para ver más resultados.',
+                            )
+                          : ListView.builder(
+                              padding: const EdgeInsets.fromLTRB(
+                                  Medidas.margen, 0,
+                                  Medidas.margen, Medidas.margen),
+                              itemCount: filtradaList.length + 2,
+                              itemBuilder: (_, i) {
+                                if (i == 0) {
+                                  return Padding(
+                                    padding: const EdgeInsets.only(bottom: 8),
+                                    child: SizedBox(
+                                      width: double.infinity,
+                                      child: FilledButton.icon(
+                                        onPressed: () => _descargarPdfIngresos(
+                                            filtradaList, dias),
+                                        icon: const Icon(
+                                            Icons.picture_as_pdf_rounded,
+                                            size: 18),
+                                        label: const Text(
+                                            'Descargar informe en PDF'),
+                                        style: FilledButton.styleFrom(
+                                          backgroundColor: Colores.grafito,
+                                          minimumSize: const Size(0, 42),
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                }
+                                if (i == 1) {
+                                  return Padding(
+                                    padding: const EdgeInsets.only(
+                                        bottom: 12, top: 4),
+                                    child: Text(
+                                      '${filtradaList.length} '
+                                      '${filtradaList.length == 1 ? "movimiento" : "movimientos"}'
+                                      '${denegados > 0 ? " · $denegados denegado${denegados == 1 ? "" : "s"}" : ""}',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .labelSmall,
+                                    ),
+                                  );
+                                }
+                                return _FilaAcceso(
+                                    movimiento: filtradaList[i - 2]);
+                              },
                             ),
-                          ),
-                        ),
-                      );
-                    }
-                    if (i == 1) {
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 12, top: 4),
-                        child: Text(
-                          '${lista.length} '
-                          '${lista.length == 1 ? "movimiento" : "movimientos"}'
-                          '${denegados > 0 ? " · $denegados denegado${denegados == 1 ? "" : "s"}" : ""}',
-                          style: Theme.of(context).textTheme.labelSmall,
-                        ),
-                      );
-                    }
-                    return _FilaAcceso(movimiento: lista[i - 2]);
-                  },
+                    ),
+                  ],
                 ),
               );
             },
@@ -215,6 +265,18 @@ class _EstadoPestanaAccesos extends ConsumerState<_PestanaAccesos> {
         ),
       ],
     );
+  }
+
+  /// Lista ordenada alfabéticamente de nombres de guardias que aparecen en
+  /// la lista. Null se descarta (movimientos viejos sin guardia asignado).
+  List<String> _guardiasDistintos(List<MovimientoAdmin> lista) {
+    final s = <String>{};
+    for (final m in lista) {
+      final g = m.guardia;
+      if (g != null && g.isNotEmpty) s.add(g);
+    }
+    final r = s.toList()..sort();
+    return r;
   }
 
   Future<void> _descargarPdfIngresos(
@@ -381,6 +443,100 @@ class _FilaAcceso extends StatelessWidget {
   }
 }
 
+// ----------------------------------------------------------------------------
+// BARRA DE FILTROS DE ACCESOS (chips + dropdown de guardia)
+// ----------------------------------------------------------------------------
+
+class _BarraFiltrosAccesos extends ConsumerWidget {
+  const _BarraFiltrosAccesos({required this.guardias});
+
+  final List<String> guardias;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final filtro = ref.watch(filtroAccesosProvider);
+    final guardiaFiltrado = ref.watch(filtroGuardiaAccesosProvider);
+
+    FilterChip chip(FiltroAcceso f, String texto) => FilterChip(
+          label: Text(texto),
+          selected: filtro == f,
+          onSelected: (_) =>
+              ref.read(filtroAccesosProvider.notifier).state = f,
+          visualDensity: VisualDensity.compact,
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        );
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+          Medidas.margen, 0, Medidas.margen, 8),
+      child: Column(
+        children: [
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            children: [
+              chip(FiltroAcceso.todos, 'Todos'),
+              chip(FiltroAcceso.denegados, 'Denegados'),
+              chip(FiltroAcceso.peatonales, 'Peatonales'),
+              chip(FiltroAcceso.vehiculares, 'Vehiculares'),
+            ],
+          ),
+          if (guardias.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: _DropdownGuardia(
+                guardias: guardias,
+                valor: guardiaFiltrado,
+                alCambiar: (v) =>
+                    ref.read(filtroGuardiaAccesosProvider.notifier).state = v,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Dropdown compacto para elegir "ver solo lo de este guardia". Null = todos.
+/// Se usa en las 3 pestañas con providers distintos.
+class _DropdownGuardia extends StatelessWidget {
+  const _DropdownGuardia({
+    required this.guardias,
+    required this.valor,
+    required this.alCambiar,
+  });
+
+  final List<String> guardias;
+  final String? valor;
+  final ValueChanged<String?> alCambiar;
+
+  @override
+  Widget build(BuildContext context) {
+    return DropdownButtonFormField<String?>(
+      initialValue: valor,
+      isDense: true,
+      decoration: const InputDecoration(
+        labelText: 'Guardia',
+        prefixIcon: Icon(Icons.shield_outlined, size: 20),
+        border: OutlineInputBorder(),
+        contentPadding:
+            EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      ),
+      items: [
+        const DropdownMenuItem<String?>(
+          value: null,
+          child: Text('Todos los guardias'),
+        ),
+        ...guardias.map((g) => DropdownMenuItem<String?>(
+              value: g,
+              child: Text(g, overflow: TextOverflow.ellipsis),
+            )),
+      ],
+      onChanged: alCambiar,
+    );
+  }
+}
+
 // ============================================================================
 // PESTAÑA 2 · LOS TURNOS DE LOS GUARDIAS
 // ============================================================================
@@ -401,6 +557,7 @@ class _EstadoPestanaTurnos extends ConsumerState<_PestanaTurnos> {
   @override
   Widget build(BuildContext context) {
     final turnos = ref.watch(turnosAdminProvider);
+    final guardiaFiltrado = ref.watch(filtroGuardiaTurnosProvider);
 
     return turnos.when(
       loading: () => const Center(
@@ -423,6 +580,16 @@ class _EstadoPestanaTurnos extends ConsumerState<_PestanaTurnos> {
           );
         }
 
+        // Guardias que trabajaron en el período, ordenados.
+        final guardias = <String>{for (final t in lista) t.guardia}
+            .where((g) => g.isNotEmpty)
+            .toList()
+          ..sort();
+
+        final filtrada = guardiaFiltrado == null
+            ? lista
+            : lista.where((t) => t.guardia == guardiaFiltrado).toList();
+
         return RefreshIndicator(
           onRefresh: () async => ref.invalidate(turnosAdminProvider),
           child: Column(
@@ -439,6 +606,17 @@ class _EstadoPestanaTurnos extends ConsumerState<_PestanaTurnos> {
                       alQuitar: () => setState(() => _rango = null),
                     ),
                     const SizedBox(height: 8),
+                    if (guardias.length > 1)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: _DropdownGuardia(
+                          guardias: guardias,
+                          valor: guardiaFiltrado,
+                          alCambiar: (v) => ref
+                              .read(filtroGuardiaTurnosProvider.notifier)
+                              .state = v,
+                        ),
+                      ),
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton.icon(
@@ -455,12 +633,21 @@ class _EstadoPestanaTurnos extends ConsumerState<_PestanaTurnos> {
                 ),
               ),
               Expanded(
-                child: ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(
-                      Medidas.margen, 4, Medidas.margen, Medidas.margen),
-                  itemCount: lista.length,
-                  itemBuilder: (_, i) => _FilaTurno(turno: lista[i]),
-                ),
+                child: filtrada.isEmpty
+                    ? const ListaVacia(
+                        icono: Icons.filter_alt_off_rounded,
+                        titulo: 'No hay turnos de ese guardia',
+                        explicacion:
+                            'Elegí "Todos los guardias" para ver todos los '
+                            'turnos del período.',
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.fromLTRB(
+                            Medidas.margen, 4, Medidas.margen, Medidas.margen),
+                        itemCount: filtrada.length,
+                        itemBuilder: (_, i) =>
+                            _FilaTurno(turno: filtrada[i]),
+                      ),
               ),
             ],
           ),
@@ -977,7 +1164,7 @@ class _EstadoPestanaNovedades extends ConsumerState<_PestanaNovedades> {
 
   @override
   Widget build(BuildContext context) {
-    final dias = ref.watch(diasDelInformeProvider);
+    final dias = ref.watch(diasNovedadesProvider);
 
     return Column(
       children: [
@@ -996,7 +1183,7 @@ class _EstadoPestanaNovedades extends ConsumerState<_PestanaNovedades> {
                 onSelectionChanged: _rango != null
                     ? null
                     : (s) => ref
-                        .read(diasDelInformeProvider.notifier)
+                        .read(diasNovedadesProvider.notifier)
                         .state = s.first,
                 showSelectedIcon: false,
               ),
@@ -1116,7 +1303,47 @@ class _CuerpoNovedades extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final filtro = ref.watch(filtroNovedadesProvider);
+    final guardiaFiltrado = ref.watch(filtroGuardiaNovedadesProvider);
+
+    // Guardias (quien reportó) que aparecen en la lista original — para
+    // armar el dropdown. Se calculan ANTES de aplicar el filtro de guardia
+    // para que el admin pueda volver a elegir otro.
+    final guardias = <String>{
+      for (final i in lista)
+        if (i.reportadoPor != null && i.reportadoPor!.isNotEmpty)
+          i.reportadoPor!,
+    }.toList()
+      ..sort();
+
+    Iterable<IncidenteAdmin> filtrada = lista;
+    switch (filtro) {
+      case FiltroNovedad.todas:
+        break;
+      case FiltroNovedad.abiertas:
+        filtrada = filtrada.where((i) => i.abierta);
+        break;
+      case FiltroNovedad.criticas:
+        // "Crítica" = abierta Y gravedad alta/crítica. Resuelve el reclamo
+        // del admin de "quiero ver solo las urgentes".
+        filtrada = filtrada.where((i) =>
+            i.abierta &&
+            (i.gravedad == 'critica' || i.gravedad == 'alta'));
+        break;
+      case FiltroNovedad.resueltas:
+        filtrada = filtrada.where((i) => !i.abierta);
+        break;
+    }
+    if (guardiaFiltrado != null) {
+      filtrada = filtrada.where((i) => i.reportadoPor == guardiaFiltrado);
+    }
+    final filtradaList = filtrada.toList();
+    final abiertas = filtradaList.where((i) => i.abierta).length;
+
+    final barra = _BarraFiltrosNovedades(guardias: guardias);
+
     if (lista.isEmpty) {
+      // El rango no trajo nada: ni siquiera tiene sentido mostrar los chips.
       return const ListaVacia(
         icono: Icons.report_gmailerrorred_outlined,
         titulo: 'Sin novedades en este período',
@@ -1126,58 +1353,80 @@ class _CuerpoNovedades extends ConsumerWidget {
       );
     }
 
-    final abiertas = lista.where((i) => i.abierta).length;
-
     return RefreshIndicator(
       onRefresh: () async => alRecargar(),
-      child: ListView.builder(
-        padding: const EdgeInsets.fromLTRB(
-            Medidas.margen, 0, Medidas.margen, Medidas.margen),
-        itemCount: lista.length + 2,
-        itemBuilder: (_, i) {
-          if (i == 0) {
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: () => _descargarPdf(context, ref),
-                  icon: const Icon(Icons.picture_as_pdf_rounded, size: 18),
-                  label: const Text('Descargar informe de novedades en PDF'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Colores.grafito,
-                    minimumSize: const Size(0, 42),
+      child: Column(
+        children: [
+          barra,
+          Expanded(
+            child: filtradaList.isEmpty
+                ? const ListaVacia(
+                    icono: Icons.filter_alt_off_rounded,
+                    titulo: 'Ninguna novedad coincide con el filtro',
+                    explicacion:
+                        'Probá "Todas" o quitar el filtro de guardia para '
+                        'volver a ver todo lo del período.',
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(
+                        Medidas.margen, 0, Medidas.margen, Medidas.margen),
+                    itemCount: filtradaList.length + 2,
+                    itemBuilder: (_, i) {
+                      if (i == 0) {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: SizedBox(
+                            width: double.infinity,
+                            child: FilledButton.icon(
+                              onPressed: () =>
+                                  _descargarPdf(context, ref, filtradaList),
+                              icon: const Icon(
+                                  Icons.picture_as_pdf_rounded, size: 18),
+                              label: const Text(
+                                  'Descargar informe de novedades en PDF'),
+                              style: FilledButton.styleFrom(
+                                backgroundColor: Colores.grafito,
+                                minimumSize: const Size(0, 42),
+                              ),
+                            ),
+                          ),
+                        );
+                      }
+                      if (i == 1) {
+                        return Padding(
+                          padding:
+                              const EdgeInsets.only(bottom: 12, top: 4),
+                          child: Text(
+                            '${filtradaList.length} '
+                            '${filtradaList.length == 1 ? "novedad" : "novedades"}'
+                            '${abiertas > 0 ? " · $abiertas abierta${abiertas == 1 ? "" : "s"}" : ""}',
+                            style: Theme.of(context).textTheme.labelSmall,
+                          ),
+                        );
+                      }
+                      return _FilaNovedad(
+                        incidente: filtradaList[i - 2],
+                        alRecargar: alRecargar,
+                      );
+                    },
                   ),
-                ),
-              ),
-            );
-          }
-          if (i == 1) {
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 12, top: 4),
-              child: Text(
-                '${lista.length} '
-                '${lista.length == 1 ? "novedad" : "novedades"}'
-                '${abiertas > 0 ? " · $abiertas abierta${abiertas == 1 ? "" : "s"}" : ""}',
-                style: Theme.of(context).textTheme.labelSmall,
-              ),
-            );
-          }
-          return _FilaNovedad(
-            incidente: lista[i - 2],
-            alRecargar: alRecargar,
-          );
-        },
+          ),
+        ],
       ),
     );
   }
 
-  Future<void> _descargarPdf(BuildContext context, WidgetRef ref) async {
+  Future<void> _descargarPdf(
+    BuildContext context,
+    WidgetRef ref,
+    List<IncidenteAdmin> listaParaPdf,
+  ) async {
     final perfil = ref.read(perfilProvider).valueOrNull;
     final instalacion = perfil?.nombreCondominio ?? 'Instalación';
     final servicioFotos = ref.read(servicioFotosProvider);
 
-    final cuantasFotos = lista.fold<int>(0, (t, i) => t + i.fotos.length);
+    final cuantasFotos =
+        listaParaPdf.fold<int>(0, (t, i) => t + i.fotos.length);
     if (cuantasFotos > 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -1189,11 +1438,14 @@ class _CuerpoNovedades extends ConsumerWidget {
     }
 
     try {
+      // El PDF sale con la lista FILTRADA (lo que el admin ve en pantalla),
+      // no con todo el período. Si tiene activo "solo críticas abiertas", el
+      // PDF que entrega al mandante también va con eso solo.
       final bytes = await InformeDeIncidentesPdf.armar(
         instalacion: instalacion,
         desde: desde,
         hasta: hasta,
-        incidentes: lista,
+        incidentes: listaParaPdf,
         servicioFotos: servicioFotos,
       );
       await Printing.layoutPdf(
@@ -1210,6 +1462,61 @@ class _CuerpoNovedades extends ConsumerWidget {
         ),
       );
     }
+  }
+}
+
+// ----------------------------------------------------------------------------
+// BARRA DE FILTROS DE NOVEDADES (chips + dropdown de guardia)
+// ----------------------------------------------------------------------------
+
+class _BarraFiltrosNovedades extends ConsumerWidget {
+  const _BarraFiltrosNovedades({required this.guardias});
+
+  final List<String> guardias;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final filtro = ref.watch(filtroNovedadesProvider);
+    final guardiaFiltrado = ref.watch(filtroGuardiaNovedadesProvider);
+
+    FilterChip chip(FiltroNovedad f, String texto) => FilterChip(
+          label: Text(texto),
+          selected: filtro == f,
+          onSelected: (_) =>
+              ref.read(filtroNovedadesProvider.notifier).state = f,
+          visualDensity: VisualDensity.compact,
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        );
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+          Medidas.margen, 0, Medidas.margen, 8),
+      child: Column(
+        children: [
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            children: [
+              chip(FiltroNovedad.todas, 'Todas'),
+              chip(FiltroNovedad.abiertas, 'Abiertas'),
+              chip(FiltroNovedad.criticas, 'Críticas'),
+              chip(FiltroNovedad.resueltas, 'Resueltas'),
+            ],
+          ),
+          if (guardias.length > 1)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: _DropdownGuardia(
+                guardias: guardias,
+                valor: guardiaFiltrado,
+                alCambiar: (v) => ref
+                    .read(filtroGuardiaNovedadesProvider.notifier)
+                    .state = v,
+              ),
+            ),
+        ],
+      ),
+    );
   }
 }
 

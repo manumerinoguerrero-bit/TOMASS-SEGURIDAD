@@ -86,15 +86,49 @@ final espaciosProvider = FutureProvider<List<EspacioAdmin>>((ref) {
 // INFORMES
 // ============================================================================
 
-/// Cuántos días hacia atrás mira el informe.
-/// Cuántos días hacia atrás mira el informe (Accesos/Novedades).
-/// Default 30: si es muy corto, novedades viejas ("Auto ajeno" del mes
-/// pasado) no aparecen y el admin se confunde porque el badge del panel
+/// Cuántos días hacia atrás mira cada pestaña del informe.
+///
+/// Antes había UN solo diasDelInformeProvider compartido por Accesos y
+/// Novedades. Cuando el admin pasaba de una pestaña a otra, el período
+/// que había elegido quedaba inconsistente (ej: "Hoy" en Accesos cambiaba
+/// Novedades a mostrar solo las del día). Ahora cada pestaña recuerda su
+/// propio período al navegar.
+///
+/// Default 30 en ambas: si es muy corto, novedades viejas ("Auto ajeno" del
+/// mes pasado) no aparecen y el admin se confunde porque el badge del panel
 /// las cuenta pero la pestaña sale vacía.
-final diasDelInformeProvider = StateProvider<int>((ref) => 30);
+final diasAccesosProvider = StateProvider<int>((ref) => 30);
+final diasNovedadesProvider = StateProvider<int>((ref) => 30);
+
+// ============================================================================
+// FILTROS CLIENT-SIDE (chips arriba de cada lista)
+// ============================================================================
+
+/// Qué tipo/estado de acceso ver.
+enum FiltroAcceso { todos, denegados, peatonales, vehiculares }
+
+/// Qué estado/criticidad de novedades ver. "Críticas" cruza estado=abierta
+/// Y gravedad=crítica/alta.
+enum FiltroNovedad { todas, abiertas, criticas, resueltas }
+
+final filtroAccesosProvider =
+    StateProvider<FiltroAcceso>((ref) => FiltroAcceso.todos);
+final filtroNovedadesProvider =
+    StateProvider<FiltroNovedad>((ref) => FiltroNovedad.todas);
+
+/// Guardia seleccionado para filtrar cada pestaña. Null = todos.
+///
+/// Guardamos el NOMBRE (no el id) porque Novedades solo trae `reportadoPor`
+/// como texto; mantener la misma convención en las 3 pestañas simplifica la
+/// UI (un solo tipo de dropdown).
+final filtroGuardiaAccesosProvider = StateProvider<String?>((ref) => null);
+final filtroGuardiaTurnosProvider = StateProvider<String?>((ref) => null);
+final filtroGuardiaNovedadesProvider = StateProvider<String?>((ref) => null);
+
+// ============================================================================
 
 final movimientosAdminProvider = FutureProvider<List<MovimientoAdmin>>((ref) {
-  final dias = ref.watch(diasDelInformeProvider);
+  final dias = ref.watch(diasAccesosProvider);
   return ref.watch(servicioAdminProvider).movimientos(
         desde: DateTime.now().subtract(Duration(days: dias)),
       );
@@ -104,10 +138,10 @@ final turnosAdminProvider = FutureProvider<List<TurnoAdmin>>((ref) {
   return ref.watch(servicioAdminProvider).turnos();
 });
 
-/// Todas las novedades del período seleccionado (usa diasDelInformeProvider).
+/// Todas las novedades del período seleccionado (usa diasNovedadesProvider).
 final incidentesAdminProvider =
     FutureProvider<List<IncidenteAdmin>>((ref) {
-  final dias = ref.watch(diasDelInformeProvider);
+  final dias = ref.watch(diasNovedadesProvider);
   final desde = DateTime.now().subtract(Duration(days: dias));
   return ref.watch(servicioAdminProvider).incidentesDelPeriodo(
         desde: desde,

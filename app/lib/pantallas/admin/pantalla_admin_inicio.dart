@@ -360,6 +360,11 @@ class _KpiGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Cada KPI es ahora tappeable. Lleva a la pantalla donde el admin
+    // puede actuar sobre ese número:
+    //   - Guardias en turno → Mapa en vivo (ver dónde está cada uno).
+    //   - Novedades/Encomiendas/Personas → pestaña correspondiente del
+    //     informe, con tab preseleccionado.
     return GridView.count(
       crossAxisCount: 2,
       shrinkWrap: true,
@@ -377,6 +382,7 @@ class _KpiGrid extends StatelessWidget {
           color: resumen.guardiasDeTurno == 0
               ? Colores.rojo
               : Colores.verde,
+          alTocar: () => context.push(Rutas.adminMapaVivo),
         ),
         _KpiCard(
           etiqueta: 'Novedades abiertas',
@@ -385,18 +391,21 @@ class _KpiGrid extends StatelessWidget {
           color: resumen.novedadesAbiertas == 0
               ? Colores.grafito
               : Colores.rojo,
+          alTocar: () => context.push('${Rutas.adminInformes}?tab=2'),
         ),
         _KpiCard(
           etiqueta: 'Encomiendas en portería',
           numero: '${resumen.paquetesEnPorteria}',
           icono: Icons.inventory_2_outlined,
           color: Colores.naranja,
+          alTocar: () => context.push('${Rutas.adminInformes}?tab=4'),
         ),
         _KpiCard(
           etiqueta: 'Personas dentro',
           numero: '${resumen.personasActivas}',
           icono: Icons.people_alt_outlined,
           color: Colores.dorado,
+          alTocar: () => context.push('${Rutas.adminInformes}?tab=0'),
         ),
       ],
     );
@@ -409,6 +418,7 @@ class _KpiCard extends StatelessWidget {
     required this.numero,
     required this.icono,
     required this.color,
+    this.alTocar,
   });
 
   final String etiqueta;
@@ -416,44 +426,56 @@ class _KpiCard extends StatelessWidget {
   final IconData icono;
   final Color color;
 
+  /// Si viene no-null, el card se envuelve en un InkWell y aparece el ripple
+  /// al tocarlo. Null = tarjeta puramente informativa.
+  final VoidCallback? alTocar;
+
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Icon(icono, color: color, size: 24),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  numero,
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w800,
-                    color: color,
-                    height: 1.1,
-                    letterSpacing: -0.5,
-                  ),
+    final contenido = Padding(
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Icon(icono, color: color, size: 24),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                numero,
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w800,
+                  color: color,
+                  height: 1.1,
+                  letterSpacing: -0.5,
                 ),
-                Text(
-                  etiqueta,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 11.5,
-                    color: Colores.textoSuave,
-                    height: 1.25,
-                  ),
+              ),
+              Text(
+                etiqueta,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 11.5,
+                  color: Colores.textoSuave,
+                  height: 1.25,
                 ),
-              ],
-            ),
-          ],
-        ),
+              ),
+            ],
+          ),
+        ],
       ),
+    );
+
+    return Card(
+      child: alTocar == null
+          ? contenido
+          : InkWell(
+              onTap: alTocar,
+              borderRadius: BorderRadius.circular(Medidas.redondeo),
+              child: contenido,
+            ),
     );
   }
 }
