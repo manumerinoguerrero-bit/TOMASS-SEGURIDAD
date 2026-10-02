@@ -23,36 +23,49 @@
 --   fallar por eso. net.http_post encola el request y vuelve en
 --   milisegundos; la Edge Function corre en background.
 --
--- CONFIGURACIÓN REQUERIDA (UNA VEZ, A MANO)
+-- CREDENCIALES (secrets en Supabase Vault)
 --
---   El trigger necesita saber la URL de la edge function y el service_role
---   para autenticar la llamada. Se guardan como GUCs de la base:
+--   El trigger necesita saber la URL de la edge function y una llave para
+--   autenticar la llamada. Se guardan en vault.secrets por dos razones:
 --
---     ALTER DATABASE postgres
---       SET app.funciones_url = 'https://ymgadpinqxqkjgxslftg.supabase.co/functions/v1';
---     ALTER DATABASE postgres
---       SET app.service_role_key = '<pegar service_role_key del dashboard>';
+--     - Las lecturas son inmediatas (no dependen del pool de PgBouncer).
+--     - vault no viaja en los backups de datos ni se ve en el log.
 --
---   Después hay que reiniciar las conexiones del pool para que los GUCs se
---   carguen (o esperar que PgBouncer rote). Si el GUC no está, el trigger
---   NO rompe el INSERT: se absorbe la excepción y la novedad queda
---   grabada igual sin push. Lo peor que puede pasar es que el admin se
---   entere al abrir la app (camino 1 ya funciona).
+--   Dos secrets:
+--
+--     tomass_funciones_url       → "https://ymgadpinqxqkjgxslftg.supabase.co/functions/v1"
+--     tomass_funciones_auth_key  → la anon JWT (pública) del proyecto
+--
+--   Se usa la anon JWT porque la edge function tiene verify_jwt=true (lo
+--   que verifica es que el JWT sea válido del proyecto, no un rol en
+--   particular). La function corre internamente con service_role via
+--   la env var SUPABASE_SERVICE_ROLE_KEY, así que el caller no necesita
+--   privilegios altos. Como la anon JWT es pública (está en la app),
+--   guardarla en el vault no agrega secreto que haya que proteger — es
+--   solo para mantener el patrón limpio.
 --
 -- DEPLOY DE LA EDGE FUNCTION
 --
---   La función `avisar-novedad-critica` está en
---   supabase/functions/avisar-novedad-critica/index.ts y se despliega como
---   cualquier otra function:
+--   La función `avisar-novedad-critica` vive en
+--   supabase/functions/avisar-novedad-critica/index.ts.
 --
---     supabase functions deploy avisar-novedad-critica
+-- CHECK CONSTRAINT EN NOTIFICACIONES
+--
+--   Al final del script se amplía notificaciones_tipo_check para que
+--   acepte 'novedad_critica'. Sin esto, el helper avisar() del edge
+--   function falla silenciosamente al grabar en notificaciones (el
+--   push FCM sí llega, pero la fila en-app no queda guardada).
 -- ============================================================================
+
+-- ----------------------------------------------------------------------------
+-- Función trigger
+-- ----------------------------------------------------------------------------
 
 CREATE OR REPLACE FUNCTION public._disparar_aviso_novedad_critica()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path TO 'public', 'pg_temp', 'net'
+SET search_path TO 'public', 'pg_temp', 'net', 'vault'
 AS $$
 DECLARE
   v_url      text;
@@ -60,8 +73,8 @@ DECLARE
   v_gravedad text := lower(coalesce(NEW.gravedad, ''));
   v_estado   text := lower(coalesce(NEW.estado,   ''));
 BEGIN
-  -- Solo nos interesan las novedades reciente abiertas con gravedad alta
-  -- o crítica. Las "media"/"baja" van al camino normal (la app admin las
+  -- Solo nos interesan las novedades recién abiertas con gravedad alta o
+  -- crítica. Las "media"/"baja" van al camino normal (la app admin las
   -- muestra en vivo pero no suenan).
   IF v_estado <> 'abierto' THEN
     RETURN NEW;
@@ -70,18 +83,17 @@ BEGIN
     RETURN NEW;
   END IF;
 
-  -- Los GUCs se leen con `missing_ok = true` (el tercer parámetro de
-  -- current_setting en Postgres 12+) para que si no están configurados,
-  -- devuelva null en lugar de lanzar excepción.
-  v_url := current_setting('app.funciones_url',     true);
-  v_key := current_setting('app.service_role_key',  true);
+  -- Credenciales desde vault. Si no están configuradas, no rompemos el
+  -- INSERT: el incidente queda guardado y la app admin lo verá en vivo
+  -- apenas se abra. Lo único que se pierde es el "ding" del push.
+  SELECT decrypted_secret INTO v_url
+    FROM vault.decrypted_secrets WHERE name = 'tomass_funciones_url';
+  SELECT decrypted_secret INTO v_key
+    FROM vault.decrypted_secrets WHERE name = 'tomass_funciones_auth_key';
 
-  -- Si no está la configuración, no rompemos el INSERT. El incidente queda
-  -- guardado y la app admin lo verá en vivo apenas se abra. Lo único que
-  -- se pierde es el "ding" del push al celular.
   IF v_url IS NULL OR v_key IS NULL
      OR length(v_url) = 0 OR length(v_key) = 0 THEN
-    RAISE WARNING 'avisar-novedad-critica: faltan GUCs app.funciones_url / app.service_role_key; no se envía push';
+    RAISE WARNING 'avisar-novedad-critica: faltan secrets tomass_funciones_url / tomass_funciones_auth_key en el vault';
     RETURN NEW;
   END IF;
 
@@ -111,6 +123,10 @@ EXCEPTION
 END;
 $$;
 
+-- ----------------------------------------------------------------------------
+-- Trigger
+-- ----------------------------------------------------------------------------
+
 DROP TRIGGER IF EXISTS tg_avisar_novedad_critica ON public.incidentes;
 
 CREATE TRIGGER tg_avisar_novedad_critica
@@ -118,13 +134,65 @@ AFTER INSERT ON public.incidentes
 FOR EACH ROW
 EXECUTE FUNCTION public._disparar_aviso_novedad_critica();
 
+-- ----------------------------------------------------------------------------
+-- Ampliar notificaciones_tipo_check para aceptar el nuevo tipo
+-- ----------------------------------------------------------------------------
+
+ALTER TABLE public.notificaciones
+  DROP CONSTRAINT IF EXISTS notificaciones_tipo_check;
+
+ALTER TABLE public.notificaciones
+  ADD CONSTRAINT notificaciones_tipo_check
+  CHECK (tipo = ANY (ARRAY[
+    'acceso_peatonal'::text,
+    'acceso_vehicular_pendiente'::text,
+    'paquete_recibido'::text,
+    'paquete_entregado'::text,
+    'vehiculo_aprobado'::text,
+    'vehiculo_rechazado'::text,
+    'visita_esperando_aprobacion'::text,
+    'visita_ingreso'::text,
+    'personal_servicio_ingreso'::text,
+    'incidente_unidad'::text,
+    'novedad_critica'::text,
+    'paquete_sin_retirar'::text,
+    'sistema'::text
+  ]));
+
+-- ----------------------------------------------------------------------------
+-- Snippet para popular los secrets (correr una vez)
+-- ----------------------------------------------------------------------------
+--   DO $vault$
+--   DECLARE
+--     v_id_url uuid;
+--     v_id_key uuid;
+--   BEGIN
+--     SELECT id INTO v_id_url FROM vault.secrets WHERE name = 'tomass_funciones_url';
+--     IF v_id_url IS NULL THEN
+--       PERFORM vault.create_secret(
+--         'https://<ref>.supabase.co/functions/v1',
+--         'tomass_funciones_url',
+--         'URL base de las Edge Functions.'
+--       );
+--     END IF;
+--
+--     SELECT id INTO v_id_key FROM vault.secrets WHERE name = 'tomass_funciones_auth_key';
+--     IF v_id_key IS NULL THEN
+--       PERFORM vault.create_secret(
+--         '<pegar anon JWT legacy del dashboard>',
+--         'tomass_funciones_auth_key',
+--         'JWT para autenticar invocaciones a Edge Functions desde triggers.'
+--       );
+--     END IF;
+--   END $vault$;
+
 -- Verificación posterior:
 --
 --   SELECT tgname, tgenabled FROM pg_trigger
 --    WHERE tgrelid = 'public.incidentes'::regclass
 --      AND NOT tgisinternal;
---   -- debería listar tg_avisar_novedad_critica con tgenabled = 'O' (ON)
+--   -- debería listar tg_avisar_novedad_critica con tgenabled = 'O'
 --
---   -- Ver si los GUCs están configurados:
---   SELECT current_setting('app.funciones_url', true),
---          current_setting('app.service_role_key', true) IS NOT NULL;
+--   SELECT name, length(decrypted_secret) FROM vault.decrypted_secrets
+--    WHERE name LIKE 'tomass_funciones_%';
+--   -- debería listar las dos filas con largos > 0
