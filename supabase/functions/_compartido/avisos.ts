@@ -41,6 +41,7 @@ export type TipoAviso =
   | "visita_ingreso"
   | "personal_servicio_ingreso"
   | "incidente_unidad"
+  | "novedad_critica"
   | "paquete_sin_retirar"
   | "sistema";
 
