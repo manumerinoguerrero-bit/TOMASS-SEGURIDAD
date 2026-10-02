@@ -68,10 +68,15 @@ class ServicioMapaEstatico {
   /// cuota o alguien la usa de más, se rota en 1 minuto desde el dashboard.
   static const _apiKey = '44dde378496349dda5132e78d3c11869';
 
-  /// Colores del pin (Geoapify espera %23 = # url-encoded).
-  static const _colorSector = '%230D2B5E'; // grafito Tomass
-  static const _colorMarcaCerca = '%2316A34A'; // verde
-  static const _colorMarcaLejos = '%23DC2626'; // rojo
+  /// Colores de los markers. Geoapify dejó de aceptar hex en el parámetro
+  /// `color:` de los markers (`type:material` y `type:circle`) y ahora solo
+  /// acepta nombres predefinidos — el 02/10/2026 el informe PDF empezó a
+  /// caer al plano abstracto porque la API devolvía HTTP 400
+  /// ("marker[0][2] does not match any of the allowed types").
+  /// Pasamos a nombres equivalentes del grafito/verde/rojo que teníamos.
+  static const _colorSector = 'navy';         // grafito / azul oscuro
+  static const _colorMarcaCerca = 'green';    // marca dentro de tolerancia
+  static const _colorMarcaLejos = 'red';      // marca lejos del cartel
 
   /// Baja un PNG con el mapa centrado en [sectores] y las [marcas] del
   /// guardia superpuestas. Devuelve null si el servicio no responde en 8 s
