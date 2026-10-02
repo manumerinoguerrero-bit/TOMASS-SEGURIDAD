@@ -91,3 +91,11 @@ Thumbs.db
 # ---- Archivos temporales de Windows y OneDrive ------------------------------
 desktop.ini
 ~$*
+
+# ---- Documentos operativos — NO van al repositorio --------------------------
+# Materiales que viven en la carpeta del proyecto por comodidad pero no son
+# código. El .xlsx de usuarios en particular tiene la contraseña maestra del
+# sistema y datos personales del equipo — subirlo al git sería una fuga grave.
+# El manual va al Drive/WhatsApp, no al git.
+usuarios-tomass-seguridad.xlsx
+MANUAL-DEL-GUARDIA.pdf
