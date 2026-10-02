@@ -23,6 +23,7 @@ import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:printing/printing.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../config/tema.dart';
 import '../../estado/proveedores.dart';
@@ -30,6 +31,7 @@ import '../../estado/proveedores_admin.dart';
 import '../../modelos/admin.dart';
 import '../../nucleo/errores.dart';
 import '../../nucleo/formato.dart';
+import '../../servicios/exportador_csv.dart';
 import '../../servicios/servicio_fotos.dart';
 import '../comunes/componentes.dart';
 import '../../servicios/informe_incidentes_pdf.dart';
@@ -220,21 +222,41 @@ class _EstadoPestanaAccesos extends ConsumerState<_PestanaAccesos> {
                                 if (i == 0) {
                                   return Padding(
                                     padding: const EdgeInsets.only(bottom: 8),
-                                    child: SizedBox(
-                                      width: double.infinity,
-                                      child: FilledButton.icon(
-                                        onPressed: () => _descargarPdfIngresos(
-                                            filtradaList, dias),
-                                        icon: const Icon(
-                                            Icons.picture_as_pdf_rounded,
-                                            size: 18),
-                                        label: const Text(
-                                            'Descargar informe en PDF'),
-                                        style: FilledButton.styleFrom(
-                                          backgroundColor: Colores.grafito,
-                                          minimumSize: const Size(0, 42),
+                                    child: Row(
+                                      children: [
+                                        Expanded(
+                                          child: FilledButton.icon(
+                                            onPressed: () =>
+                                                _descargarPdfIngresos(
+                                                    filtradaList, dias),
+                                            icon: const Icon(
+                                                Icons.picture_as_pdf_rounded,
+                                                size: 18),
+                                            label: const Text('PDF'),
+                                            style: FilledButton.styleFrom(
+                                              backgroundColor: Colores.grafito,
+                                              minimumSize:
+                                                  const Size(0, 42),
+                                            ),
+                                          ),
                                         ),
-                                      ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: OutlinedButton.icon(
+                                            onPressed: () =>
+                                                _exportarCsvAccesos(
+                                                    filtradaList),
+                                            icon: const Icon(
+                                                Icons.table_view_rounded,
+                                                size: 18),
+                                            label: const Text('CSV'),
+                                            style: OutlinedButton.styleFrom(
+                                              minimumSize:
+                                                  const Size(0, 42),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   );
                                 }
@@ -277,6 +299,36 @@ class _EstadoPestanaAccesos extends ConsumerState<_PestanaAccesos> {
     }
     final r = s.toList()..sort();
     return r;
+  }
+
+  Future<void> _exportarCsvAccesos(List<MovimientoAdmin> lista) async {
+    try {
+      final bytes = ExportadorCsv.csvDeAccesos(lista);
+      final hoy = DateTime.now();
+      final nombre =
+          'accesos-${hoy.year}${hoy.month.toString().padLeft(2, '0')}'
+          '${hoy.day.toString().padLeft(2, '0')}.csv';
+
+      await Share.shareXFiles(
+        [
+          XFile.fromData(
+            bytes,
+            mimeType: 'text/csv',
+            name: nombre,
+          ),
+        ],
+        subject: 'Accesos Tomass Seguridad',
+      );
+    } catch (falla) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('No se pudo exportar: '
+              '${Traductor.traducir(falla).mensaje}'),
+          backgroundColor: Colores.rojo,
+        ),
+      );
+    }
   }
 
   Future<void> _descargarPdfIngresos(
@@ -617,17 +669,33 @@ class _EstadoPestanaTurnos extends ConsumerState<_PestanaTurnos> {
                               .state = v,
                         ),
                       ),
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton.icon(
-                        onPressed: () => _descargarPdf(),
-                        icon: const Icon(Icons.picture_as_pdf_rounded, size: 18),
-                        label: const Text('Descargar informe en PDF'),
-                        style: FilledButton.styleFrom(
-                          backgroundColor: Colores.grafito,
-                          minimumSize: const Size(0, 42),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: FilledButton.icon(
+                            onPressed: () => _descargarPdf(),
+                            icon: const Icon(
+                                Icons.picture_as_pdf_rounded, size: 18),
+                            label: const Text('PDF'),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: Colores.grafito,
+                              minimumSize: const Size(0, 42),
+                            ),
+                          ),
                         ),
-                      ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () => _exportarCsvTurnos(filtrada),
+                            icon: const Icon(
+                                Icons.table_view_rounded, size: 18),
+                            label: const Text('CSV'),
+                            style: OutlinedButton.styleFrom(
+                              minimumSize: const Size(0, 42),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -721,6 +789,36 @@ class _EstadoPestanaTurnos extends ConsumerState<_PestanaTurnos> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('No se pudo generar el PDF: '
+              '${Traductor.traducir(falla).mensaje}'),
+          backgroundColor: Colores.rojo,
+        ),
+      );
+    }
+  }
+
+  Future<void> _exportarCsvTurnos(List<TurnoAdmin> lista) async {
+    try {
+      final bytes = ExportadorCsv.csvDeTurnos(lista);
+      final hoy = DateTime.now();
+      final nombre =
+          'turnos-${hoy.year}${hoy.month.toString().padLeft(2, '0')}'
+          '${hoy.day.toString().padLeft(2, '0')}.csv';
+
+      await Share.shareXFiles(
+        [
+          XFile.fromData(
+            bytes,
+            mimeType: 'text/csv',
+            name: nombre,
+          ),
+        ],
+        subject: 'Turnos Tomass Seguridad',
+      );
+    } catch (falla) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('No se pudo exportar: '
               '${Traductor.traducir(falla).mensaje}'),
           backgroundColor: Colores.rojo,
         ),
