@@ -110,82 +110,88 @@ abstract final class AccionesDeTurno {
 
   /// Cierra la sesión, para que entre otro guardia con su propio usuario.
   ///
-  /// Si el turno sigue abierto, el aviso lo dice con todas las letras: un turno
-  /// que queda abierto sigue mandándole los avisos a alguien que ya se fue a su
-  /// casa, y esos avisos no le llegan a nadie más.
+  /// Si el turno sigue abierto, lo cierra PRIMERO como parte del mismo paso:
+  /// el guardia toca "Cerrar sesión" y en un solo diálogo confirma, deja (si
+  /// quiere) una nota al que entra, y sale. Antes había dos pasos y la mitad
+  /// de los guardias se olvidaba del primero.
   static Future<void> cerrarSesion(BuildContext context, WidgetRef ref) async {
     final hayTurnoAbierto = ref.read(miTurnoProvider).valueOrNull != null;
 
     if (hayTurnoAbierto) {
-      // Con turno abierto: TRES opciones claras en vez de solo un cartel de
-      // advertencia. El caso más común (guardia terminando su jornada) queda
-      // en un tap sin poder equivocarse:
-      //   * "Cerrar turno y salir"  (default, verde)  — lo que casi todos
-      //     quieren pero antes había que hacer en dos pasos.
-      //   * "Salir dejando turno abierto" (rojo)     — solo si el guardia
-      //     se va y el relevo va a seguir en su misma sesión.
-      //   * "Cancelar"
-      final opcion = await showDialog<String>(
+      // Un solo diálogo: confirma + nota opcional + cierra turno + cierra
+      // sesión. Pedido por Manuel el 02/10/2026: el flujo de dos pasos (dos
+      // diálogos encadenados) hacía que varios guardias cerraran sesión sin
+      // cerrar turno antes y los avisos siguieran yéndose a su cuenta ya
+      // fuera del puesto.
+      final notas = TextEditingController();
+      final confirmado = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
-          title: const Text('¿Terminaste tu turno?'),
-          content: const Text(
-            'Tenés un turno abierto. Elegí qué hacer:',
-            style: TextStyle(fontSize: 13.5, height: 1.45),
+          title: const Text('¿Terminar turno y cerrar sesión?'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Te estás yendo. Antes de salir cerramos tu turno, así los '
+                'avisos dejan de venirte a vos. Podés dejarle una nota al '
+                'guardia que entra.',
+                style: TextStyle(fontSize: 13.5, height: 1.45),
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: notas,
+                maxLines: 3,
+                maxLength: 200,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: const InputDecoration(
+                  labelText: 'Nota para el siguiente turno (opcional)',
+                  hintText: 'Ej: la barrera está lenta, revisar el 302',
+                  alignLabelWithHint: true,
+                ),
+              ),
+            ],
           ),
-          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
           actions: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                FilledButton.icon(
-                  icon: const Icon(Icons.swap_horiz_rounded),
-                  label: const Text('Cerrar turno y salir'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Colores.verdeOscuro,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                  onPressed: () => Navigator.pop(context, 'cerrarYSalir'),
-                ),
-                const SizedBox(height: 8),
-                OutlinedButton.icon(
-                  icon: const Icon(Icons.warning_amber_rounded,
-                      color: Colores.rojo),
-                  label: const Text(
-                    'Salir dejando turno abierto',
-                    style: TextStyle(color: Colores.rojo),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Colores.rojo),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                  onPressed: () => Navigator.pop(context, 'soloSalir'),
-                ),
-                const SizedBox(height: 4),
-                TextButton(
-                  onPressed: () => Navigator.pop(context, 'cancelar'),
-                  child: const Text('Cancelar'),
-                ),
-              ],
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton.icon(
+              icon: const Icon(Icons.logout_rounded, size: 18),
+              label: const Text('Terminar y salir'),
+              style: FilledButton.styleFrom(
+                backgroundColor: Colores.verdeOscuro,
+              ),
+              onPressed: () => Navigator.pop(context, true),
             ),
           ],
         ),
       );
 
-      if (opcion == null || opcion == 'cancelar' || !context.mounted) return;
+      final texto = notas.text.trim();
+      notas.dispose();
 
-      if (opcion == 'cerrarYSalir') {
-        // Cerrar el turno primero. Si el usuario cancela ese diálogo, se
-        // aborta también la salida — así no queda a medio camino.
-        final antesDeSalir = ref.read(miTurnoProvider).valueOrNull;
-        await cerrarTurno(context, ref);
-        final despuesDeCerrar = ref.read(miTurnoProvider).valueOrNull;
-        // Si el turno no cambió (el guardia canceló) no cerramos sesión.
-        if (despuesDeCerrar != null && antesDeSalir != null &&
-            despuesDeCerrar.id == antesDeSalir.id) {
-          return;
-        }
+      if (confirmado != true || !context.mounted) return;
+
+      try {
+        await ref.read(servicioGuardiaProvider).cerrarTurno(
+              notasParaElSiguiente: texto.isEmpty ? null : texto,
+            );
+        ref.invalidate(miTurnoProvider);
+      } catch (falla) {
+        // Si no se pudo cerrar el turno (sin red, error del servidor),
+        // NO cerramos sesión: el guardia se iría pensando que su turno
+        // está cerrado y los avisos seguirían saliendo a su cuenta.
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('No se pudo cerrar el turno: '
+                '${Traductor.traducir(falla).mensaje}'),
+            backgroundColor: Colores.rojo,
+          ),
+        );
+        return;
       }
 
       await ref.read(servicioSesionProvider).salir();
