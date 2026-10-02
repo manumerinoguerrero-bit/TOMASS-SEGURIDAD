@@ -243,6 +243,71 @@ class EspacioAdmin {
 // UN MOVIMIENTO DEL HISTORIAL
 // ============================================================================
 
+// ============================================================================
+// VISTA CONSOLIDADA CROSS-INSTALACIÓN
+// ============================================================================
+// Lo que la pantalla "Vista general" del admin muestra: una fila por cada
+// condominio donde tiene permiso. Manuel atiende 6 instalaciones y necesita
+// ver sin cambiar de instalación cuáles tienen pendientes.
+//
+// Viene del RPC resumen_de_mis_instalaciones().
+// ============================================================================
+
+class ResumenInstalacion {
+  const ResumenInstalacion({
+    required this.condominioId,
+    required this.condominio,
+    required this.esLaActiva,
+    required this.guardiasDeTurno,
+    required this.novedadesAbiertas,
+    required this.novedadesCriticasAbiertas,
+    required this.paquetesEnPorteria,
+    required this.paquetesAtrasados,
+    required this.autosEsperando,
+    required this.personasDentro,
+    required this.accesosHoy,
+  });
+
+  final String condominioId;
+  final String condominio;
+  final bool esLaActiva;
+  final int guardiasDeTurno;
+  final int novedadesAbiertas;
+  final int novedadesCriticasAbiertas;
+  final int paquetesEnPorteria;
+  final int paquetesAtrasados;
+  final int autosEsperando;
+  final int personasDentro;
+  final int accesosHoy;
+
+  /// true si hay algo que requiere atención del admin.
+  bool get hayPendientes =>
+      novedadesAbiertas > 0 ||
+      paquetesAtrasados > 0 ||
+      autosEsperando > 0 ||
+      guardiasDeTurno == 0;
+
+  /// true si hay algo urgente (crítico o atrasado).
+  bool get hayAlgoCritico =>
+      novedadesCriticasAbiertas > 0 || paquetesAtrasados > 0;
+
+  factory ResumenInstalacion.desdeMapa(Map<String, dynamic> m) =>
+      ResumenInstalacion(
+        condominioId: m['condominio_id'] as String,
+        condominio: (m['condominio'] ?? '') as String,
+        esLaActiva: (m['es_la_activa'] ?? false) as bool,
+        guardiasDeTurno: (m['guardias_de_turno'] ?? 0) as int,
+        novedadesAbiertas: (m['novedades_abiertas'] ?? 0) as int,
+        novedadesCriticasAbiertas:
+            (m['novedades_criticas_abiertas'] ?? 0) as int,
+        paquetesEnPorteria: (m['paquetes_en_porteria'] ?? 0) as int,
+        paquetesAtrasados: (m['paquetes_atrasados'] ?? 0) as int,
+        autosEsperando: (m['autos_esperando'] ?? 0) as int,
+        personasDentro: (m['personas_dentro'] ?? 0) as int,
+        accesosHoy: (m['accesos_hoy'] ?? 0) as int,
+      );
+}
+
 class MovimientoAdmin {
   const MovimientoAdmin({
     required this.id,

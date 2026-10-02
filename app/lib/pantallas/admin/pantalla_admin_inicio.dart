@@ -88,6 +88,19 @@ class PantallaAdminInicio extends ConsumerWidget {
               const _TituloSeccion('MONITOREO EN VIVO'),
               const SizedBox(height: 12),
 
+              // Vista general: solo tiene sentido cuando el admin atiende
+              // más de una instalación (si tiene una sola, esta misma
+              // pantalla ya es la vista general).
+              if (ref.watch(atiendeVariasProvider))
+                _Acceso(
+                  icono: Icons.dashboard_rounded,
+                  titulo: 'Vista general de todas las instalaciones',
+                  detalle: 'Guardias en turno, novedades y encomiendas de '
+                      'cada una, para empezar el día sin cambiar de '
+                      'instalación una por una',
+                  alTocar: () => context.push(Rutas.adminConsolidado),
+                ),
+
               _Acceso(
                 icono: Icons.map_rounded,
                 titulo: 'Mapa en vivo',

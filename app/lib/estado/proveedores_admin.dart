@@ -138,6 +138,18 @@ final turnosAdminProvider = FutureProvider<List<TurnoAdmin>>((ref) {
   return ref.watch(servicioAdminProvider).turnos();
 });
 
+/// Una fila por cada condominio donde Manuel es admin. Se refresca al
+/// pull-to-refresh de la pantalla "Vista general"; se autodispose cuando el
+/// admin la cierra para no mantener datos del total mientras está en una
+/// instalación puntual.
+final resumenDeMisInstalacionesProvider =
+    FutureProvider.autoDispose<List<ResumenInstalacion>>((ref) {
+  // Si cambia la sesión o se cambia de instalación activa, los números
+  // deben volver a pedirse (el flag es_la_activa debe actualizarse).
+  ref.watch(perfilProvider);
+  return ref.watch(servicioAdminProvider).resumenDeMisInstalaciones();
+});
+
 /// Todas las novedades del período seleccionado (usa diasNovedadesProvider).
 final incidentesAdminProvider =
     FutureProvider<List<IncidenteAdmin>>((ref) {

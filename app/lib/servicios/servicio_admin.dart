@@ -618,6 +618,28 @@ class ServicioAdmin {
   // se revisa cuando hay un problema.
   // ==========================================================================
 
+  // ==========================================================================
+  // VISTA CONSOLIDADA CROSS-INSTALACIÓN
+  // ==========================================================================
+  // Devuelve una fila por cada condominio donde el admin tiene permiso. Para
+  // Manuel que atiende 6, es una sola query a RPC en vez de 6 queries
+  // separadas (una por cada condominio activo).
+  // ==========================================================================
+
+  Future<List<ResumenInstalacion>> resumenDeMisInstalaciones() async {
+    try {
+      final filas = await _supabase
+          .rpc('resumen_de_mis_instalaciones')
+          .timeout(Entorno.esperaMaxima);
+      return (filas as List)
+          .map((f) =>
+              ResumenInstalacion.desdeMapa(Map<String, dynamic>.from(f)))
+          .toList();
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+
   Future<List<MovimientoAdmin>> movimientos({
     DateTime? desde,
     DateTime? hasta,
