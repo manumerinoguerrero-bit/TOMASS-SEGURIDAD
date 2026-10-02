@@ -23,13 +23,20 @@ import '../config/entorno.dart';
 import '../modelos/admin.dart';
 import '../modelos/modelos.dart';
 import '../nucleo/errores.dart';
+import 'cola_offline.dart';
 import 'servicio_fotos.dart';
 
 class ServicioGuardia {
-  ServicioGuardia(this._supabase, this._fotos);
+  ServicioGuardia(this._supabase, this._fotos, {this.cola});
 
   final SupabaseClient _supabase;
   final ServicioFotos _fotos;
+
+  /// Cola para operaciones del guardia que se pueden retrasar si no hay
+  /// internet (marcar punto, registrar acceso manual, entregar paquete,
+  /// crear incidente). Si es null (ej: BD corrupta al arrancar), los RPCs
+  /// se comportan como siempre: fallan con el error de red.
+  final ColaOffline? cola;
 
   String get _miId {
     final usuario = _supabase.auth.currentUser;
@@ -336,6 +343,11 @@ class ServicioGuardia {
   ///
   /// [idLocal] tiene que ser el MISMO si se reintenta la misma marca, para que
   /// un corte de internet no la anote dos veces.
+  ///
+  /// Modo offline: si al mandar la marca no hay señal, se encola para que la
+  /// mande el sincronizador cuando vuelva internet y se devuelve un
+  /// ResultadoDeMarca.enCola. La UI muestra un toast distinto para que el
+  /// guardia sepa que la marca quedó guardada pero todavía no llegó.
   Future<ResultadoDeMarca> marcarPuntoDeControl({
     required String idLocal,
     required String codigoDelCartel,
@@ -344,15 +356,18 @@ class ServicioGuardia {
     double? latitud,
     double? longitud,
   }) async {
+    final params = <String, dynamic>{
+      'p_id_local': idLocal,
+      'p_codigo_qr': codigoDelCartel,
+      'p_novedad': novedad,
+      'p_foto_url': fotoUrl,
+      'p_geo_lat': latitud,
+      'p_geo_lng': longitud,
+    };
     try {
-      final filas = await _supabase.rpc('marcar_punto_control', params: {
-        'p_id_local': idLocal,
-        'p_codigo_qr': codigoDelCartel,
-        'p_novedad': novedad,
-        'p_foto_url': fotoUrl,
-        'p_geo_lat': latitud,
-        'p_geo_lng': longitud,
-      }).timeout(Entorno.esperaMaxima);
+      final filas = await _supabase
+          .rpc('marcar_punto_control', params: params)
+          .timeout(Entorno.esperaMaxima);
 
       final lista = filas as List;
       if (lista.isEmpty) {
@@ -360,6 +375,19 @@ class ServicioGuardia {
       }
       return ResultadoDeMarca.desdeMapa(Map<String, dynamic>.from(lista.first));
     } catch (falla) {
+      // Si el error es de red Y tenemos cola, encolamos y le decimos a la
+      // UI "guardado, se mandará cuando vuelva internet". Cualquier otro
+      // error (QR no reconocido, no hay turno abierto, etc.) se propaga
+      // como siempre — no tiene sentido encolar algo que el backend ya
+      // rechazó por motivos de datos.
+      if (cola != null && esErrorDeRed(falla)) {
+        await cola!.encolar(
+          idLocal: idLocal,
+          tipo: 'marcar_punto_control',
+          params: params,
+        );
+        return ResultadoDeMarca.enCola(nombrePunto: codigoDelCartel);
+      }
       throw Traductor.traducir(falla);
     }
   }

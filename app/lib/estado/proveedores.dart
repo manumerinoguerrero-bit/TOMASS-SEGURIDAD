@@ -21,12 +21,14 @@ import '../config/entorno.dart';
 import '../config/palabras.dart';
 import '../modelos/modelos.dart';
 import '../nucleo/errores.dart';
+import '../servicios/cola_offline.dart';
 import '../servicios/lector_de_patentes.dart';
 import '../servicios/servicio_acceso.dart';
 import '../servicios/servicio_avisos.dart';
 import '../servicios/servicio_fotos.dart';
 import '../servicios/servicio_residente.dart';
 import '../servicios/servicio_sesion.dart';
+import '../servicios/sincronizador.dart';
 
 // ============================================================================
 // LAS PIEZAS BÁSICAS
@@ -35,6 +37,49 @@ import '../servicios/servicio_sesion.dart';
 /// La conexión al servidor.
 final supabaseProvider = Provider<SupabaseClient>((ref) {
   return Supabase.instance.client;
+});
+
+// ============================================================================
+// COLA OFFLINE
+// ============================================================================
+// La cola se abre en main.dart y se inyecta acá via override. Si el override
+// no se aplicó (ej: BD corrupta al arrancar), este provider lanza — ningún
+// código del guardia debería tratar de encolar sin saber que la cola existe.
+// Para chequear si está disponible usar colaOfflineOpcionalProvider.
+// ============================================================================
+
+final colaOfflineProvider = Provider<ColaOffline>((ref) {
+  throw UnimplementedError(
+    'ColaOffline no inicializada — main.dart debe pasar el override.',
+  );
+});
+
+/// Cuántas ops hay esperando que vuelva la señal. Se usa para el badge en
+/// la UI del guardia. Lee el stream que emite la cola cada vez que entra o
+/// sale una op.
+final conteoPendientesProvider = StreamProvider<int>((ref) {
+  final cola = ref.watch(colaOfflineProvider);
+  return cola.conteoStream;
+});
+
+/// Escucha connectivity_plus y expone bool (true si hay cualquier tipo de
+/// conexión activa). Puede valer AsyncLoading al arrancar la app, antes de
+/// que connectivity_plus devuelva el primer resultado.
+final sincronizadorProvider = Provider<Sincronizador>((ref) {
+  final sync = Sincronizador(
+    ref.watch(colaOfflineProvider),
+    ref.watch(supabaseProvider),
+  );
+  sync.arrancar();
+  ref.onDispose(sync.detener);
+  return sync;
+});
+
+/// Mantiene vivo al sincronizador. Hay que leerlo UNA vez desde la raíz de
+/// la app del guardia (al armar el ProviderScope del shell) para que
+/// Riverpod no lo descarte por falta de observadores.
+final mantenerSincronizadorVivoProvider = Provider<void>((ref) {
+  ref.watch(sincronizadorProvider);
 });
 
 final servicioSesionProvider = Provider<ServicioSesion>((ref) {

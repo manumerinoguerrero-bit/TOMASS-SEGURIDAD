@@ -17,8 +17,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'config/entorno.dart';
 import 'config/tema.dart';
+import 'estado/proveedores.dart';
 import 'navegacion/rutas.dart';
 import 'nucleo/almacenamiento_seguro.dart';
+import 'servicios/cola_offline.dart';
 import 'servicios/servicio_avisos.dart';
 
 Future<void> main() async {
@@ -26,6 +28,18 @@ Future<void> main() async {
 
   // Las fechas se muestran en español ("lunes 26 de julio")
   initializeDateFormatting('es');
+
+  // La cola offline se abre ANTES del runApp: así cualquier pantalla que
+  // consulte el conteo de pendientes al pintarse por primera vez ya la
+  // encuentra inicializada. Si falla al abrir (BD corrupta, por ejemplo),
+  // la app igual arranca — las ops nuevas no se encolarán pero las que ya
+  // estaban andando siguen funcionando con red directa.
+  ColaOffline? cola;
+  try {
+    cola = await ColaOffline.abrir();
+  } catch (_) {
+    cola = null;
+  }
 
   // OJO: la orientación NO se bloquea acá a propósito.
   //
@@ -56,7 +70,12 @@ Future<void> main() async {
   // no falla: se anota y la app sigue igual. Ver servicios/servicio_avisos.dart.
   await ServicioAvisos.prenderFirebase();
 
-  runApp(const ProviderScope(child: AppTomass()));
+  runApp(ProviderScope(
+    overrides: [
+      if (cola != null) colaOfflineProvider.overrideWithValue(cola),
+    ],
+    child: const AppTomass(),
+  ));
 }
 
 class AppTomass extends ConsumerWidget {

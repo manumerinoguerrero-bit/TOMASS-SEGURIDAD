@@ -92,6 +92,13 @@ class PantallaPanel extends ConsumerWidget {
               const SizedBox(height: 14),
             ],
 
+            // ---- Cola offline ----
+            // Si hay ops pendientes de enviar al servidor (marcas de ronda,
+            // encomiendas, etc. que se hicieron sin señal), aviso visible
+            // con el conteo. Se vacía solo cuando vuelve internet; no hay
+            // nada que el guardia tenga que hacer, es informativo.
+            const _BannerColaOffline(),
+
             // ---- Los números ----
             //
             // La alerta de autos esperando se quitó del panel a pedido:
@@ -991,5 +998,74 @@ class _EstadoBannerGps extends ConsumerState<_BannerEstadoGps> {
     final horas = delta.inHours;
     final min = delta.inMinutes % 60;
     return min == 0 ? 'hace $horas h' : 'hace $horas h $min min';
+  }
+}
+
+// ============================================================================
+// BANNER DE COLA OFFLINE
+// ============================================================================
+// Si hay operaciones encoladas (acciones del guardia que no se pudieron
+// mandar al servidor por falta de señal), muestra un card con el conteo.
+// Si el conteo es 0, no se renderiza nada — no gastar píxeles en algo que
+// no está pasando. Se actualiza solo via el stream de la cola.
+// ============================================================================
+
+class _BannerColaOffline extends ConsumerWidget {
+  const _BannerColaOffline();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final conteo = ref.watch(conteoPendientesProvider).valueOrNull ?? 0;
+    if (conteo == 0) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Card(
+        color: Colores.naranjaOscuro.withValues(alpha: 0.12),
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(Medidas.redondeo),
+          side: BorderSide(
+            color: Colores.naranjaOscuro.withValues(alpha: 0.35),
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(
+            children: [
+              const Icon(Icons.cloud_off_rounded,
+                  color: Colores.naranjaOscuro, size: 22),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      conteo == 1
+                          ? '1 acción esperando internet'
+                          : '$conteo acciones esperando internet',
+                      style: const TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w700,
+                        color: Colores.naranjaOscuro,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    const Text(
+                      'Se van a mandar solas apenas vuelva la señal.',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        color: Colores.textoSuave,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

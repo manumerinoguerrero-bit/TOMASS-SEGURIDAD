@@ -166,6 +166,55 @@ class _EstadoRondas extends ConsumerState<PantallaRondas> {
       await HapticFeedback.mediumImpact();
       if (!mounted) return;
 
+      // Caso offline: la marca quedó guardada en la cola, no en el backend.
+      // El guardia tiene que saber que SU MARCA SE REGISTRÓ pero todavía no
+      // llegó al administrador; el sincronizador la va a mandar sola apenas
+      // vuelva internet. Mostramos un toast amarillo y usamos el nombre
+      // bonito del punto si lo encontramos en el provider.
+      if (r.enCola) {
+        final nombreBonito = punto?.nombre ?? 'Cartel';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.cloud_off_rounded,
+                    color: Colors.white, size: 22),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        'GUARDADO SIN INTERNET',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.1,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '$nombreBonito · se enviará cuando vuelva la señal',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Colores.naranjaOscuro,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+        return;
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Row(

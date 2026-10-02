@@ -15,9 +15,14 @@ import '../servicios/servicio_guardia.dart';
 import 'proveedores.dart';
 
 final servicioGuardiaProvider = Provider<ServicioGuardia>((ref) {
+  // Al mantener el sincronizador vivo, cualquier op que se encole desde
+  // acá se vacía sola cuando vuelve la señal, sin tener que acordarse de
+  // instanciarlo desde cada pantalla.
+  ref.watch(mantenerSincronizadorVivoProvider);
   return ServicioGuardia(
     ref.watch(supabaseProvider),
     ref.watch(servicioFotosProvider),
+    cola: ref.watch(colaOfflineProvider),
   );
 });
 

@@ -534,6 +534,7 @@ class ResultadoDeMarca {
     required this.yaEstaba,
     this.metrosDeLejos,
     this.lejos = false,
+    this.enCola = false,
   });
 
   /// El nombre del sector, para poder decirle "Patio central, listo".
@@ -555,6 +556,24 @@ class ResultadoDeMarca {
   /// acusar a alguien que hizo bien su trabajo es la forma más rápida de que
   /// deje de usar el sistema. Queda anotado y lo mira el administrador.
   final bool lejos;
+
+  /// true cuando la marca no se pudo enviar al servidor por falta de señal
+  /// y quedó guardada en la cola offline. La UI muestra un mensaje distinto
+  /// ("se enviará cuando vuelva internet"). `marcados` y `total` quedan en
+  /// 0 porque no sabemos el estado real sin consultar al backend.
+  final bool enCola;
+
+  /// Resultado sintético que devuelve el servicio cuando la marca se
+  /// encoló para enviarla después. [nombrePunto] es el que la UI ya tiene
+  /// del provider, para que el toast pueda nombrar el cartel.
+  factory ResultadoDeMarca.enCola({required String nombrePunto}) =>
+      ResultadoDeMarca(
+        punto: nombrePunto,
+        marcados: 0,
+        total: 0,
+        yaEstaba: false,
+        enCola: true,
+      );
 
   factory ResultadoDeMarca.desdeMapa(Map<String, dynamic> m) => ResultadoDeMarca(
         punto: (m['punto'] ?? '') as String,
