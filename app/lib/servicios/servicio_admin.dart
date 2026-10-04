@@ -640,6 +640,24 @@ class ServicioAdmin {
     }
   }
 
+  // ==========================================================================
+  // RECORRIDO DE UN TURNO (puntos donde el guardia hizo algo)
+  // ==========================================================================
+
+  Future<List<PuntoDelRecorrido>> recorridoDelTurno(String turnoId) async {
+    try {
+      final filas = await _supabase
+          .rpc('recorrido_del_turno', params: {'p_turno_id': turnoId})
+          .timeout(Entorno.esperaMaxima);
+      return (filas as List)
+          .map((f) =>
+              PuntoDelRecorrido.desdeMapa(Map<String, dynamic>.from(f)))
+          .toList();
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+
   Future<List<MovimientoAdmin>> movimientos({
     DateTime? desde,
     DateTime? hasta,

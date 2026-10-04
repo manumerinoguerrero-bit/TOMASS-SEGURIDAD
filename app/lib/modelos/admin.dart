@@ -244,6 +244,41 @@ class EspacioAdmin {
 // ============================================================================
 
 // ============================================================================
+// UN PUNTO DEL RECORRIDO DE UN TURNO
+// ============================================================================
+// Cada punto es un lugar donde el guardia hizo algo que dejó rastro durante
+// el turno: abrió sesión, marcó un cartel de ronda, registró un ingreso,
+// o la última señal de GPS que vimos. Para dibujar la línea del recorrido
+// vienen ordenados cronológicamente por el RPC.
+// ============================================================================
+
+class PuntoDelRecorrido {
+  const PuntoDelRecorrido({
+    required this.tipo,
+    required this.cuando,
+    required this.latitud,
+    required this.longitud,
+    required this.descripcion,
+  });
+
+  /// 'apertura', 'marca_ronda', 'acceso', 'ultima_vista'.
+  final String tipo;
+  final DateTime cuando;
+  final double latitud;
+  final double longitud;
+  final String descripcion;
+
+  factory PuntoDelRecorrido.desdeMapa(Map<String, dynamic> m) =>
+      PuntoDelRecorrido(
+        tipo: (m['tipo'] ?? 'otro') as String,
+        cuando: DateTime.parse(m['cuando'] as String),
+        latitud: (m['lat'] as num).toDouble(),
+        longitud: (m['lng'] as num).toDouble(),
+        descripcion: (m['descripcion'] ?? '') as String,
+      );
+}
+
+// ============================================================================
 // VISTA CONSOLIDADA CROSS-INSTALACIÓN
 // ============================================================================
 // Lo que la pantalla "Vista general" del admin muestra: una fila por cada

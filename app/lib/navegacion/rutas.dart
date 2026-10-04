@@ -53,6 +53,7 @@ import '../pantallas/admin/pantalla_admin_informes.dart';
 import '../pantallas/admin/pantalla_admin_guardias.dart';
 import '../pantallas/admin/pantalla_admin_mapa_vivo.dart';
 import '../pantallas/admin/pantalla_admin_pack_mensual.dart';
+import '../pantallas/admin/pantalla_admin_recorrido_turno.dart';
 import '../pantallas/admin/pantalla_admin_inicio.dart';
 import '../pantallas/comunes/pantalla_cambiar_clave.dart';
 import '../pantallas/admin/pantalla_admin_personas.dart';
@@ -98,6 +99,7 @@ class Rutas {
   static const adminGuardias = '/administracion/guardias';
   static const adminConsolidado = '/administracion/vista-general';
   static const adminPackMensual = '/administracion/informe-mensual';
+  static const adminRecorridoTurno = '/administracion/recorrido-turno';
 }
 
 final rutasProvider = Provider<GoRouter>((ref) {
@@ -277,6 +279,22 @@ final rutasProvider = Provider<GoRouter>((ref) {
         path: Rutas.adminPackMensual,
         builder: (context, estado) => const PantallaAdminPackMensual(),
       ),
+      GoRoute(
+        path: Rutas.adminRecorridoTurno,
+        builder: (context, estado) {
+          final id = estado.uri.queryParameters['id'] ?? '';
+          final guardia = estado.uri.queryParameters['guardia'] ?? 'Guardia';
+          final inicioStr = estado.uri.queryParameters['inicio'];
+          final inicio = inicioStr == null
+              ? DateTime.now()
+              : DateTime.parse(inicioStr);
+          return PantallaAdminRecorridoTurno(
+            turnoId: id,
+            guardia: guardia,
+            inicio: inicio,
+          );
+        },
+      ),
 
       ShellRoute(
         builder: (context, estado, hijo) => ContenedorGuardia(hijo: hijo),
@@ -367,6 +385,7 @@ const _deAdministracion = {
   Rutas.adminGuardias,
   Rutas.adminConsolidado,
   Rutas.adminPackMensual,
+  Rutas.adminRecorridoTurno,
   Rutas.cambiarClave,
 };
 

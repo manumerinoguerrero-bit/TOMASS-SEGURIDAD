@@ -20,6 +20,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:printing/printing.dart';
@@ -29,6 +30,7 @@ import '../../config/tema.dart';
 import '../../estado/proveedores.dart';
 import '../../estado/proveedores_admin.dart';
 import '../../modelos/admin.dart';
+import '../../navegacion/rutas.dart';
 import '../../nucleo/errores.dart';
 import '../../nucleo/formato.dart';
 import '../../servicios/exportador_csv.dart';
@@ -1143,6 +1145,29 @@ class _DetalleTurno extends ConsumerWidget {
                   label: const Text('Ver en Google Maps'),
                   style: FilledButton.styleFrom(
                     backgroundColor: Colores.grafito,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              // Recorrido de actividad: abre un mapa con todos los puntos
+              // donde el guardia hizo algo durante este turno (apertura,
+              // marcas de ronda, accesos registrados).
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).pop(); // cerrar el bottom sheet
+                    context.push(
+                      '${Rutas.adminRecorridoTurno}'
+                      '?id=${t.id}'
+                      '&guardia=${Uri.encodeQueryComponent(t.guardia)}'
+                      '&inicio=${t.inicio.toUtc().toIso8601String()}',
+                    );
+                  },
+                  icon: const Icon(Icons.route_rounded, size: 18),
+                  label: const Text('Ver recorrido del turno'),
+                  style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
                 ),
