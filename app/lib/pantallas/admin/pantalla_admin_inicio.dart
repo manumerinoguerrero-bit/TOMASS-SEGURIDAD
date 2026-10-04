@@ -169,6 +169,13 @@ class PantallaAdminInicio extends ConsumerWidget {
                     'y novedades',
                 alTocar: () => context.push(Rutas.adminInformes),
               ),
+              _Acceso(
+                icono: Icons.folder_zip_rounded,
+                titulo: 'Informe mensual del mandante',
+                detalle: 'Pack ZIP con los 5 informes del mes para '
+                    'entregar en la reunión',
+                alTocar: () => context.push(Rutas.adminPackMensual),
+              ),
 
               const SizedBox(height: 24),
             ],

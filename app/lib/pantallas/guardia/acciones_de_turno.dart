@@ -25,11 +25,13 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../config/tema.dart';
 import '../../estado/proveedores.dart';
 import '../../estado/proveedores_guardia.dart';
 import '../../modelos/admin.dart';
+import '../../navegacion/rutas.dart';
 import '../../nucleo/errores.dart';
 import '../../nucleo/formato.dart';
 
@@ -251,6 +253,8 @@ class MenuDelGuardia extends ConsumerWidget {
         switch (elegido) {
           case 'turno':
             AccionesDeTurno.cerrarTurno(context, ref);
+          case 'clave':
+            context.push(Rutas.cambiarClave);
           case 'sesion':
             AccionesDeTurno.cerrarSesion(context, ref);
         }
@@ -297,6 +301,16 @@ class MenuDelGuardia extends ConsumerWidget {
               subtitle: Text('Para entregarle el puesto al que entra'),
             ),
           ),
+        const PopupMenuItem<String>(
+          value: 'clave',
+          child: ListTile(
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+            leading: Icon(Icons.password_rounded, size: 20),
+            title: Text('Cambiar mi clave'),
+            subtitle: Text('Elegir una contraseña propia'),
+          ),
+        ),
       ],
     );
   }

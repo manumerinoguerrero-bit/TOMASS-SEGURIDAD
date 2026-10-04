@@ -1,0 +1,211 @@
+// ============================================================================
+// Tomass Seguridad — Pack mensual consolidado para el mandante
+// ============================================================================
+// Genera un ZIP con los 5 informes del mes en PDF, listo para pasarle al
+// mandante al cierre del mes:
+//
+//   01-ingresos-YYYY-MM.pdf      — accesos del período
+//   02-turnos-YYYY-MM.pdf        — qué guardia estuvo cuándo + KPIs
+//   03-rondas-YYYY-MM.pdf        — rondas con marcas en mapa
+//   04-novedades-YYYY-MM.pdf     — incidentes reportados
+//   05-encomiendas-YYYY-MM.pdf   — encomiendas entregadas
+//   LEEME.txt                    — explicación de qué contiene el pack
+//
+// La generación tarda varios minutos para un mes entero: bajar selfies de
+// turnos y fotos de novedades es la parte lenta. Por eso el método acepta
+// un callback [alProgresar] para que la UI pueda mostrar qué está haciendo.
+//
+// POR QUÉ ZIP Y NO PDF ÚNICO
+//
+//   Un PDF de 100 páginas es incómodo de abrir en celular. El mandante en
+//   general solo quiere ver UN capítulo (p.ej. las novedades) y después
+//   archivar el resto; con 5 archivos separados puede abrir solo el que
+//   necesita. El ZIP se abre nativo en WhatsApp, Gmail, Drive e iOS/Android.
+//
+// POR QUÉ NO SE BAJAN LAS FOTOS DE ENCOMIENDAS EN EL PACK
+//
+//   El informe mensual de encomiendas puede traer 100+ fotos. Bajarlas
+//   todas dentro de un pack mensual duplicaría el tiempo de generación.
+//   El PDF de encomiendas igual sale, solo que con el aviso "sin foto"
+//   en cada fila. Si el mandante necesita las fotos reclamando un paquete
+//   puntual, el admin descarga el informe de encomiendas individual (que
+//   SÍ baja las fotos) y se lo pasa aparte.
+// ============================================================================
+
+import 'dart:typed_data';
+
+import 'package:archive/archive.dart';
+
+import 'informe_encomiendas_pdf.dart';
+import 'informe_incidentes_pdf.dart';
+import 'informe_ingresos_pdf.dart';
+import 'informe_pdf.dart';
+import 'informe_turnos_pdf.dart';
+import 'servicio_admin.dart';
+import 'servicio_fotos.dart';
+
+typedef AlProgresar = void Function(String seccion);
+
+class PackMensualPdf {
+  const PackMensualPdf._();
+
+  /// Arma el ZIP con los 5 PDFs y devuelve sus bytes.
+  ///
+  /// [alProgresar] se llama antes de arrancar cada sección con el nombre
+  /// de lo que está haciendo ('Accesos', 'Turnos', etc.). Sirve para que
+  /// la UI muestre "Generando 3 de 5…" sin que el servicio dependa de
+  /// Riverpod ni de un widget.
+  static Future<Uint8List> armar({
+    required int anio,
+    required int mes,
+    required String instalacion,
+    required ServicioAdmin admin,
+    required ServicioFotos servicioFotos,
+    AlProgresar? alProgresar,
+  }) async {
+    // Rango del mes en hora LOCAL. desde = primer día 00:00, hasta = último
+    // día 23:59:59.999. Los generadores aceptan ambos como absolutos y los
+    // convierten a UTC internamente al armar los filtros.
+    final desde = DateTime(anio, mes, 1, 0, 0, 0);
+    final hasta =
+        DateTime(anio, mes + 1, 1, 0, 0, 0).subtract(const Duration(seconds: 1));
+    final dias = hasta.difference(desde).inDays + 1;
+    final sufijo =
+        '${anio.toString().padLeft(4, '0')}-${mes.toString().padLeft(2, '0')}';
+
+    final archive = Archive();
+
+    // ---- 1. INGRESOS ----
+    alProgresar?.call('Accesos');
+    final movimientos =
+        await admin.movimientos(desde: desde, hasta: hasta);
+    final ingresosBytes = await InformeDeIngresosPdf.armar(
+      instalacion: instalacion,
+      desde: desde,
+      hasta: hasta,
+      movimientos: movimientos,
+    );
+    _agregar(archive, '01-ingresos-$sufijo.pdf', ingresosBytes);
+
+    // ---- 2. TURNOS ----
+    alProgresar?.call('Turnos (bajando selfies)');
+    final (statsTurnos, turnosEnriquecidos) =
+        await admin.estadisticasTurnos(desde: desde, hasta: hasta);
+    final turnosBytes = await InformeDeTurnosPdf.armar(
+      instalacion: instalacion,
+      turnos: turnosEnriquecidos,
+      servicioFotos: servicioFotos,
+      stats: statsTurnos,
+    );
+    _agregar(archive, '02-turnos-$sufijo.pdf', turnosBytes);
+
+    // ---- 3. RONDAS ----
+    alProgresar?.call('Rondas');
+    final rondasInforme =
+        await admin.informeDeRondas(desde: desde, hasta: hasta);
+    final marcas = await admin.detalleDeRondas(desde: desde, hasta: hasta);
+    final sectores = await admin.sectoresParaElPlano();
+    final rondasBytes = await InformeDeRondasPdf.armar(
+      instalacion: instalacion,
+      dias: dias,
+      rondas: rondasInforme,
+      marcas: marcas,
+      sectores: sectores,
+      // 2 horas entre rondas es el default del sistema (minutos_entre_rondas
+      // en condominios). Si en el futuro cambia por instalación, se puede
+      // leer del resumen admin.
+      minutosEntreRondas: 120,
+    );
+    _agregar(archive, '03-rondas-$sufijo.pdf', rondasBytes);
+
+    // ---- 4. NOVEDADES ----
+    alProgresar?.call('Novedades (bajando fotos)');
+    final incidentes = await admin.incidentesDelPeriodo(
+      desde: desde,
+      hasta: hasta,
+    );
+    final incidentesBytes = await InformeDeIncidentesPdf.armar(
+      instalacion: instalacion,
+      desde: desde,
+      hasta: hasta,
+      incidentes: incidentes,
+      servicioFotos: servicioFotos,
+    );
+    _agregar(archive, '04-novedades-$sufijo.pdf', incidentesBytes);
+
+    // ---- 5. ENCOMIENDAS ----
+    alProgresar?.call('Encomiendas');
+    final encomiendas = await admin.encomiendasEntregadas(
+      desde: desde,
+      hasta: hasta,
+    );
+    final encomiendasBytes = await InformeDeEncomiendasPdf.armar(
+      instalacion: instalacion,
+      dias: dias,
+      encomiendas: encomiendas,
+      fotos: const {}, // ver comentario en header del archivo
+    );
+    _agregar(archive, '05-encomiendas-$sufijo.pdf', encomiendasBytes);
+
+    // ---- LEEME ----
+    final leeme = _leeme(instalacion, anio, mes);
+    final leemeBytes = Uint8List.fromList(leeme.codeUnits);
+    _agregar(archive, 'LEEME.txt', leemeBytes);
+
+    alProgresar?.call('Empaquetando');
+    // ZipEncoder.encode() devuelve List<int>?: devuelve null solo si el
+    // archive está vacío, cosa que acá no puede pasar porque siempre
+    // agregamos al menos los 5 PDFs y el LEEME.
+    final zipBytes = ZipEncoder().encode(archive) ?? const <int>[];
+    return Uint8List.fromList(zipBytes);
+  }
+
+  static void _agregar(Archive a, String nombre, Uint8List bytes) {
+    final file = ArchiveFile(nombre, bytes.length, bytes);
+    a.addFile(file);
+  }
+
+  static String _leeme(String instalacion, int anio, int mes) {
+    final mesTxt = _nombreMes(mes);
+    return '''
+TOMASS SEGURIDAD PRIVADA
+Informe mensual consolidado · $instalacion
+Período: $mesTxt de $anio
+
+Qué contiene este pack:
+
+  01-ingresos      Todas las entradas y salidas registradas en el mes,
+                   con fecha, hora, nombre, tipo (peatonal o vehicular),
+                   y quién autorizó cada ingreso.
+
+  02-turnos        Qué guardia estuvo a cargo en cada período, con
+                   selfies al abrir el turno, estadísticas de cumplimiento
+                   y ranking.
+
+  03-rondas        Las rondas que hicieron los guardias, con mapa y
+                   marcación de cada sector del recorrido. Los puntos
+                   verdes son marcas dentro de la tolerancia; los rojos,
+                   marcas desde más lejos.
+
+  04-novedades     Las novedades que reportaron los guardias en el mes
+                   (puertas abiertas, autos extraños, incidentes de
+                   convivencia), con las fotos adjuntas.
+
+  05-encomiendas   Las encomiendas entregadas en el mes, con datos del
+                   residente que las retiró. Las fotos van en el informe
+                   individual de encomiendas (descargar desde la app).
+
+Los registros no se pueden modificar ni borrar: la base de datos lo
+impide. Por eso sirven como respaldo.
+''';
+  }
+
+  static String _nombreMes(int mes) {
+    const nombres = [
+      'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+      'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
+    ];
+    if (mes < 1 || mes > 12) return 'mes';
+    return nombres[mes - 1];
+  }
+}

@@ -65,6 +65,13 @@ dependencies:
   # ---- Compartir por WhatsApp ---------------------------------------------
   share_plus: ^10.1.2
 
+  # ---- Empaquetado ZIP ----------------------------------------------------
+  # Para armar el pack mensual (ZIP con los 5 informes del mes para pasarle
+  # al mandante en la reunión). Ya venía incluida de rebote dentro del
+  # paquete pdf; se pide en forma directa para poder importarla sin que el
+  # analyzer avise 'depend_on_referenced_packages'.
+  archive: ^3.6.1
+
   # ---- Firma digital ------------------------------------------------------
   # El residente firma con el dedo en la tablet del guardia al retirar un paquete
   signature: ^5.5.0

@@ -52,7 +52,9 @@ import '../pantallas/admin/pantalla_admin_espacios.dart';
 import '../pantallas/admin/pantalla_admin_informes.dart';
 import '../pantallas/admin/pantalla_admin_guardias.dart';
 import '../pantallas/admin/pantalla_admin_mapa_vivo.dart';
+import '../pantallas/admin/pantalla_admin_pack_mensual.dart';
 import '../pantallas/admin/pantalla_admin_inicio.dart';
+import '../pantallas/comunes/pantalla_cambiar_clave.dart';
 import '../pantallas/admin/pantalla_admin_personas.dart';
 import '../pantallas/admin/pantalla_admin_sectores.dart';
 import '../pantallas/admin/pantalla_admin_vehiculos.dart';
@@ -63,6 +65,7 @@ class Rutas {
   // Comunes
   static const login = '/login';
   static const cargando = '/cargando';
+  static const cambiarClave = '/cambiar-clave';
 
   // Residente
   static const codigo = '/codigo';
@@ -94,6 +97,7 @@ class Rutas {
   static const adminMapaVivo = '/administracion/mapa-vivo';
   static const adminGuardias = '/administracion/guardias';
   static const adminConsolidado = '/administracion/vista-general';
+  static const adminPackMensual = '/administracion/informe-mensual';
 }
 
 final rutasProvider = Provider<GoRouter>((ref) {
@@ -163,6 +167,12 @@ final rutasProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: Rutas.login,
         builder: (context, estado) => const PantallaLogin(),
+      ),
+      // Accesible desde el menú del guardia y del admin: cada uno
+      // puede cambiar su propia contraseña sin pedírselo al otro.
+      GoRoute(
+        path: Rutas.cambiarClave,
+        builder: (context, estado) => const PantallaCambiarClave(),
       ),
 
       // ======================================================================
@@ -263,6 +273,10 @@ final rutasProvider = Provider<GoRouter>((ref) {
         path: Rutas.adminConsolidado,
         builder: (context, estado) => const PantallaAdminConsolidado(),
       ),
+      GoRoute(
+        path: Rutas.adminPackMensual,
+        builder: (context, estado) => const PantallaAdminPackMensual(),
+      ),
 
       ShellRoute(
         builder: (context, estado, hijo) => ContenedorGuardia(hijo: hijo),
@@ -338,6 +352,7 @@ const _deResidente = {
   Rutas.paquetes,
   Rutas.visitas,
   Rutas.perfil,
+  Rutas.cambiarClave,
 };
 
 /// Las pantallas del panel de administración.
@@ -351,6 +366,8 @@ const _deAdministracion = {
   Rutas.adminMapaVivo,
   Rutas.adminGuardias,
   Rutas.adminConsolidado,
+  Rutas.adminPackMensual,
+  Rutas.cambiarClave,
 };
 
 /// Las pantallas que puede ver el personal de portería.
@@ -364,6 +381,7 @@ const _dePorteria = {
   Rutas.paquetesGuardia,
   Rutas.incidentes,
   Rutas.turno,
+  Rutas.cambiarClave,
 };
 
 /// Le avisa a go_router cuando cambia algo que puede obligar a redirigir:

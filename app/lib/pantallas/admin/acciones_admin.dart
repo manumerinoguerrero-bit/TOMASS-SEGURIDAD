@@ -10,11 +10,13 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../config/tema.dart';
 import '../../estado/proveedores.dart';
 import '../../estado/proveedores_admin.dart';
 import '../../modelos/admin.dart';
+import '../../navegacion/rutas.dart';
 import '../../nucleo/errores.dart';
 import '../../nucleo/formato.dart';
 
@@ -34,6 +36,7 @@ class MenuDelAdmin extends ConsumerWidget {
       position: PopupMenuPosition.under,
       onSelected: (elegido) {
         if (elegido == 'salir') _cerrarSesion(context, ref);
+        if (elegido == 'cambiarClave') context.push(Rutas.cambiarClave);
         if (elegido == 'cambiarInstalacion') {
           _abrirSelectorInstalacion(context, ref, instalaciones);
         }
@@ -80,6 +83,17 @@ class MenuDelAdmin extends ConsumerWidget {
             ),
           ),
         if (atiendeVarias) const PopupMenuDivider(),
+
+        const PopupMenuItem<String>(
+          value: 'cambiarClave',
+          child: ListTile(
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+            leading: Icon(Icons.password_rounded, size: 20),
+            title: Text('Cambiar mi clave'),
+          ),
+        ),
+        const PopupMenuDivider(),
 
         const PopupMenuItem<String>(
           value: 'salir',

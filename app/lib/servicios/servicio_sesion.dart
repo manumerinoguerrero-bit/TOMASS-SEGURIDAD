@@ -254,4 +254,78 @@ class ServicioSesion {
       throw Traductor.traducir(falla);
     }
   }
+
+  // --------------------------------------------------------------------------
+  // Cambiar la contraseña (la persona conoce la actual)
+  // --------------------------------------------------------------------------
+  // Tomass arrancó con una contraseña compartida para todos los guardias
+  // ("Tomass2026!") que estaba en una planilla. Esta función permite que
+  // cada guardia la cambie por una suya desde la app, sin tener que
+  // involucrar al admin ni mandar un email de recuperación.
+  //
+  // Para evitar que alguien que agarre un celular desbloqueado cambie la
+  // clave en 10 segundos, se pide la contraseña ACTUAL y se la verifica
+  // re-autenticando contra el servidor antes de aceptar la nueva.
+  // --------------------------------------------------------------------------
+
+  Future<void> cambiarContrasena({
+    required String actual,
+    required String nueva,
+  }) async {
+    final usuario = usuarioActual;
+    if (usuario == null) {
+      throw const ErrorAmigable(
+        'No hay ninguna sesión abierta.',
+        hayQueIniciarSesion: true,
+        sePuedeReintentar: false,
+      );
+    }
+    final email = usuario.email;
+    if (email == null || email.isEmpty) {
+      throw const ErrorAmigable(
+        'Tu cuenta no tiene correo registrado.',
+        detalle: 'Pedile al administrador que te lo agregue antes de '
+            'poder cambiar la clave.',
+        sePuedeReintentar: false,
+      );
+    }
+
+    if (nueva.length < 8) {
+      throw const ErrorAmigable(
+        'La contraseña nueva es muy corta.',
+        detalle: 'Tiene que tener al menos 8 caracteres.',
+        sePuedeReintentar: true,
+      );
+    }
+    if (nueva == actual) {
+      throw const ErrorAmigable(
+        'La contraseña nueva es igual a la actual.',
+        detalle: 'Elegí una distinta.',
+        sePuedeReintentar: true,
+      );
+    }
+
+    try {
+      // 1) Verificar la actual re-autenticando. Si signInWithPassword
+      //    rechaza, es que la escribió mal.
+      await _supabase.auth
+          .signInWithPassword(email: email, password: actual)
+          .timeout(Entorno.esperaMaxima);
+    } catch (_) {
+      throw const ErrorAmigable(
+        'La contraseña actual no es correcta.',
+        detalle: 'Volvé a escribirla y probá de nuevo.',
+        sePuedeReintentar: true,
+      );
+    }
+
+    try {
+      // 2) Cambiar a la nueva.
+      await _supabase.auth
+          .updateUser(UserAttributes(password: nueva))
+          .timeout(Entorno.esperaMaxima);
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
 }
