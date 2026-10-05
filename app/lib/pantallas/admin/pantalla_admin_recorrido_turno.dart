@@ -1,22 +1,23 @@
 // ============================================================================
-// Tomass Seguridad — Recorrido de actividad del turno
+// Tomass Seguridad — Recorrido del turno
 // ============================================================================
-// Dibuja sobre un mapa de calles los puntos donde el guardia hizo algo
-// durante el turno: dónde abrió el turno, dónde escaneó cada cartel de
-// ronda, dónde registró cada ingreso/salida, y dónde fue visto por última
-// vez por el rastreador GPS.
+// Dibuja sobre un mapa de calles DOS CAPAS que se pueden alternar:
 //
-// Los puntos se conectan con una polyline cronológica para que se vea el
-// orden en que anduvo. Al tocar un punto se muestra qué pasó en ese lugar
-// y a qué hora.
+//   1) ACTIVIDAD (siempre visible): puntos donde el guardia hizo algo —
+//      abrió el turno, escaneó un cartel de ronda, registró un ingreso/
+//      salida, o la última señal de GPS. Son acciones identificables con
+//      un número y una descripción al tocarlas. Se conectan con polyline
+//      PUNTEADA, cronológica. Es la vista por defecto.
 //
-// NO ES UN GPS CONTINUO
+//   2) GPS CONTINUO (toggle en el AppBar): la polyline SÓLIDA que une
+//      cada muestra GPS que mandó el rastreador durante el turno (una
+//      cada ~3 min). Guarda la secuencia FÍSICA del recorrido, no solo
+//      las acciones. Para turnos de 6 h son ~120 puntos; se dibujan sin
+//      markers individuales para no saturar el mapa.
 //
-//   El rastreador GPS sobrescribe la última ubicación en vez de guardar
-//   una muestra cada 3 minutos (eso requeriría una tabla aparte, se puede
-//   agregar más adelante). Lo que se ve acá son las ACCIONES del turno —
-//   no cada paso. Para el 90% de los casos (demostrarle al mandante que
-//   el guardia recorrió el condominio) alcanza y sobra.
+// Las dos capas se cargan en paralelo con providers separados. El toggle
+// prende/apaga solo la capa GPS: la actividad siempre está visible porque
+// es la info base.
 // ============================================================================
 
 import 'package:flutter/material.dart';
@@ -35,6 +36,11 @@ import 'acciones_admin.dart';
 final _recorridoProvider = FutureProvider.autoDispose
     .family<List<PuntoDelRecorrido>, String>((ref, turnoId) {
   return ref.watch(servicioAdminProvider).recorridoDelTurno(turnoId);
+});
+
+final _recorridoGpsProvider = FutureProvider.autoDispose
+    .family<List<MuestraGPS>, String>((ref, turnoId) {
+  return ref.watch(servicioAdminProvider).recorridoGpsDelTurno(turnoId);
 });
 
 class PantallaAdminRecorridoTurno extends ConsumerStatefulWidget {
@@ -58,10 +64,17 @@ class _EstadoRecorrido
     extends ConsumerState<PantallaAdminRecorridoTurno> {
   final _mapaCtrl = MapController();
   int? _puntoSeleccionado;
+  bool _mostrarGps = false;
 
   @override
   Widget build(BuildContext context) {
     final datos = ref.watch(_recorridoProvider(widget.turnoId));
+    // GPS continuo se lee solo cuando el toggle está prendido. autoDispose
+    // libera memoria al apagarlo. Siempre llamamos a watch() para que el
+    // provider se mantenga vivo mientras el toggle siga activo.
+    final gps = _mostrarGps
+        ? ref.watch(_recorridoGpsProvider(widget.turnoId))
+        : const AsyncValue<List<MuestraGPS>>.data(<MuestraGPS>[]);
 
     return Scaffold(
       appBar: AppBar(
@@ -80,7 +93,19 @@ class _EstadoRecorrido
             ),
           ],
         ),
-        actions: const [MenuDelAdmin()],
+        actions: [
+          IconButton(
+            tooltip: _mostrarGps
+                ? 'Ocultar línea GPS continua'
+                : 'Mostrar línea GPS continua',
+            icon: Icon(
+              _mostrarGps ? Icons.timeline : Icons.timeline_outlined,
+              color: _mostrarGps ? Colores.verde : Colors.white,
+            ),
+            onPressed: () => setState(() => _mostrarGps = !_mostrarGps),
+          ),
+          const MenuDelAdmin(),
+        ],
       ),
       body: datos.when(
         loading: () => const Center(
@@ -107,6 +132,8 @@ class _EstadoRecorrido
           }
           return _MapaConRecorrido(
             puntos: puntos,
+            muestrasGps: _mostrarGps ? (gps.valueOrNull ?? const []) : null,
+            cargandoGps: _mostrarGps && gps.isLoading,
             mapaCtrl: _mapaCtrl,
             puntoSeleccionado: _puntoSeleccionado,
             alElegir: (i) => setState(() => _puntoSeleccionado = i),
@@ -122,12 +149,16 @@ class _EstadoRecorrido
 class _MapaConRecorrido extends StatelessWidget {
   const _MapaConRecorrido({
     required this.puntos,
+    required this.muestrasGps,
+    required this.cargandoGps,
     required this.mapaCtrl,
     required this.puntoSeleccionado,
     required this.alElegir,
   });
 
   final List<PuntoDelRecorrido> puntos;
+  final List<MuestraGPS>? muestrasGps;
+  final bool cargandoGps;
   final MapController mapaCtrl;
   final int? puntoSeleccionado;
   final ValueChanged<int?> alElegir;
@@ -149,10 +180,73 @@ class _MapaConRecorrido extends StatelessWidget {
       pattern: StrokePattern.dashed(segments: const [10, 6]),
     );
 
+    // Polyline SÓLIDA del rastreador GPS. Solo se arma si muestrasGps != null
+    // (toggle prendido). Color navy translúcido para que no tape los markers
+    // de actividad (grafito). Sin markers propios: con 100+ muestras el mapa
+    // sería ilegible.
+    final polylineGps = muestrasGps != null && muestrasGps!.length >= 2
+        ? Polyline(
+            points: muestrasGps!
+                .map((m) => LatLng(m.latitud, m.longitud))
+                .toList(),
+            color: Colores.verde.withValues(alpha: 0.65),
+            strokeWidth: 3.0,
+          )
+        : null;
+
     final elegido = puntoSeleccionado;
 
     return Column(
       children: [
+        if (cargandoGps)
+          Container(
+            width: double.infinity,
+            color: Colores.verde.withValues(alpha: 0.08),
+            padding: const EdgeInsets.symmetric(
+              horizontal: Medidas.margen,
+              vertical: 8,
+            ),
+            child: Row(
+              children: [
+                const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colores.verde,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  'Cargando GPS del rastreador…',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    color: Colores.verdeOscuro,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        if (muestrasGps != null &&
+            !cargandoGps &&
+            muestrasGps!.isEmpty)
+          Container(
+            width: double.infinity,
+            color: Colores.naranja.withValues(alpha: 0.15),
+            padding: const EdgeInsets.symmetric(
+              horizontal: Medidas.margen,
+              vertical: 8,
+            ),
+            child: Text(
+              'Sin muestras GPS para este turno. El rastreador no envió '
+              'ubicaciones (el guardia pudo tener permiso bloqueado, GPS '
+              'apagado, o es un turno anterior a esta función).',
+              style: TextStyle(
+                fontSize: 12.5,
+                color: Colores.grafito.withValues(alpha: 0.85),
+              ),
+            ),
+          ),
         Expanded(
           flex: 3,
           child: FlutterMap(
@@ -173,7 +267,10 @@ class _MapaConRecorrido extends StatelessWidget {
                 userAgentPackageName: 'cl.tomass.tomass_seguridad',
                 maxNativeZoom: 19,
               ),
-              PolylineLayer(polylines: [polyline]),
+              PolylineLayer(polylines: [
+                polyline,
+                if (polylineGps != null) polylineGps,
+              ]),
               MarkerLayer(
                 markers: [
                   for (var i = 0; i < puntos.length; i++)

@@ -658,6 +658,23 @@ class ServicioAdmin {
     }
   }
 
+  /// Trae todas las muestras GPS del rastreador durante el turno, en orden
+  /// cronológico. Pueden ser 100+ puntos para un turno de 6 horas. Se usan
+  /// para dibujar la polyline del recorrido físico (opt-in en la UI con el
+  /// toggle "GPS continuo") en lugar de la de actividad.
+  Future<List<MuestraGPS>> recorridoGpsDelTurno(String turnoId) async {
+    try {
+      final filas = await _supabase
+          .rpc('recorrido_gps_del_turno', params: {'p_turno_id': turnoId})
+          .timeout(Entorno.esperaMaxima);
+      return (filas as List)
+          .map((f) => MuestraGPS.desdeMapa(Map<String, dynamic>.from(f)))
+          .toList();
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+
   Future<List<MovimientoAdmin>> movimientos({
     DateTime? desde,
     DateTime? hasta,

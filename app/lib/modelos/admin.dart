@@ -278,6 +278,28 @@ class PuntoDelRecorrido {
       );
 }
 
+/// Una muestra GPS del rastreador durante el turno. A diferencia de
+/// [PuntoDelRecorrido] no representa una acción identificable, solo una
+/// coordenada enviada por el rastreador cada ~3 min. Sirve para dibujar la
+/// polyline continua del recorrido físico del guardia.
+class MuestraGPS {
+  const MuestraGPS({
+    required this.cuando,
+    required this.latitud,
+    required this.longitud,
+  });
+
+  final DateTime cuando;
+  final double latitud;
+  final double longitud;
+
+  factory MuestraGPS.desdeMapa(Map<String, dynamic> m) => MuestraGPS(
+        cuando: DateTime.parse(m['cuando'] as String),
+        latitud: (m['lat'] as num).toDouble(),
+        longitud: (m['lng'] as num).toDouble(),
+      );
+}
+
 // ============================================================================
 // VISTA CONSOLIDADA CROSS-INSTALACIÓN
 // ============================================================================
