@@ -22,14 +22,14 @@
 //   archivar el resto; con 5 archivos separados puede abrir solo el que
 //   necesita. El ZIP se abre nativo en WhatsApp, Gmail, Drive e iOS/Android.
 //
-// POR QUÉ NO SE BAJAN LAS FOTOS DE ENCOMIENDAS EN EL PACK
+// FOTOS Y FIRMAS DE ENCOMIENDAS SÍ VAN EN EL PACK
 //
-//   El informe mensual de encomiendas puede traer 100+ fotos. Bajarlas
-//   todas dentro de un pack mensual duplicaría el tiempo de generación.
-//   El PDF de encomiendas igual sale, solo que con el aviso "sin foto"
-//   en cada fila. Si el mandante necesita las fotos reclamando un paquete
-//   puntual, el admin descarga el informe de encomiendas individual (que
-//   SÍ baja las fotos) y se lo pasa aparte.
+//   La versión anterior las omitía para ahorrar tiempo, pero el mandante
+//   necesita verlas en el informe mensual (son la prueba de la entrega
+//   junto con la firma del residente). Se bajan en tandas de 5 en paralelo,
+//   igual que el informe individual de encomiendas. Sí, agrega minutos a
+//   la generación cuando hay 100+ paquetes; es el costo de tener un
+//   respaldo completo en un solo pack.
 // ============================================================================
 
 import 'dart:typed_data';
@@ -139,11 +139,38 @@ class PackMensualPdf {
       desde: desde,
       hasta: hasta,
     );
+
+    // Fotos y firmas en tandas de 5 en paralelo: una por una va lento,
+    // todas juntas satura la conexión. Mismo patrón que informe_de_encomiendas.
+    final fotos = <String, Uint8List>{};
+    final firmas = <String, Uint8List>{};
+    const tandasDe = 5;
+    var hechas = 0;
+    for (var i = 0; i < encomiendas.length; i += tandasDe) {
+      final grupo = encomiendas.skip(i).take(tandasDe).toList();
+      final resultados = await Future.wait(grupo.map((e) async {
+        final foto = servicioFotos.bytesParaPdf(
+            e.fotoParaElInforme, CajonDeFotos.paquetes);
+        final firma = e.tieneFirma
+            ? servicioFotos.bytesParaPdf(e.firmaUrl, CajonDeFotos.paquetes)
+            : Future<Uint8List?>.value(null);
+        final (fb, sb) = await (foto, firma).wait;
+        return (id: e.id, fotoBytes: fb, firmaBytes: sb);
+      }));
+      for (final r in resultados) {
+        if (r.fotoBytes != null) fotos[r.id] = r.fotoBytes!;
+        if (r.firmaBytes != null) firmas[r.id] = r.firmaBytes!;
+        hechas++;
+      }
+      alProgresar?.call('Encomiendas (bajando fotos y firmas $hechas de ${encomiendas.length})');
+    }
+
     final encomiendasBytes = await InformeDeEncomiendasPdf.armar(
       instalacion: instalacion,
       dias: dias,
       encomiendas: encomiendas,
-      fotos: const {}, // ver comentario en header del archivo
+      fotos: fotos,
+      firmas: firmas,
     );
     _agregar(archive, '05-encomiendas-$sufijo.pdf', encomiendasBytes);
 
@@ -191,9 +218,11 @@ Qué contiene este pack:
                    (puertas abiertas, autos extraños, incidentes de
                    convivencia), con las fotos adjuntas.
 
-  05-encomiendas   Las encomiendas entregadas en el mes, con datos del
-                   residente que las retiró. Las fotos van en el informe
-                   individual de encomiendas (descargar desde la app).
+  05-encomiendas   Las encomiendas entregadas en el mes, con la foto del
+                   paquete y la firma del residente al retirarlo. Si una
+                   fila aparece como "sin foto" o "sin firma" es porque
+                   el guardia no las capturó al entregar (entregas viejas
+                   previas a la función de firma, o cortes de conexión).
 
 Los registros no se pueden modificar ni borrar: la base de datos lo
 impide. Por eso sirven como respaldo.
