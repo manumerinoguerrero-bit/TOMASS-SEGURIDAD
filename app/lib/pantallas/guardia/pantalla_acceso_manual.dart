@@ -188,20 +188,21 @@ class _EstadoAccesoManual extends ConsumerState<PantallaAccesoManual> {
         }
       }
 
-      await ref.read(servicioGuardiaProvider).anotarAccesoManual(
-            idLocal: _idDelIngreso,
-            puntoAccesoId: garita,
-            nombre: _nombre.text,
-            rut: _rut.text,
-            tipoAcceso: _tipoAcceso,
-            sentido: _sentido,
-            aDondeVa: _aDondeVa.text,
-            autorizadoPor: _autoriza.text,
-            patente: FormatoPatente.normalizar(_patente.text),
-            fotoUrl: rutaFoto,
-            observacion: _observacion.text,
-            ocurridoEn: _horaManual,
-          );
+      final enCola =
+          await ref.read(servicioGuardiaProvider).anotarAccesoManual(
+                idLocal: _idDelIngreso,
+                puntoAccesoId: garita,
+                nombre: _nombre.text,
+                rut: _rut.text,
+                tipoAcceso: _tipoAcceso,
+                sentido: _sentido,
+                aDondeVa: _aDondeVa.text,
+                autorizadoPor: _autoriza.text,
+                patente: FormatoPatente.normalizar(_patente.text),
+                fotoUrl: rutaFoto,
+                observacion: _observacion.text,
+                ocurridoEn: _horaManual,
+              );
 
       if (!mounted) return;
 
@@ -242,9 +243,14 @@ class _EstadoAccesoManual extends ConsumerState<PantallaAccesoManual> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('$quien quedó registrado. '
-              '${entro ? "Entrada" : "Salida"} anotada.'),
-          backgroundColor: Colores.verde,
+          content: Text(
+            enCola
+                ? '$quien quedo guardado sin conexion. Se enviara cuando '
+                    'vuelva la red.'
+                : '$quien quedó registrado. '
+                    '${entro ? "Entrada" : "Salida"} anotada.',
+          ),
+          backgroundColor: enCola ? Colores.naranja : Colores.verde,
           duration: const Duration(seconds: 3),
         ),
       );

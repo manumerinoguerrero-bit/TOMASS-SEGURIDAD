@@ -69,6 +69,7 @@ final sincronizadorProvider = Provider<Sincronizador>((ref) {
   final sync = Sincronizador(
     ref.watch(colaOfflineProvider),
     ref.watch(supabaseProvider),
+    fotos: ref.watch(servicioFotosProvider),
   );
   sync.arrancar();
   ref.onDispose(sync.detener);

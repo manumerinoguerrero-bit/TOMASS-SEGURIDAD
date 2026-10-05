@@ -111,11 +111,25 @@ class _EstadoContenedorGuardia extends ConsumerState<ContenedorGuardia> {
     final paquetes =
         ref.watch(resumenProvider).valueOrNull?.paquetesEnPorteria ?? 0;
     final novedades = ref.watch(incidentesAbiertosProvider);
+    final pendientesEnCola =
+        ref.watch(conteoPendientesProvider).valueOrNull ?? 0;
 
     final avisos = <String, int>{
       Rutas.paquetesGuardia: paquetes,
       Rutas.incidentes: novedades,
     };
+
+    // El cuerpo con un banner arriba cuando hay ops guardadas sin red.
+    // Se mantiene fijo encima de cada pantalla para que el guardia no se
+    // olvide que esas entregas/novedades todavía no llegaron al servidor.
+    final cuerpoConBanner = pendientesEnCola > 0
+        ? Column(
+            children: [
+              _BannerPendientes(cuantos: pendientesEnCola),
+              Expanded(child: widget.hijo),
+            ],
+          )
+        : widget.hijo;
 
     if (esTablet) {
       return Scaffold(
@@ -129,14 +143,14 @@ class _EstadoContenedorGuardia extends ConsumerState<ContenedorGuardia> {
               alCerrarTurno: _cerrarTurno,
               alSalir: _salirDeLaApp,
             ),
-            Expanded(child: widget.hijo),
+            Expanded(child: cuerpoConBanner),
           ],
         ),
       );
     }
 
     return Scaffold(
-      body: widget.hijo,
+      body: cuerpoConBanner,
       bottomNavigationBar: NavigationBar(
         selectedIndex: indiceActual,
         onDestinationSelected: (i) => _irA(opciones, i),
@@ -461,6 +475,62 @@ class _ConGlobito extends StatelessWidget {
       backgroundColor: urgente ? Colores.rojo : Colores.naranja,
       textColor: Colors.white,
       child: child,
+    );
+  }
+}
+
+// ============================================================================
+// Banner de operaciones pendientes de envío
+// ============================================================================
+// Aparece FIJO arriba del cuerpo cuando el sincronizador tiene cosas sin
+// mandar (entregas, novedades, accesos que se registraron sin red). El
+// guardia necesita saberlo porque hasta que no vuelva la conexión esas
+// operaciones no están respaldadas en el servidor — si pierde el teléfono,
+// se pierden. Al reconectar el sincronizador vacía la cola solo y el
+// banner desaparece.
+// ============================================================================
+
+class _BannerPendientes extends StatelessWidget {
+  const _BannerPendientes({required this.cuantos});
+
+  final int cuantos;
+
+  @override
+  Widget build(BuildContext context) {
+    final uno = cuantos == 1;
+    return Material(
+      color: Colores.naranja.withValues(alpha: 0.14),
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.cloud_off_rounded,
+                size: 18,
+                color: Colores.naranjaOscuro,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  uno
+                      ? '1 operacion guardada sin conexion. Se enviara cuando '
+                          'vuelva la red.'
+                      : '$cuantos operaciones guardadas sin conexion. '
+                          'Se enviaran cuando vuelva la red.',
+                  style: const TextStyle(
+                    color: Colores.naranjaOscuro,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    height: 1.3,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

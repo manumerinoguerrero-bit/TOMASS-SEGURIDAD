@@ -413,7 +413,16 @@ class ServicioGuardia {
     }
   }
 
-  Future<void> anotarAccesoManual({
+  /// Registra una entrada/salida.
+  ///
+  /// Devuelve `true` si quedó ENCOLADA (sin red); `false` si se envió al
+  /// servidor. Si falla por otro motivo, lanza la excepción.
+  ///
+  /// Importante: si [ocurridoEn] viene null, el servidor usa `now()` al
+  /// recibirla. Si la op pasa por la cola, al encolarla fijamos
+  /// `ocurridoEn = DateTime.now()` para que la hora del ingreso quede
+  /// capturada al momento REAL del registro, no al momento del envío.
+  Future<bool> anotarAccesoManual({
     required String idLocal,
     required String puntoAccesoId,
     required String nombre,
@@ -428,26 +437,42 @@ class ServicioGuardia {
     String? residenteId,
     DateTime? ocurridoEn,
   }) async {
+    final params = <String, dynamic>{
+      'p_id_local': idLocal,
+      'p_punto_acceso_id': puntoAccesoId,
+      'p_nombre': nombre,
+      'p_tipo_acceso': tipoAcceso,
+      'p_sentido': sentido,
+      'p_rut': rut,
+      'p_a_donde_va': aDondeVa,
+      'p_autorizado_por': autorizadoPor,
+      'p_patente': patente,
+      'p_foto_url': fotoUrl,
+      'p_observacion': observacion,
+      'p_residente_id': residenteId,
+      if (ocurridoEn != null)
+        'p_ocurrido_en': ocurridoEn.toUtc().toIso8601String(),
+    };
     try {
-      await _supabase.rpc('registrar_acceso_manual', params: {
-        'p_id_local': idLocal,
-        'p_punto_acceso_id': puntoAccesoId,
-        'p_nombre': nombre,
-        'p_tipo_acceso': tipoAcceso,
-        'p_sentido': sentido,
-        'p_rut': rut,
-        'p_a_donde_va': aDondeVa,
-        'p_autorizado_por': autorizadoPor,
-        'p_patente': patente,
-        'p_foto_url': fotoUrl,
-        'p_observacion': observacion,
-        'p_residente_id': residenteId,
-        // Hora del ingreso. Si el guardia dejó null, el servidor usa now().
-        // Sirve para cuando el guardia estaba ocupado y anota la visita
-        // 20 minutos después de que pasó, con la hora real de ingreso.
-        if (ocurridoEn != null) 'p_ocurrido_en': ocurridoEn.toUtc().toIso8601String(),
-      }).timeout(Entorno.esperaMaxima);
+      await _supabase
+          .rpc('registrar_acceso_manual', params: params)
+          .timeout(Entorno.esperaMaxima);
+      return false;
     } catch (falla) {
+      if (cola != null && esErrorDeRed(falla)) {
+        // Fijamos la hora al MOMENTO del registro para que no se corra al
+        // instante del envío (que puede ser horas después). Si ya venía
+        // seteado por el llamador, lo respetamos.
+        final paramsConHora = Map<String, dynamic>.from(params);
+        paramsConHora['p_ocurrido_en'] ??=
+            DateTime.now().toUtc().toIso8601String();
+        await cola!.encolar(
+          idLocal: idLocal,
+          tipo: 'registrar_acceso_manual',
+          params: paramsConHora,
+        );
+        return true;
+      }
       throw Traductor.traducir(falla);
     }
   }
@@ -986,7 +1011,12 @@ class ServicioGuardia {
   }
 
   /// Entrega un paquete con la firma del residente.
-  Future<void> entregarPaquete({
+  ///
+  /// Devuelve `true` si la entrega quedó ENCOLADA (sin red); `false` si se
+  /// envió al servidor en el momento. La UI usa este bool para mostrar
+  /// "Paquete entregado" vs "Paquete guardado, se enviará cuando vuelva la red".
+  /// Si falla por un motivo que NO es de red, lanza la excepción como siempre.
+  Future<bool> entregarPaquete({
     required String paqueteId,
     required String condominioId,
     required File firma,
@@ -1029,9 +1059,38 @@ class ServicioGuardia {
           })
           .eq('id', paqueteId)
           .timeout(Entorno.esperaMaxima);
+      return false;
     } catch (falla) {
+      // Si la foto/firma ya se subió pero falló el UPDATE por red, borramos
+      // lo subido y encolamos con los archivos locales — el handler offline
+      // los va a resubir cuando vuelva la conexión.
       await _fotos.borrar(rutaFirma, CajonDeFotos.firmas);
       await _fotos.borrar(rutaFoto, CajonDeFotos.paquetes);
+
+      if (cola != null && esErrorDeRed(falla)) {
+        await cola!.encolar(
+          idLocal: 'entrega_${paqueteId}_'
+              '${DateTime.now().millisecondsSinceEpoch}',
+          tipo: 'custom:entregar_paquete',
+          params: {
+            'paqueteId': paqueteId,
+            'condominioId': condominioId,
+            'entregadoEn': DateTime.now().toUtc().toIso8601String(),
+            'guardiaEntregaId': _miId,
+            'turnoId': turnoId,
+            'identidadValidada': identidadValidada,
+            'retiradoPor':
+                (retiradoPor != null && retiradoPor.trim().isNotEmpty)
+                    ? retiradoPor.trim()
+                    : null,
+          },
+          archivos: {
+            'firma': firma,
+            if (fotoDeLaEntrega != null) 'foto': fotoDeLaEntrega,
+          },
+        );
+        return true;
+      }
       throw Traductor.traducir(falla);
     }
   }
@@ -1151,7 +1210,10 @@ class ServicioGuardia {
   }
 
   /// Anota una novedad. Es lo más simple del sistema y lo que más se usa.
-  Future<void> reportarIncidente({
+  ///
+  /// Devuelve `true` si quedó ENCOLADA (sin red); `false` si se envió al
+  /// servidor. Si falla por otro motivo, lanza la excepción.
+  Future<bool> reportarIncidente({
     required String condominioId,
     required String idLocal,
     required TipoIncidente tipo,
@@ -1192,9 +1254,44 @@ class ServicioGuardia {
         if (turnoId != null) 'turno_id': turnoId,
         'estado': 'abierto',
       }).timeout(Entorno.esperaMaxima);
+      return false;
     } catch (falla) {
       for (final ruta in rutas) {
         await _fotos.borrar(ruta, CajonDeFotos.paquetes);
+      }
+      if (cola != null && esErrorDeRed(falla)) {
+        // Encolamos con todas las fotos locales. El handler del sincronizador
+        // las resubirá cuando vuelva la red y después hará el INSERT en
+        // incidentes con las URLs reales.
+        final archivosLocales = <String, File>{};
+        for (var i = 0; i < fotos.length; i++) {
+          // Padding a 3 dígitos para que el orden alfabético coincida con
+          // el cronológico ('foto_000' < 'foto_010' < 'foto_100').
+          archivosLocales['foto_${i.toString().padLeft(3, '0')}'] = fotos[i];
+        }
+        await cola!.encolar(
+          idLocal: idLocal,
+          tipo: 'custom:reportar_incidente',
+          params: {
+            'condominioId': condominioId,
+            'condominio_id': condominioId,
+            'id_local': idLocal,
+            'tipo': tipo.comoTexto,
+            'gravedad': gravedad.name,
+            'titulo': titulo.trim(),
+            if (descripcion != null && descripcion.trim().isNotEmpty)
+              'descripcion': descripcion.trim(),
+            if (unidadId != null) 'unidad_id': unidadId,
+            if (patente != null && patente.trim().isNotEmpty)
+              'patente': FormatoPatente.normalizar(patente),
+            if (puntoAccesoId != null) 'punto_acceso_id': puntoAccesoId,
+            'reportado_por': _miId,
+            if (turnoId != null) 'turno_id': turnoId,
+            'estado': 'abierto',
+          },
+          archivos: archivosLocales,
+        );
+        return true;
       }
       throw Traductor.traducir(falla);
     }

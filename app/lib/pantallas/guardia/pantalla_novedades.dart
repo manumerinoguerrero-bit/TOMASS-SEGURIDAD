@@ -389,21 +389,22 @@ class _EstadoFormulario extends ConsumerState<_FormularioNovedad> {
     });
 
     try {
-      await ref.read(servicioGuardiaProvider).reportarIncidente(
-            condominioId: perfil.condominioId,
-            // El campo id_local en incidentes es de tipo uuid; antes se
-            // armaba a mano concatenando hex, y Postgres rechazaba con
-            // "invalid input for type uuid". Ahora es UUID v4 real.
-            idLocal: _nuevoUuidV4(),
-            tipo: _tipo,
-            gravedad: _gravedad,
-            titulo: _titulo.text,
-            descripcion: _descripcion.text,
-            fotos: _fotos,
-            patente: _patente.text,
-            turnoId: turno?.id,
-            puntoAccesoId: turno?.puntoAccesoId,
-          );
+      final enCola =
+          await ref.read(servicioGuardiaProvider).reportarIncidente(
+                condominioId: perfil.condominioId,
+                // El campo id_local en incidentes es de tipo uuid; antes se
+                // armaba a mano concatenando hex, y Postgres rechazaba con
+                // "invalid input for type uuid". Ahora es UUID v4 real.
+                idLocal: _nuevoUuidV4(),
+                tipo: _tipo,
+                gravedad: _gravedad,
+                titulo: _titulo.text,
+                descripcion: _descripcion.text,
+                fotos: _fotos,
+                patente: _patente.text,
+                turnoId: turno?.id,
+                puntoAccesoId: turno?.puntoAccesoId,
+              );
 
       ref.invalidate(incidentesProvider);
       ref.invalidate(resumenProvider);
@@ -411,9 +412,14 @@ class _EstadoFormulario extends ConsumerState<_FormularioNovedad> {
       if (!mounted) return;
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Novedad anotada.'),
-          backgroundColor: Colores.verde,
+        SnackBar(
+          content: Text(
+            enCola
+                ? 'Novedad guardada sin conexion. Se enviara cuando vuelva '
+                    'la red.'
+                : 'Novedad anotada.',
+          ),
+          backgroundColor: enCola ? Colores.naranja : Colores.verde,
         ),
       );
     } catch (falla) {

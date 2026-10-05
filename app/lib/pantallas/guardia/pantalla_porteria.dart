@@ -1067,14 +1067,15 @@ class _EstadoEntrega extends ConsumerState<_HojaDeEntrega> {
       );
       await temporal.writeAsBytes(imagen);
 
-      await ref.read(servicioGuardiaProvider).entregarPaquete(
-            paqueteId: widget.paquete['id'] as String,
-            condominioId: perfil.condominioId,
-            firma: temporal,
-            identidadValidada: !_loRetiraOtro,
-            retiradoPor: _loRetiraOtro ? _retiradoPor.text : null,
-            turnoId: turno?.id,
-          );
+      final enCola =
+          await ref.read(servicioGuardiaProvider).entregarPaquete(
+                paqueteId: widget.paquete['id'] as String,
+                condominioId: perfil.condominioId,
+                firma: temporal,
+                identidadValidada: !_loRetiraOtro,
+                retiradoPor: _loRetiraOtro ? _retiradoPor.text : null,
+                turnoId: turno?.id,
+              );
 
       ref.invalidate(inventarioPaquetesProvider);
       ref.invalidate(resumenProvider);
@@ -1084,9 +1085,12 @@ class _EstadoEntrega extends ConsumerState<_HojaDeEntrega> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Paquete entregado a ${widget.paquete['residente']}.',
+            enCola
+                ? 'Entrega guardada sin conexion. Se enviara cuando vuelva '
+                    'la red (${widget.paquete['residente']}).'
+                : 'Paquete entregado a ${widget.paquete['residente']}.',
           ),
-          backgroundColor: Colores.verde,
+          backgroundColor: enCola ? Colores.naranja : Colores.verde,
         ),
       );
     } catch (falla) {
