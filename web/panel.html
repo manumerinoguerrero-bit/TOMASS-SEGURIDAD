@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tomass Seguridad — Panel</title>
+  <link rel="icon" type="image/png" href="img/logo.png">
+  <link rel="stylesheet" href="css/estilo.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+</head>
+<body class="pantalla-panel">
+
+  <!-- ======================= BARRA SUPERIOR ======================= -->
+  <header class="barra-superior">
+    <div class="marca">
+      <img src="img/logo.png" alt="Tomass" class="logo-chico">
+      <div>
+        <div class="nombre-marca">TOMASS SEGURIDAD</div>
+        <div class="rol-usuario" id="rolUsuario">Cargando…</div>
+      </div>
+    </div>
+    <div class="herramientas">
+      <select id="selectorInstalacion" class="selector"></select>
+      <button class="btn-neutro" id="btnActualizar" title="Actualizar datos">
+        <span>↻</span> Actualizar
+      </button>
+      <button class="btn-neutro" id="btnSalir">Salir</button>
+    </div>
+  </header>
+
+  <!-- ======================= PESTAÑAS ======================= -->
+  <nav class="pestanas">
+    <button class="pestana activa" data-tab="resumen">Resumen</button>
+    <button class="pestana" data-tab="ingresos">Ingresos</button>
+    <button class="pestana" data-tab="novedades">Novedades</button>
+    <button class="pestana" data-tab="paquetes">Paquetes</button>
+    <button class="pestana" data-tab="mapa">Guardias en vivo</button>
+  </nav>
+
+  <!-- ======================= CUERPO ======================= -->
+  <main class="cuerpo" id="cuerpo">
+    <!-- RESUMEN -->
+    <section class="vista" data-vista="resumen">
+      <div id="resumenCards" class="grid-cards">
+        <div class="cargando">Cargando resumen…</div>
+      </div>
+    </section>
+
+    <!-- INGRESOS -->
+    <section class="vista oculta" data-vista="ingresos">
+      <div class="toolbar">
+        <label>
+          Desde
+          <input type="date" id="ingresosDesde">
+        </label>
+        <label>
+          Hasta
+          <input type="date" id="ingresosHasta">
+        </label>
+        <button class="btn-primario" id="btnFiltrarIngresos">Filtrar</button>
+      </div>
+      <div class="tabla-wrap">
+        <table class="tabla">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Instalación</th>
+              <th>Persona</th>
+              <th>Tipo</th>
+              <th>Sentido</th>
+              <th>Unidad</th>
+              <th>Autorizó</th>
+              <th>Guardia</th>
+            </tr>
+          </thead>
+          <tbody id="ingresosTbody">
+            <tr><td colspan="8" class="cargando">Cargando…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- NOVEDADES -->
+    <section class="vista oculta" data-vista="novedades">
+      <div class="toolbar">
+        <label>
+          Estado
+          <select id="novedadesEstado">
+            <option value="abierto" selected>Abiertas</option>
+            <option value="resuelto">Resueltas</option>
+            <option value="">Todas</option>
+          </select>
+        </label>
+        <button class="btn-primario" id="btnFiltrarNovedades">Filtrar</button>
+      </div>
+      <div id="novedadesLista" class="lista-cards">
+        <div class="cargando">Cargando…</div>
+      </div>
+    </section>
+
+    <!-- PAQUETES -->
+    <section class="vista oculta" data-vista="paquetes">
+      <div id="paquetesLista" class="lista-cards">
+        <div class="cargando">Cargando…</div>
+      </div>
+    </section>
+
+    <!-- MAPA EN VIVO -->
+    <section class="vista oculta" data-vista="mapa">
+      <div class="mapa-leyenda">
+        <span class="pulso-verde"></span>
+        Puntos verdes = guardias con turno abierto. La ubicación se actualiza
+        cada 3 minutos desde el teléfono del guardia.
+      </div>
+      <div id="mapa" class="mapa-grande"></div>
+      <div id="mapaLista" class="lista-cards">
+        <div class="cargando">Cargando guardias de turno…</div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Modal de detalle de novedad -->
+  <div class="modal oculto" id="modalDetalle">
+    <div class="modal-caja">
+      <button class="cerrar-modal" id="cerrarModal">×</button>
+      <div id="modalContenido"></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/panel.js"></script>
+</body>
+</html>
