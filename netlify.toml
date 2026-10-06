@@ -1,0 +1,36 @@
+# ============================================================================
+# Tomass Seguridad — Configuración de Netlify
+# ============================================================================
+# Netlify lee este archivo y publica el dashboard web automáticamente en cada
+# push a main. No requiere click en el UI de Netlify: con solo conectar el
+# repo, Netlify respeta estas settings.
+#
+# Elegimos Netlify sobre GitHub Pages porque GH Pages solo publica repos
+# públicos en el plan gratuito, y preferimos no exponer el código fuente
+# (contiene nombres de usuarios reales en comentarios, firma de APK de
+# pruebas, estructura de DB, etc.).
+# ============================================================================
+
+[build]
+  # Qué carpeta publicar. El dashboard es HTML estático: no hay build.
+  publish = "web"
+  # No hay comando de build (zero toolchain).
+  command = ""
+
+# Redirect del dominio raíz al index del dashboard.
+# No es estrictamente necesario (Netlify ya sirve /index.html por default),
+# pero deja explícito el entrypoint.
+[[redirects]]
+  from = "/"
+  to = "/index.html"
+  status = 200
+
+# Headers de seguridad básicos. No bloquean nada que el dashboard necesite,
+# solo mejoran la postura de seguridad del sitio.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "geolocation=(), microphone=(), camera=()"

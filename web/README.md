@@ -27,16 +27,33 @@ rechaza con mensaje explícito.
 
 ## URL de producción
 
-Una vez activado GitHub Pages (ver abajo), el dashboard queda en:
-`https://manumerinoguerrero-bit.github.io/TOMASS-SEGURIDAD/`
+Deploy automático a Netlify desde el repo privado. URL inicial del tipo
+`random-name.netlify.app`, renombrable desde el panel de Netlify a algo
+como `tomass-admin.netlify.app`. Si en el futuro se compra un dominio
+propio (ej. `admin.tomass.cl`) se apunta por DNS CNAME a Netlify.
 
-## Primera vez: activar GitHub Pages
+## Primera vez: conectar Netlify
 
-1. Ir a **Settings → Pages** del repo.
-2. En **Source** elegir **GitHub Actions**.
-3. Hacer un commit a `/web/` o lanzar manualmente el workflow
-   "Publicar dashboard web" desde la pestaña Actions.
-4. En 1-2 minutos el sitio queda publicado.
+1. Ir a https://app.netlify.com/signup y elegir "Sign up with GitHub".
+2. Dashboard de Netlify → "Add new site" → "Import an existing project".
+3. Autorizar Netlify a leer el repo (solo este repo, no todos).
+4. Elegir `manumerinoguerrero-bit/TOMASS-SEGURIDAD`.
+5. En "Build settings":
+   - Base directory: *(vacío)*
+   - Build command: *(vacío — netlify.toml ya lo define)*
+   - Publish directory: `web` *(netlify.toml ya lo define)*
+6. "Deploy site". En 30-60s está vivo.
+
+Netlify respeta `netlify.toml` en la raíz del repo, así que la config queda
+versionada y sobrevive cambios manuales accidentales en el panel.
+
+## Deploy continuo
+
+Cada push a `main` que toque `/web/` dispara un re-deploy automático. No hay
+que apretar nada: igual que iba a ser con GitHub Pages.
+
+Para re-deploys manuales (ej. invalidar cache): panel de Netlify → "Deploys"
+→ "Trigger deploy" → "Deploy site".
 
 ## Estructura
 
