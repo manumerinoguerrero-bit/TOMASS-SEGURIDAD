@@ -1,0 +1,54 @@
+# ============================================================================
+# Tomass Seguridad — Publicar el dashboard web en GitHub Pages
+# ============================================================================
+# Cada push a main que toque /web/ publica el dashboard en:
+#   https://manumerinoguerrero-bit.github.io/TOMASS-SEGURIDAD/
+#
+# ACTIVAR UNA SOLA VEZ:
+#   1. El repo tiene que ser PÚBLICO (GH Pages gratis solo en repos públicos).
+#   2. Settings → Pages → Source: "GitHub Actions".
+#   3. Después disparar este workflow a mano desde Actions o esperar un push
+#      que toque /web/.
+# ============================================================================
+
+name: Publicar dashboard web
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'web/**'
+      - '.github/workflows/deploy-web.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Traer el código
+        uses: actions/checkout@v4
+
+      - name: Preparar GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Empaquetar el sitio
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./web
+
+      - name: Publicar
+        id: deployment
+        uses: actions/deploy-pages@v4
