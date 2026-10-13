@@ -43,6 +43,10 @@ jobs:
 
       - name: Preparar GitHub Pages
         uses: actions/configure-pages@v5
+        with:
+          # Habilita Pages automaticamente la primera vez si no lo esta.
+          # Evita el paso manual de Settings → Pages → Source: GitHub Actions.
+          enablement: true
 
       - name: Empaquetar el sitio
         uses: actions/upload-pages-artifact@v3
