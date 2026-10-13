@@ -1007,6 +1007,11 @@ class _EstadoEntrega extends ConsumerState<_HojaDeEntrega> {
   bool _loRetiraOtro = false;
   bool _guardando = false;
   ErrorAmigable? _problema;
+  // Foto OPCIONAL del residente con el paquete al momento de la entrega.
+  // Se saca con la cámara frontal/trasera y se incluye como prueba adicional
+  // junto con la firma. Si el guardia no la agrega la entrega igual se puede
+  // confirmar: la firma sigue siendo la prueba mínima requerida.
+  File? _fotoEntrega;
   // Nombres que ya retiraron paquetes de este residente en el pasado,
   // ordenados por frecuencia. Se cargan al abrir la hoja y sirven de chips
   // para que el guardia no reescriba el mismo nombre cada vez.
@@ -1028,6 +1033,16 @@ class _EstadoEntrega extends ConsumerState<_HojaDeEntrega> {
       if (mounted) setState(() => _sugerenciasRetiro = nombres);
     } catch (_) {
       // Silencioso: sin sugerencias el guardia escribe a mano.
+    }
+  }
+
+  Future<void> _sacarFotoEntrega() async {
+    try {
+      final foto = await ref.read(servicioFotosProvider).sacarFoto();
+      if (foto != null && mounted) setState(() => _fotoEntrega = foto);
+    } catch (falla) {
+      if (!mounted) return;
+      setState(() => _problema = Traductor.traducir(falla));
     }
   }
 
@@ -1072,6 +1087,7 @@ class _EstadoEntrega extends ConsumerState<_HojaDeEntrega> {
                 paqueteId: widget.paquete['id'] as String,
                 condominioId: perfil.condominioId,
                 firma: temporal,
+                fotoDeLaEntrega: _fotoEntrega,
                 identidadValidada: !_loRetiraOtro,
                 retiradoPor: _loRetiraOtro ? _retiradoPor.text : null,
                 turnoId: turno?.id,
@@ -1243,6 +1259,24 @@ class _EstadoEntrega extends ConsumerState<_HojaDeEntrega> {
 
               const SizedBox(height: 16),
 
+              // ---- Foto opcional del residente con el paquete ----
+              // Prueba adicional de la entrega. Si el guardia la saca queda
+              // adjunta al registro, se ve en el panel web y en los PDFs de
+              // encomiendas. No es obligatoria: si no la saca, la firma del
+              // residente sigue siendo la prueba mínima.
+              Text('FOTO DEL RESIDENTE CON EL PAQUETE (OPCIONAL)',
+                  style: Theme.of(context).textTheme.labelSmall),
+              const SizedBox(height: 8),
+              _FotoEntrega(
+                foto: _fotoEntrega,
+                alSacar: _guardando ? null : _sacarFotoEntrega,
+                alQuitar: _guardando
+                    ? null
+                    : () => setState(() => _fotoEntrega = null),
+              ),
+
+              const SizedBox(height: 16),
+
               // ---- La firma ----
               Text('FIRMA DE QUIEN RETIRA',
                   style: Theme.of(context).textTheme.labelSmall),
@@ -1358,4 +1392,58 @@ String? _unidadDe(Map<String, dynamic> residente, Palabras palabras) {
     return texto.isEmpty ? null : '${palabras.elEspacioConMayuscula} $texto';
   }
   return null;
+}
+
+// ============================================================================
+// Widget para la foto opcional del residente con el paquete al entregar
+// ============================================================================
+// Si todavía no hay foto, muestra un botón grande con el ícono de cámara.
+// Si ya hay foto, muestra miniatura + "Foto agregada" + botón para quitar.
+// Es el mismo patrón que la foto opcional en pantalla_acceso_manual.dart,
+// adaptado al contexto de la entrega.
+
+class _FotoEntrega extends StatelessWidget {
+  const _FotoEntrega({
+    required this.foto,
+    required this.alSacar,
+    required this.alQuitar,
+  });
+
+  final File? foto;
+  final VoidCallback? alSacar;
+  final VoidCallback? alQuitar;
+
+  @override
+  Widget build(BuildContext context) {
+    if (foto == null) {
+      return OutlinedButton.icon(
+        onPressed: alSacar,
+        icon: const Icon(Icons.photo_camera_outlined, size: 20),
+        label: const Text('Sacar foto'),
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(double.infinity, Medidas.altoBoton),
+          foregroundColor: Colores.textoSuave,
+        ),
+      );
+    }
+
+    return Row(
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(Medidas.redondeoChico),
+          child: Image.file(foto!, width: 64, height: 64, fit: BoxFit.cover),
+        ),
+        const SizedBox(width: 12),
+        const Expanded(
+          child: Text('Foto agregada',
+              style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
+        ),
+        TextButton(
+          onPressed: alQuitar,
+          style: TextButton.styleFrom(foregroundColor: Colores.rojo),
+          child: const Text('Quitar'),
+        ),
+      ],
+    );
+  }
 }
