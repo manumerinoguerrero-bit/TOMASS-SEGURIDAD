@@ -212,15 +212,23 @@ async function descargarPdfPaquetesConPruebas({
 }) {
   // 1) Bajar todas las fotos y firmas en tandas paralelas de 5 — ni una
   //    por una (lento) ni todas de golpe (satura Storage y traba el browser).
+  //
+  //    La foto del paquete vive en foto_url (se saca cuando ENTRA a
+  //    portería). foto_entrega_url existe en el schema pero la app no la
+  //    captura hoy (al entregar solo pide firma), así que en el PDF
+  //    mostramos la foto del paquete + la firma del residente.
   const imagenesPorFila = new Map();  // id -> { foto, firma }
   const tandasDe = 5;
   let hechos = 0;
   for (let i = 0; i < filas.length; i += tandasDe) {
     const grupo = filas.slice(i, i + tandasDe);
     await Promise.all(grupo.map(async (f) => {
+      // Prefiere foto_entrega_url si algún día existe; fallback a foto_url
+      // (la del paquete al recibirlo).
+      const rutaFoto = f.foto_entrega_url || f.foto_url;
       const [foto, firma] = await Promise.all([
-        f.foto_entrega_url
-          ? api.urlFoto('paquetes', f.foto_entrega_url).then(fetchComoDataUrl)
+        rutaFoto
+          ? api.urlFoto('paquetes', rutaFoto).then(fetchComoDataUrl)
           : Promise.resolve(null),
         f.firma_url
           ? api.urlFoto('firmas', f.firma_url).then(fetchComoDataUrl)
@@ -275,10 +283,11 @@ function dibujarTarjetaPaquete(doc, { x, y, ancho, alto, paquete, foto, firma })
   doc.setLineWidth(0.3);
   doc.roundedRect(x, y, ancho, alto, 2, 2);
 
-  // Franja superior con destinatario y chip de estado
+  // Franja superior con destinatario y chip de estado.
+  // Doble rect: el roundedRect redondea arriba y el rect plano cierra abajo
+  // para que la franja no quede "arriba redonda, abajo redonda".
   doc.setFillColor(13, 43, 94);
   doc.roundedRect(x, y, ancho, 10, 2, 2, 'F');
-  doc.setFillColor(13, 43, 94);
   doc.rect(x, y + 5, ancho, 5, 'F');
 
   doc.setTextColor(255);
@@ -351,11 +360,10 @@ function dibujarTarjetaPaquete(doc, { x, y, ancho, alto, paquete, foto, firma })
         xDerecha, yCuerpo, anchoImagen, altoFoto);
       doc.setFontSize(7);
       doc.setTextColor(107, 114, 128);
-      doc.text('Foto de la entrega', xDerecha, yCuerpo + altoFoto + 3);
+      doc.text('Foto del paquete', xDerecha, yCuerpo + altoFoto + 3);
     } catch (_) { /* foto corrupta, ignorar */ }
   } else {
-    recuadroVacio(doc, xDerecha, yCuerpo, anchoImagen, 55,
-      paquete.estado === 'entregado' ? 'Sin foto' : 'Sin entrega aún');
+    recuadroVacio(doc, xDerecha, yCuerpo, anchoImagen, 55, 'Sin foto');
   }
 
   // Firma del residente (si hay)

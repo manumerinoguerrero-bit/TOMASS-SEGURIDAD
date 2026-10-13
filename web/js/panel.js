@@ -376,7 +376,7 @@ function renderCardPaquete(f) {
     </div>
     <div class="mini-pruebas">
       ${f.firma_url ? `<button class="mini-firma" data-bucket="firmas" data-path="${escapar(f.firma_url)}" data-titulo="Firma del residente">✍ Ver firma</button>` : '<span class="sin-prueba">Sin firma</span>'}
-      ${f.foto_entrega_url ? `<button class="mini-foto-paquete" data-bucket="paquetes" data-path="${escapar(f.foto_entrega_url)}" data-titulo="Foto de entrega">📷 Ver foto de entrega</button>` : ''}
+      ${(f.foto_entrega_url || f.foto_url) ? `<button class="mini-foto-paquete" data-bucket="paquetes" data-path="${escapar(f.foto_entrega_url || f.foto_url)}" data-titulo="Foto del paquete">📷 Ver foto del paquete</button>` : ''}
     </div>
   ` : '';
 
