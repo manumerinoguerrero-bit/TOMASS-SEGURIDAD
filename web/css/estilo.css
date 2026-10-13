@@ -460,6 +460,13 @@ h1, h2, h3 { margin: 0; }
   cursor: not-allowed;
 }
 
+/* El botón PDF va al lado del CSV, no empuja todo a la derecha. */
+.btn-descargar.btn-pdf {
+  background: var(--rojo);
+  margin-left: 0;
+}
+.btn-descargar.btn-pdf:hover { background: var(--rojo-oscuro); }
+
 .tabla-wrap {
   background: var(--superficie);
   border: 1px solid var(--linea);

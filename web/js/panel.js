@@ -12,10 +12,11 @@ const estado = {
   condominioFiltro: null, // null = todas
   mapa: null,
   mapaMarkers: [],
-  // Últimas filas cargadas por vista: las guardamos para que el botón
-  // "Descargar CSV" exporte exactamente lo que el usuario está viendo
-  // sin re-pegarle al servidor.
+  // Últimas filas cargadas por vista: las guardamos para que los botones
+  // "Descargar CSV" / "Descargar PDF" exporten exactamente lo que el usuario
+  // está viendo sin re-pegarle al servidor.
   ultimasFilas: {
+    resumen: [],
     ingresos: [],
     novedades: [],
     paquetes: [],
@@ -87,6 +88,16 @@ const estado = {
     descargarCsvNovedades);
   document.getElementById('btnCsvPaquetes').addEventListener('click',
     descargarCsvPaquetes);
+
+  // Descargas PDF.
+  document.getElementById('btnPdfResumen').addEventListener('click',
+    descargarPdfResumenHandler);
+  document.getElementById('btnPdfIngresos').addEventListener('click',
+    descargarPdfIngresos);
+  document.getElementById('btnPdfNovedades').addEventListener('click',
+    descargarPdfNovedades);
+  document.getElementById('btnPdfPaquetes').addEventListener('click',
+    descargarPdfPaquetes);
 
   // Vista inicial.
   await renderResumen();
@@ -161,6 +172,7 @@ async function renderResumen() {
     const visibles = estado.condominioFiltro
       ? filas.filter((f) => f.condominio_id === estado.condominioFiltro)
       : filas;
+    estado.ultimasFilas.resumen = visibles;
     if (visibles.length === 0) {
       cont.innerHTML = '<div class="vacio">No hay instalaciones para mostrar.</div>';
       return;
@@ -650,4 +662,138 @@ function descargarCsvPaquetes() {
   }
 
   descargarCSV(nombreBaseArchivo('paquetes'), cols, filas);
+}
+
+// ============================================================================
+// Descarga PDF
+// ============================================================================
+
+function tituloConInstalacion(base) {
+  if (!estado.condominioFiltro) return `${base} — Todas mis instalaciones`;
+  const inst = estado.instalaciones.find((i) => i.id === estado.condominioFiltro);
+  return `${base} — ${inst?.nombre || 'Instalación'}`;
+}
+
+function nombreBaseArchivoPdf(seccion) {
+  // Igual que nombreBaseArchivo pero con extensión pdf en vez de csv.
+  return nombreBaseArchivo(seccion).replace(/\.csv$/, '.pdf');
+}
+
+async function descargarPdfResumenHandler() {
+  const filas = estado.ultimasFilas.resumen || [];
+  if (filas.length === 0) {
+    alert('No hay resumen cargado. Esperá a que termine de cargar.');
+    return;
+  }
+  await descargarPdfResumen({
+    filas,
+    instalacionNombre: estado.condominioFiltro
+      ? (estado.instalaciones.find((i) => i.id === estado.condominioFiltro)
+          ?.nombre || 'Instalación')
+      : 'Todas mis instalaciones',
+  });
+}
+
+async function descargarPdfIngresos() {
+  const filas = estado.ultimasFilas.ingresos || [];
+  if (filas.length === 0) {
+    alert('No hay ingresos cargados. Filtrá primero.');
+    return;
+  }
+  const desde = document.getElementById('ingresosDesde').value;
+  const hasta = document.getElementById('ingresosHasta').value;
+  await descargarPDF({
+    nombreArchivo: nombreBaseArchivoPdf('ingresos'),
+    titulo: tituloConInstalacion('Informe de Ingresos'),
+    subtitulo: desde && hasta
+      ? `Del ${formatearFechaCorta(desde)} al ${formatearFechaCorta(hasta)}`
+      : '',
+    orientacion: 'landscape',
+    columnas: [
+      { campo: 'ocurrido_en',        titulo: 'Fecha y hora',  ancho: 32 },
+      { campo: 'condominio_nombre',  titulo: 'Instalación',   ancho: 40 },
+      { campo: 'nombre',             titulo: 'Persona',       ancho: 40 },
+      { campo: 'tipo_acceso',        titulo: 'Tipo',          ancho: 20 },
+      { campo: 'sentido',            titulo: 'Sentido',       ancho: 20 },
+      { campo: 'unidad',             titulo: 'Unidad',        ancho: 18 },
+      { campo: 'patente',            titulo: 'Patente',       ancho: 20 },
+      { campo: 'autorizado_por',     titulo: 'Autorizó',      ancho: 35 },
+      { campo: 'guardia_nombre',     titulo: 'Guardia',       ancho: 35 },
+    ],
+    filas,
+  });
+}
+
+async function descargarPdfNovedades() {
+  const filas = estado.ultimasFilas.novedades || [];
+  if (filas.length === 0) {
+    alert('No hay novedades cargadas. Filtrá primero.');
+    return;
+  }
+  await descargarPDF({
+    nombreArchivo: nombreBaseArchivoPdf('novedades'),
+    titulo: tituloConInstalacion('Informe de Novedades'),
+    subtitulo: '',
+    orientacion: 'portrait',
+    columnas: [
+      { campo: 'ocurrido_en',          titulo: 'Fecha y hora', ancho: 32 },
+      { campo: 'condominio_nombre',    titulo: 'Instalación',  ancho: 35 },
+      { campo: 'tipo',                 titulo: 'Tipo',         ancho: 22 },
+      { campo: 'gravedad',             titulo: 'Gravedad',     ancho: 20 },
+      { campo: 'titulo',               titulo: 'Título' },
+      { campo: 'estado',               titulo: 'Estado',       ancho: 20 },
+      { campo: 'reportado_por_nombre', titulo: 'Reportó',      ancho: 30 },
+    ],
+    filas,
+  });
+}
+
+async function descargarPdfPaquetes() {
+  const filas = estado.ultimasFilas.paquetes || [];
+  if (filas.length === 0) {
+    alert('No hay paquetes cargados. Filtrá primero.');
+    return;
+  }
+  const esSoloEntregados = estado.paquetesEstadoActual === 'entregado';
+  const esSoloPendientes = estado.paquetesEstadoActual === 'en_porteria';
+
+  const cols = [
+    { campo: 'condominio_nombre', titulo: 'Instalación',  ancho: 38 },
+    { campo: 'destinatario',      titulo: 'Destinatario', ancho: 38 },
+    { campo: 'unidad',            titulo: 'Unidad',       ancho: 18 },
+    { campo: 'descripcion',       titulo: 'Descripción',  ancho: 50 },
+    { campo: 'recibido_en',       titulo: 'Recibido',     ancho: 28 },
+    { campo: 'guardia_receptor',  titulo: 'Recibido por', ancho: 32 },
+  ];
+  if (!esSoloEntregados) {
+    cols.push({ campo: 'dias_en_porteria', titulo: 'Días', ancho: 14 });
+  }
+  if (!esSoloPendientes) {
+    cols.push(
+      { campo: 'entregado_en',    titulo: 'Entregado',    ancho: 28 },
+      { campo: 'retirado_por',    titulo: 'Retiró',       ancho: 32 },
+      { campo: 'guardia_entrega', titulo: 'Entregado por',ancho: 32 },
+    );
+  }
+
+  const subtituloEstado =
+    esSoloPendientes ? 'Pendientes de retiro'
+      : esSoloEntregados ? 'Entregados (histórico)'
+        : 'Todos';
+
+  await descargarPDF({
+    nombreArchivo: nombreBaseArchivoPdf('paquetes'),
+    titulo: tituloConInstalacion('Informe de Paquetes'),
+    subtitulo: subtituloEstado,
+    orientacion: 'landscape',
+    columnas: cols,
+    filas,
+  });
+}
+
+function formatearFechaCorta(ymd) {
+  // "2026-09-01" -> "01/09/2026"
+  if (!ymd || ymd.length !== 10) return ymd;
+  const [a, m, d] = ymd.split('-');
+  return `${d}/${m}/${a}`;
 }
