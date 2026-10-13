@@ -757,38 +757,92 @@ async function descargarPdfPaquetes() {
   const esSoloEntregados = estado.paquetesEstadoActual === 'entregado';
   const esSoloPendientes = estado.paquetesEstadoActual === 'en_porteria';
 
-  const cols = [
-    { campo: 'condominio_nombre', titulo: 'Instalación',  ancho: 38 },
-    { campo: 'destinatario',      titulo: 'Destinatario', ancho: 38 },
-    { campo: 'unidad',            titulo: 'Unidad',       ancho: 18 },
-    { campo: 'descripcion',       titulo: 'Descripción',  ancho: 50 },
-    { campo: 'recibido_en',       titulo: 'Recibido',     ancho: 28 },
-    { campo: 'guardia_receptor',  titulo: 'Recibido por', ancho: 32 },
-  ];
-  if (!esSoloEntregados) {
-    cols.push({ campo: 'dias_en_porteria', titulo: 'Días', ancho: 14 });
-  }
-  if (!esSoloPendientes) {
-    cols.push(
-      { campo: 'entregado_en',    titulo: 'Entregado',    ancho: 28 },
-      { campo: 'retirado_por',    titulo: 'Retiró',       ancho: 32 },
-      { campo: 'guardia_entrega', titulo: 'Entregado por',ancho: 32 },
-    );
-  }
-
   const subtituloEstado =
     esSoloPendientes ? 'Pendientes de retiro'
       : esSoloEntregados ? 'Entregados (histórico)'
         : 'Todos';
 
-  await descargarPDF({
-    nombreArchivo: nombreBaseArchivoPdf('paquetes'),
-    titulo: tituloConInstalacion('Informe de Paquetes'),
-    subtitulo: subtituloEstado,
-    orientacion: 'landscape',
-    columnas: cols,
-    filas,
-  });
+  // Si el filtro es "pendientes de retiro" solamente, mantener el PDF
+  // tabular — no hay foto de entrega ni firma todavía para esos paquetes.
+  if (esSoloPendientes) {
+    await descargarPDF({
+      nombreArchivo: nombreBaseArchivoPdf('paquetes'),
+      titulo: tituloConInstalacion('Informe de Paquetes'),
+      subtitulo: subtituloEstado,
+      orientacion: 'landscape',
+      columnas: [
+        { campo: 'condominio_nombre', titulo: 'Instalación',  ancho: 38 },
+        { campo: 'destinatario',      titulo: 'Destinatario', ancho: 38 },
+        { campo: 'unidad',            titulo: 'Unidad',       ancho: 18 },
+        { campo: 'descripcion',       titulo: 'Descripción',  ancho: 50 },
+        { campo: 'recibido_en',       titulo: 'Recibido',     ancho: 28 },
+        { campo: 'guardia_receptor',  titulo: 'Recibido por', ancho: 32 },
+        { campo: 'dias_en_porteria',  titulo: 'Días',         ancho: 14 },
+      ],
+      filas,
+    });
+    return;
+  }
+
+  // Para "Entregados" o "Todos" generamos el PDF detallado con tarjetas
+  // que incluyen foto de la entrega + firma del residente.
+  // Confirmar porque va a tardar unos segundos (bajar las imágenes).
+  const cantidadConPruebas = filas.filter(
+    (f) => f.foto_entrega_url || f.firma_url).length;
+  const confirmar = confirm(
+    `El PDF va a incluir las fotos y firmas de ${cantidadConPruebas} ` +
+    `entregas. Esto puede tardar unos ${Math.ceil(cantidadConPruebas / 5)} ` +
+    `segundos descargando las imágenes. ¿Continuar?`);
+  if (!confirmar) return;
+
+  mostrarProgresoPdf('Bajando fotos y firmas…', 0, filas.length);
+  try {
+    await descargarPdfPaquetesConPruebas({
+      filas,
+      nombreArchivo: nombreBaseArchivoPdf('paquetes'),
+      titulo: tituloConInstalacion('Informe de Paquetes'),
+      subtitulo: subtituloEstado,
+      alProgresar: (hechos, total) => {
+        mostrarProgresoPdf('Bajando fotos y firmas…', hechos, total);
+      },
+    });
+  } finally {
+    cerrarProgresoPdf();
+  }
+}
+
+// ============================================================================
+// Overlay de progreso para descargas de PDF que tardan
+// ============================================================================
+
+function mostrarProgresoPdf(mensaje, hechos, total) {
+  let overlay = document.getElementById('progresoPdf');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'progresoPdf';
+    overlay.className = 'overlay-progreso';
+    overlay.innerHTML = `
+      <div class="caja-progreso">
+        <div class="spinner-grande"></div>
+        <div class="mensaje-progreso" id="mensajeProgreso"></div>
+        <div class="barra-progreso-wrap">
+          <div class="barra-progreso" id="barraProgreso"></div>
+        </div>
+        <div class="contador-progreso" id="contadorProgreso"></div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+  }
+  document.getElementById('mensajeProgreso').textContent = mensaje;
+  const pct = total > 0 ? Math.round((hechos / total) * 100) : 0;
+  document.getElementById('barraProgreso').style.width = pct + '%';
+  document.getElementById('contadorProgreso').textContent =
+    `${hechos} de ${total}`;
+}
+
+function cerrarProgresoPdf() {
+  const overlay = document.getElementById('progresoPdf');
+  if (overlay) overlay.remove();
 }
 
 function formatearFechaCorta(ymd) {

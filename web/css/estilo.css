@@ -612,6 +612,65 @@ h1, h2, h3 { margin: 0; }
 }
 .link-telefono:hover { color: var(--grafito-claro); }
 
+/* ======================= OVERLAY DE PROGRESO (PDF con fotos) ======================= */
+
+.overlay-progreso {
+  position: fixed;
+  inset: 0;
+  background: rgba(13, 43, 94, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 150;
+}
+
+.caja-progreso {
+  background: var(--superficie);
+  padding: 32px 40px;
+  border-radius: 14px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+  min-width: 320px;
+  text-align: center;
+}
+
+.spinner-grande {
+  width: 48px;
+  height: 48px;
+  border: 4px solid var(--linea);
+  border-top-color: var(--rojo);
+  border-radius: 50%;
+  animation: girar 0.8s linear infinite;
+  margin: 0 auto 18px;
+}
+@keyframes girar { to { transform: rotate(360deg); } }
+
+.mensaje-progreso {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--grafito);
+  margin-bottom: 14px;
+}
+
+.barra-progreso-wrap {
+  background: var(--linea);
+  border-radius: 8px;
+  height: 10px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+.barra-progreso {
+  background: var(--rojo);
+  height: 100%;
+  width: 0%;
+  transition: width 0.2s ease;
+}
+
+.contador-progreso {
+  font-size: 12.5px;
+  color: var(--texto-suave);
+  font-weight: 600;
+}
+
 /* ======================= MODAL ======================= */
 
 .modal {

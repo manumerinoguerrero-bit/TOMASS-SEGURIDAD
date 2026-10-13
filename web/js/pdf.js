@@ -156,6 +156,232 @@ function dibujarPie(doc, anchoHoja, altoHoja, pagina, total) {
     { align: 'right' });
 }
 
+// ============================================================================
+// Descarga de imágenes para embeber en PDF
+// ============================================================================
+
+/**
+ * Baja una imagen (URL firmada de Supabase Storage) y la devuelve como
+ * dataURL base64. Devuelve null si falla, para que el PDF pueda seguir
+ * sin esa imagen.
+ */
+async function fetchComoDataUrl(url) {
+  if (!url) return null;
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) return null;
+    const blob = await resp.blob();
+    return await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch (_) {
+    return null;
+  }
+}
+
+/** Detecta el formato de imagen a partir de un dataURL. */
+function formatoImagenDeDataUrl(dataUrl) {
+  if (!dataUrl) return 'PNG';
+  if (dataUrl.startsWith('data:image/jpeg') ||
+      dataUrl.startsWith('data:image/jpg')) return 'JPEG';
+  if (dataUrl.startsWith('data:image/webp')) return 'WEBP';
+  return 'PNG';
+}
+
+// ============================================================================
+// PDF de paquetes CON foto de entrega + firma embebidas
+// ============================================================================
+// Formato distinto al tabular: una tarjeta por paquete, 2 por hoja A4
+// portrait. Es el mismo diseño que el PDF del Informe de Encomiendas de la
+// app Flutter — así el mandante ve "el mismo producto" sin importar desde
+// dónde se saque.
+//
+// Como embeber imágenes es lento (requiere bajarlas desde Storage con URL
+// firmada), el llamador pasa un callback `alProgresar(hechos, total)` que
+// la UI usa para pintar progreso.
+
+async function descargarPdfPaquetesConPruebas({
+  filas,
+  nombreArchivo,
+  titulo,
+  subtitulo = '',
+  alProgresar = null,
+}) {
+  // 1) Bajar todas las fotos y firmas en tandas paralelas de 5 — ni una
+  //    por una (lento) ni todas de golpe (satura Storage y traba el browser).
+  const imagenesPorFila = new Map();  // id -> { foto, firma }
+  const tandasDe = 5;
+  let hechos = 0;
+  for (let i = 0; i < filas.length; i += tandasDe) {
+    const grupo = filas.slice(i, i + tandasDe);
+    await Promise.all(grupo.map(async (f) => {
+      const [foto, firma] = await Promise.all([
+        f.foto_entrega_url
+          ? api.urlFoto('paquetes', f.foto_entrega_url).then(fetchComoDataUrl)
+          : Promise.resolve(null),
+        f.firma_url
+          ? api.urlFoto('firmas', f.firma_url).then(fetchComoDataUrl)
+          : Promise.resolve(null),
+      ]);
+      imagenesPorFila.set(f.id, { foto, firma });
+      hechos++;
+      if (alProgresar) alProgresar(hechos, filas.length);
+    }));
+  }
+
+  // 2) Armar el PDF.
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const anchoHoja = doc.internal.pageSize.getWidth();
+  const altoHoja = doc.internal.pageSize.getHeight();
+  dibujarEncabezado(doc, anchoHoja, titulo, subtitulo);
+
+  // 2 tarjetas por página. Cada tarjeta ocupa 125 mm de alto.
+  const yInicio = [34, 162];   // posiciones Y de cada tarjeta en la página
+  const altoTarjeta = 122;
+  const margenLat = 10;
+  const anchoTarjeta = anchoHoja - margenLat * 2;
+
+  filas.forEach((f, i) => {
+    const posEnPagina = i % 2;
+    if (i > 0 && posEnPagina === 0) {
+      doc.addPage();
+      dibujarEncabezado(doc, anchoHoja, titulo, subtitulo);
+    }
+
+    const y = yInicio[posEnPagina];
+    const imgs = imagenesPorFila.get(f.id) || {};
+    dibujarTarjetaPaquete(doc, {
+      x: margenLat, y, ancho: anchoTarjeta, alto: altoTarjeta,
+      paquete: f,
+      foto: imgs.foto,
+      firma: imgs.firma,
+    });
+    dibujarPie(doc, anchoHoja, altoHoja,
+      doc.internal.getCurrentPageInfo().pageNumber,
+      doc.internal.getNumberOfPages());
+  });
+
+  doc.save(nombreArchivo);
+}
+
+/** Dibuja una tarjeta con los datos del paquete + foto + firma. */
+function dibujarTarjetaPaquete(doc, { x, y, ancho, alto, paquete, foto, firma }) {
+  // Marco de la tarjeta
+  doc.setDrawColor(229, 231, 235);
+  doc.setLineWidth(0.3);
+  doc.roundedRect(x, y, ancho, alto, 2, 2);
+
+  // Franja superior con destinatario y chip de estado
+  doc.setFillColor(13, 43, 94);
+  doc.roundedRect(x, y, ancho, 10, 2, 2, 'F');
+  doc.setFillColor(13, 43, 94);
+  doc.rect(x, y + 5, ancho, 5, 'F');
+
+  doc.setTextColor(255);
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text(paquete.destinatario || 'Sin destinatario', x + 4, y + 7);
+
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  const chip = paquete.estado === 'entregado' ? 'ENTREGADO' : 'EN PORTERÍA';
+  doc.text(chip, x + ancho - 4, y + 7, { align: 'right' });
+
+  // Datos del paquete (lado izquierdo)
+  const yCuerpo = y + 15;
+  doc.setTextColor(26, 26, 46);
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+
+  const col1 = x + 4;
+  const col2 = x + 44;
+  const anchoLabel = 36;
+  let lineaY = yCuerpo;
+  const linea = (label, valor) => {
+    doc.setTextColor(107, 114, 128);
+    doc.setFont('helvetica', 'bold');
+    doc.text(label, col1, lineaY);
+    doc.setTextColor(26, 26, 46);
+    doc.setFont('helvetica', 'normal');
+    doc.text(String(valor || '—').substring(0, 50), col2, lineaY);
+    lineaY += 5;
+  };
+
+  linea('Instalación:', paquete.condominio_nombre);
+  linea('Unidad:',      paquete.unidad);
+  linea('Recibido:',    formatearValorPdf(paquete.recibido_en));
+  linea('Por:',         paquete.guardia_receptor);
+  if (paquete.descripcion) {
+    doc.setTextColor(107, 114, 128);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Descripción:', col1, lineaY);
+    doc.setTextColor(26, 26, 46);
+    doc.setFont('helvetica', 'normal');
+    const lines = doc.splitTextToSize(paquete.descripcion, 90);
+    doc.text(lines.slice(0, 2), col2, lineaY);  // máx 2 líneas
+    lineaY += 5 * Math.min(lines.length, 2);
+  }
+
+  if (paquete.estado === 'entregado') {
+    lineaY += 2;
+    doc.setDrawColor(229, 231, 235);
+    doc.line(col1, lineaY, col1 + 95, lineaY);
+    lineaY += 4;
+
+    linea('Retiró:',       paquete.retirado_por || paquete.destinatario);
+    linea('Entregado:',    formatearValorPdf(paquete.entregado_en));
+    linea('Entregó:',      paquete.guardia_entrega);
+    linea('Identidad:',    paquete.identidad_validada
+                             ? '✓ Validada' : '⚠ Sin validar');
+  }
+
+  // Foto + firma (lado derecho)
+  const xDerecha = x + 108;
+  const anchoImagen = ancho - 112;
+
+  // Foto del paquete (si hay)
+  if (foto) {
+    try {
+      const altoFoto = 55;
+      doc.addImage(foto, formatoImagenDeDataUrl(foto),
+        xDerecha, yCuerpo, anchoImagen, altoFoto);
+      doc.setFontSize(7);
+      doc.setTextColor(107, 114, 128);
+      doc.text('Foto de la entrega', xDerecha, yCuerpo + altoFoto + 3);
+    } catch (_) { /* foto corrupta, ignorar */ }
+  } else {
+    recuadroVacio(doc, xDerecha, yCuerpo, anchoImagen, 55,
+      paquete.estado === 'entregado' ? 'Sin foto' : 'Sin entrega aún');
+  }
+
+  // Firma del residente (si hay)
+  const yFirma = yCuerpo + 62;
+  if (firma) {
+    try {
+      doc.addImage(firma, formatoImagenDeDataUrl(firma),
+        xDerecha, yFirma, anchoImagen, 40);
+      doc.setFontSize(7);
+      doc.setTextColor(107, 114, 128);
+      doc.text('Firma del residente', xDerecha, yFirma + 43);
+    } catch (_) { /* firma corrupta */ }
+  } else if (paquete.estado === 'entregado') {
+    recuadroVacio(doc, xDerecha, yFirma, anchoImagen, 40, 'Sin firma');
+  }
+}
+
+function recuadroVacio(doc, x, y, w, h, texto) {
+  doc.setDrawColor(229, 231, 235);
+  doc.setFillColor(250, 251, 252);
+  doc.roundedRect(x, y, w, h, 1, 1, 'FD');
+  doc.setTextColor(156, 163, 175);
+  doc.setFontSize(8);
+  doc.text(texto, x + w / 2, y + h / 2 + 1, { align: 'center' });
+}
+
 /** Fechas ISO -> "YYYY-MM-DD HH:MM", booleanos -> "Sí"/"No". */
 function formatearValorPdf(v) {
   if (v == null) return '';
