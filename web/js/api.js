@@ -51,9 +51,11 @@ const api = {
     return data || [];
   },
 
-  async paquetes({ condominioId }) {
+  async paquetes({ condominioId, estado = 'en_porteria' }) {
     const { data, error } = await supabaseClient.rpc('web_mis_paquetes', {
       p_condominio_id: condominioId || null,
+      // estado puede ser 'en_porteria', 'entregado' o null (todos)
+      p_estado: estado,
     });
     if (error) throw error;
     return data || [];

@@ -58,6 +58,9 @@
           <input type="date" id="ingresosHasta">
         </label>
         <button class="btn-primario" id="btnFiltrarIngresos">Filtrar</button>
+        <button class="btn-descargar" id="btnCsvIngresos" title="Descargar en CSV para Excel">
+          ⬇ Descargar CSV
+        </button>
       </div>
       <div class="tabla-wrap">
         <table class="tabla">
@@ -92,6 +95,9 @@
           </select>
         </label>
         <button class="btn-primario" id="btnFiltrarNovedades">Filtrar</button>
+        <button class="btn-descargar" id="btnCsvNovedades" title="Descargar en CSV para Excel">
+          ⬇ Descargar CSV
+        </button>
       </div>
       <div id="novedadesLista" class="lista-cards">
         <div class="cargando">Cargando…</div>
@@ -100,6 +106,20 @@
 
     <!-- PAQUETES -->
     <section class="vista oculta" data-vista="paquetes">
+      <div class="toolbar">
+        <label>
+          Estado
+          <select id="paquetesEstado">
+            <option value="en_porteria" selected>Pendientes de retiro</option>
+            <option value="entregado">Ya entregados (histórico)</option>
+            <option value="">Todos</option>
+          </select>
+        </label>
+        <button class="btn-primario" id="btnFiltrarPaquetes">Filtrar</button>
+        <button class="btn-descargar" id="btnCsvPaquetes" title="Descargar en CSV para Excel">
+          ⬇ Descargar CSV
+        </button>
+      </div>
       <div id="paquetesLista" class="lista-cards">
         <div class="cargando">Cargando…</div>
       </div>
@@ -131,6 +151,7 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="js/config.js"></script>
   <script src="js/api.js"></script>
+  <script src="js/csv.js"></script>
   <script src="js/panel.js"></script>
 </body>
 </html>

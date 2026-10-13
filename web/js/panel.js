@@ -12,6 +12,16 @@ const estado = {
   condominioFiltro: null, // null = todas
   mapa: null,
   mapaMarkers: [],
+  // Últimas filas cargadas por vista: las guardamos para que el botón
+  // "Descargar CSV" exporte exactamente lo que el usuario está viendo
+  // sin re-pegarle al servidor.
+  ultimasFilas: {
+    ingresos: [],
+    novedades: [],
+    paquetes: [],
+  },
+  // Estado seleccionado en la pestaña Paquetes (afecta render + CSV).
+  paquetesEstadoActual: 'en_porteria',
 };
 
 // ============================================================================
@@ -66,7 +76,17 @@ const estado = {
     renderIngresos);
   document.getElementById('btnFiltrarNovedades').addEventListener('click',
     renderNovedades);
+  document.getElementById('btnFiltrarPaquetes').addEventListener('click',
+    renderPaquetes);
   document.getElementById('cerrarModal').addEventListener('click', cerrarModal);
+
+  // Descargas CSV.
+  document.getElementById('btnCsvIngresos').addEventListener('click',
+    descargarCsvIngresos);
+  document.getElementById('btnCsvNovedades').addEventListener('click',
+    descargarCsvNovedades);
+  document.getElementById('btnCsvPaquetes').addEventListener('click',
+    descargarCsvPaquetes);
 
   // Vista inicial.
   await renderResumen();
@@ -203,6 +223,7 @@ async function renderIngresos() {
       hasta: hastaInput ? new Date(hastaInput + 'T23:59:59').toISOString() : undefined,
       condominioId: estado.condominioFiltro,
     });
+    estado.ultimasFilas.ingresos = filas;
     if (filas.length === 0) {
       tbody.innerHTML = '<tr><td colspan="8" class="vacio">No hay ingresos en el período.</td></tr>';
       return;
@@ -240,6 +261,7 @@ async function renderNovedades() {
       estado: estadoFiltro || null,
       condominioId: estado.condominioFiltro,
     });
+    estado.ultimasFilas.novedades = filas;
     if (filas.length === 0) {
       cont.innerHTML = '<div class="vacio">Sin novedades en este filtro.</div>';
       return;
@@ -290,34 +312,94 @@ async function mostrarFotosEnModal(paths) {
 async function renderPaquetes() {
   const cont = document.getElementById('paquetesLista');
   cont.innerHTML = '<div class="cargando">Cargando…</div>';
+  const estadoSel = document.getElementById('paquetesEstado').value;
+  // "" = todos; 'en_porteria' | 'entregado' = filtro específico
+  estado.paquetesEstadoActual = estadoSel || null;
   try {
     const filas = await api.paquetes({
       condominioId: estado.condominioFiltro,
+      estado: estadoSel === '' ? null : estadoSel,
     });
+    estado.ultimasFilas.paquetes = filas;
     if (filas.length === 0) {
-      cont.innerHTML = '<div class="vacio">No hay paquetes pendientes de retiro.</div>';
+      const msg = estadoSel === 'entregado'
+        ? 'Sin paquetes entregados en el histórico.'
+        : estadoSel === 'en_porteria'
+          ? 'No hay paquetes pendientes de retiro.'
+          : 'Sin paquetes para mostrar.';
+      cont.innerHTML = `<div class="vacio">${msg}</div>`;
       return;
     }
-    cont.innerHTML = filas.map((f) => `
-      <div class="card paquete ${f.dias_en_porteria > 7 ? 'card-atrasado' : ''}">
-        <div class="card-head">
-          <h3>${escapar(f.destinatario || 'Sin destinatario')}</h3>
-          <span class="chip ${f.dias_en_porteria > 7 ? 'chip-critica' : 'chip-info'}">
-            ${f.dias_en_porteria} día${f.dias_en_porteria === 1 ? '' : 's'}
-          </span>
-        </div>
-        <div class="meta">
-          <span>Unidad ${escapar(f.unidad || '—')}</span>
-          <span>${escapar(f.condominio_nombre)}</span>
-          <span>Recibido ${formatearFecha(f.recibido_en)}</span>
-          <span>por ${escapar(f.guardia_receptor || '—')}</span>
-        </div>
-        ${f.descripcion ? `<p>${escapar(f.descripcion)}</p>` : ''}
-      </div>
-    `).join('');
+    cont.innerHTML = filas.map((f) => renderCardPaquete(f)).join('');
+
+    // Click en firma/foto abre modal con la imagen a tamaño grande.
+    cont.querySelectorAll('.mini-firma, .mini-foto-paquete').forEach((el) => {
+      el.addEventListener('click', async () => {
+        const path = el.dataset.path;
+        const bucket = el.dataset.bucket;
+        const titulo = el.dataset.titulo;
+        await mostrarImagenEnModal(bucket, path, titulo);
+      });
+    });
   } catch (e) {
     cont.innerHTML = `<div class="vacio error">Error: ${escapar(e.message || String(e))}</div>`;
   }
+}
+
+/** Renderiza una tarjeta de paquete, con columnas distintas según su estado. */
+function renderCardPaquete(f) {
+  const entregado = f.estado === 'entregado';
+  const chipEstado = entregado
+    ? '<span class="chip chip-ok">ENTREGADO</span>'
+    : (f.dias_en_porteria > 7
+        ? `<span class="chip chip-critica">${f.dias_en_porteria} día${f.dias_en_porteria === 1 ? '' : 's'} atrasado</span>`
+        : `<span class="chip chip-info">${f.dias_en_porteria} día${f.dias_en_porteria === 1 ? '' : 's'}</span>`);
+
+  const metaEntrega = entregado ? `
+    <div class="meta meta-entrega">
+      <span><strong>Retiró:</strong> ${escapar(f.retirado_por || f.destinatario || '—')}</span>
+      <span><strong>Entregado:</strong> ${formatearFecha(f.entregado_en)}</span>
+      <span><strong>Por:</strong> ${escapar(f.guardia_entrega || '—')}</span>
+      <span>${f.identidad_validada ? '✓ Identidad validada' : '⚠ Sin validar'}</span>
+    </div>
+    <div class="mini-pruebas">
+      ${f.firma_url ? `<button class="mini-firma" data-bucket="firmas" data-path="${escapar(f.firma_url)}" data-titulo="Firma del residente">✍ Ver firma</button>` : '<span class="sin-prueba">Sin firma</span>'}
+      ${f.foto_entrega_url ? `<button class="mini-foto-paquete" data-bucket="paquetes" data-path="${escapar(f.foto_entrega_url)}" data-titulo="Foto de entrega">📷 Ver foto de entrega</button>` : ''}
+    </div>
+  ` : '';
+
+  return `
+    <div class="card paquete ${!entregado && f.dias_en_porteria > 7 ? 'card-atrasado' : ''} ${entregado ? 'card-entregado' : ''}">
+      <div class="card-head">
+        <h3>${escapar(f.destinatario || 'Sin destinatario')}</h3>
+        ${chipEstado}
+      </div>
+      <div class="meta">
+        <span>Unidad ${escapar(f.unidad || '—')}</span>
+        <span>${escapar(f.condominio_nombre)}</span>
+        <span>Recibido ${formatearFecha(f.recibido_en)}</span>
+        <span>por ${escapar(f.guardia_receptor || '—')}</span>
+      </div>
+      ${f.descripcion ? `<p>${escapar(f.descripcion)}</p>` : ''}
+      ${metaEntrega}
+    </div>
+  `;
+}
+
+/** Muestra una sola imagen (firma o foto) a tamaño grande en el modal. */
+async function mostrarImagenEnModal(bucket, path, titulo) {
+  const mod = document.getElementById('modalContenido');
+  mod.innerHTML = '<div class="cargando">Cargando…</div>';
+  abrirModal();
+  const url = await api.urlFoto(bucket, path);
+  if (!url) {
+    mod.innerHTML = '<div class="vacio">No pudimos cargar la imagen.</div>';
+    return;
+  }
+  mod.innerHTML = `
+    <h3 class="titulo-modal">${escapar(titulo || '')}</h3>
+    <img src="${url}" alt="${escapar(titulo || '')}" class="foto-modal">
+  `;
 }
 
 // ============================================================================
@@ -468,4 +550,104 @@ function rotuloGravedad(g) {
   if (g === 'media') return 'Media';
   if (g === 'baja') return 'Baja';
   return g || '—';
+}
+
+// ============================================================================
+// Descarga CSV — una función por vista
+// ============================================================================
+// Cada botón exporta EXACTAMENTE las filas que el usuario está viendo
+// (incluyendo el filtro aplicado). El nombre del archivo incluye la fecha
+// y la instalación para que no se pisen entre descargas.
+
+function nombreBaseArchivo(seccion) {
+  const inst = estado.condominioFiltro
+    ? (estado.instalaciones.find((i) => i.id === estado.condominioFiltro)
+        ?.nombre_corto || 'instalacion')
+    : 'todas';
+  const hoy = new Date();
+  const stamp = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
+  return `tomass-${seccion}-${nombreArchivoSeguro(inst)}-${stamp}.csv`;
+}
+
+function descargarCsvIngresos() {
+  const filas = estado.ultimasFilas.ingresos || [];
+  if (filas.length === 0) {
+    alert('No hay ingresos cargados para descargar. Filtrá primero.');
+    return;
+  }
+  descargarCSV(
+    nombreBaseArchivo('ingresos'),
+    [
+      { campo: 'ocurrido_en',       titulo: 'Fecha y hora' },
+      { campo: 'condominio_nombre', titulo: 'Instalación' },
+      { campo: 'nombre',            titulo: 'Persona' },
+      { campo: 'tipo_acceso',       titulo: 'Tipo' },
+      { campo: 'sentido',           titulo: 'Sentido' },
+      { campo: 'estado',            titulo: 'Estado' },
+      { campo: 'unidad',            titulo: 'Unidad' },
+      { campo: 'patente',           titulo: 'Patente' },
+      { campo: 'a_donde_va',        titulo: 'Destino' },
+      { campo: 'autorizado_por',    titulo: 'Autorizó' },
+      { campo: 'guardia_nombre',    titulo: 'Guardia' },
+    ],
+    filas,
+  );
+}
+
+function descargarCsvNovedades() {
+  const filas = estado.ultimasFilas.novedades || [];
+  if (filas.length === 0) {
+    alert('No hay novedades cargadas para descargar. Filtrá primero.');
+    return;
+  }
+  descargarCSV(
+    nombreBaseArchivo('novedades'),
+    [
+      { campo: 'ocurrido_en',           titulo: 'Fecha y hora' },
+      { campo: 'condominio_nombre',     titulo: 'Instalación' },
+      { campo: 'tipo',                  titulo: 'Tipo' },
+      { campo: 'gravedad',              titulo: 'Gravedad' },
+      { campo: 'titulo',                titulo: 'Título' },
+      { campo: 'descripcion',           titulo: 'Descripción' },
+      { campo: 'estado',                titulo: 'Estado' },
+      { campo: 'reportado_por_nombre',  titulo: 'Reportó' },
+    ],
+    filas,
+  );
+}
+
+function descargarCsvPaquetes() {
+  const filas = estado.ultimasFilas.paquetes || [];
+  if (filas.length === 0) {
+    alert('No hay paquetes cargados para descargar. Filtrá primero.');
+    return;
+  }
+  // Columnas que varían según el filtro: si solo son pendientes no tiene sentido
+  // exportar 'entregado_en' porque viene null; si solo son entregados no tiene
+  // sentido 'días en portería'. Para el filtro Todos exportamos todo.
+  const esSoloEntregados = estado.paquetesEstadoActual === 'entregado';
+  const esSoloPendientes = estado.paquetesEstadoActual === 'en_porteria';
+
+  const cols = [
+    { campo: 'condominio_nombre', titulo: 'Instalación' },
+    { campo: 'destinatario',      titulo: 'Destinatario' },
+    { campo: 'unidad',            titulo: 'Unidad' },
+    { campo: 'descripcion',       titulo: 'Descripción' },
+    { campo: 'recibido_en',       titulo: 'Recibido' },
+    { campo: 'guardia_receptor',  titulo: 'Recibido por' },
+  ];
+  if (!esSoloEntregados) {
+    cols.push({ campo: 'dias_en_porteria', titulo: 'Días en portería' });
+  }
+  if (!esSoloPendientes) {
+    cols.push(
+      { campo: 'estado',            titulo: 'Estado' },
+      { campo: 'entregado_en',      titulo: 'Entregado' },
+      { campo: 'retirado_por',      titulo: 'Retiró' },
+      { campo: 'identidad_validada',titulo: 'Identidad validada' },
+      { campo: 'guardia_entrega',   titulo: 'Entregado por' },
+    );
+  }
+
+  descargarCSV(nombreBaseArchivo('paquetes'), cols, filas);
 }
