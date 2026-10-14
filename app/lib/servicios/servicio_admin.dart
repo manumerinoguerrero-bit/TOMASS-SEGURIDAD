@@ -1141,9 +1141,15 @@ class ServicioAdmin {
         await _supabase.storage.from('paquetes').remove(rutas);
       }
 
+      // NO ponemos foto_url = NULL porque la columna es NOT NULL en el schema
+      // (viola el constraint -> error 23502 "falta completar un dato
+      // obligatorio"). Solo marcamos la fecha de borrado: el servicio
+      // encomiendasEntregadas filtra por fotos_borradas_en IS NULL, así que
+      // esas filas dejan de aparecer en los próximos informes. Los paths
+      // quedan en la DB pero sus archivos ya no existen en Storage, lo que
+      // es consistente: el bytes-para-pdf devuelve null para esas y el PDF
+      // sale con "Sin foto".
       await _supabase.from('paquetes').update({
-        'foto_url': null,
-        'foto_entrega_url': null,
         'fotos_borradas_en': DateTime.now().toUtc().toIso8601String(),
       }).inFilter('id', encomiendas.map((e) => e.id).toList());
     } catch (falla) {
