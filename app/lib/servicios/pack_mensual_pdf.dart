@@ -140,36 +140,45 @@ class PackMensualPdf {
       hasta: hasta,
     );
 
-    // Fotos y firmas en tandas de 5 en paralelo: una por una va lento,
-    // todas juntas satura la conexión. Mismo patrón que informe_de_encomiendas.
-    final fotos = <String, Uint8List>{};
+    // Las tres pruebas visuales por entrega (recepción, entrega, firma) en
+    // tandas de 5 en paralelo: una por una va lento, todas juntas satura la
+    // conexión. Mismo patrón que informe_de_encomiendas.
+    final fotosRecepcion = <String, Uint8List>{};
+    final fotosEntrega = <String, Uint8List>{};
     final firmas = <String, Uint8List>{};
     const tandasDe = 5;
     var hechas = 0;
     for (var i = 0; i < encomiendas.length; i += tandasDe) {
       final grupo = encomiendas.skip(i).take(tandasDe).toList();
       final resultados = await Future.wait(grupo.map((e) async {
-        final foto = servicioFotos.bytesParaPdf(
-            e.fotoParaElInforme, CajonDeFotos.paquetes);
-        final firma = e.tieneFirma
-            ? servicioFotos.bytesParaPdf(e.firmaUrl, CajonDeFotos.paquetes)
+        final recepcion = servicioFotos.bytesParaPdf(
+            e.fotoUrl, CajonDeFotos.paquetes);
+        final entrega = e.fotoEntregaUrl != null
+            ? servicioFotos.bytesParaPdf(
+                e.fotoEntregaUrl, CajonDeFotos.paquetes)
             : Future<Uint8List?>.value(null);
-        final (fb, sb) = await (foto, firma).wait;
-        return (id: e.id, fotoBytes: fb, firmaBytes: sb);
+        final firma = e.tieneFirma
+            ? servicioFotos.bytesParaPdf(e.firmaUrl, CajonDeFotos.firmas)
+            : Future<Uint8List?>.value(null);
+        final (rb, eb, sb) = await (recepcion, entrega, firma).wait;
+        return (id: e.id, recepcion: rb, entrega: eb, firmaBytes: sb);
       }));
       for (final r in resultados) {
-        if (r.fotoBytes != null) fotos[r.id] = r.fotoBytes!;
+        if (r.recepcion != null) fotosRecepcion[r.id] = r.recepcion!;
+        if (r.entrega != null) fotosEntrega[r.id] = r.entrega!;
         if (r.firmaBytes != null) firmas[r.id] = r.firmaBytes!;
         hechas++;
       }
-      alProgresar?.call('Encomiendas (bajando fotos y firmas $hechas de ${encomiendas.length})');
+      alProgresar?.call(
+          'Encomiendas (bajando fotos y firmas $hechas de ${encomiendas.length})');
     }
 
     final encomiendasBytes = await InformeDeEncomiendasPdf.armar(
       instalacion: instalacion,
       dias: dias,
       encomiendas: encomiendas,
-      fotos: fotos,
+      fotosRecepcion: fotosRecepcion,
+      fotosEntrega: fotosEntrega,
       firmas: firmas,
     );
     _agregar(archive, '05-encomiendas-$sufijo.pdf', encomiendasBytes);

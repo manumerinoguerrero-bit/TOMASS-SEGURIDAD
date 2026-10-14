@@ -120,33 +120,41 @@ class _EstadoPestanaEncomiendas extends ConsumerState<PestanaEncomiendas> {
 
     try {
       final servicioFotos = ref.read(servicioFotosProvider);
-      final fotos = <String, Uint8List>{};
+      final fotosRecepcion = <String, Uint8List>{};
+      final fotosEntrega = <String, Uint8List>{};
       final firmas = <String, Uint8List>{};
 
-      // De a 5 fotos a la vez: ni una por una (lento) ni todas juntas
+      // De a 5 encomiendas a la vez: ni una por una (lento) ni todas juntas
       // (satura la conexión y traba el teléfono). Por cada encomienda
-      // bajamos foto Y firma en paralelo cuando existen — la firma va
-      // en el mismo bucket "paquetes".
+      // bajamos en paralelo las TRES pruebas visuales que existan:
+      // foto de recepción, foto de entrega y firma del residente. Las dos
+      // fotos viven en el bucket 'paquetes', la firma en 'firmas'.
       const tandasDe = 5;
       var hechas = 0;
       for (var i = 0; i < lista.length; i += tandasDe) {
         final grupo = lista.skip(i).take(tandasDe).toList();
         final resultados = await Future.wait(grupo.map((e) async {
-          final foto = servicioFotos.bytesParaPdf(
-              e.fotoParaElInforme, CajonDeFotos.paquetes);
-          final firma = e.tieneFirma
-              ? servicioFotos.bytesParaPdf(e.firmaUrl, CajonDeFotos.paquetes)
+          final recepcion = servicioFotos.bytesParaPdf(
+              e.fotoUrl, CajonDeFotos.paquetes);
+          final entrega = e.fotoEntregaUrl != null
+              ? servicioFotos.bytesParaPdf(
+                  e.fotoEntregaUrl, CajonDeFotos.paquetes)
               : Future<Uint8List?>.value(null);
-          final (fb, sb) = await (foto, firma).wait;
-          return (id: e.id, fotoBytes: fb, firmaBytes: sb);
+          final firma = e.tieneFirma
+              ? servicioFotos.bytesParaPdf(e.firmaUrl, CajonDeFotos.firmas)
+              : Future<Uint8List?>.value(null);
+          final (rb, eb, sb) = await (recepcion, entrega, firma).wait;
+          return (id: e.id, recepcion: rb, entrega: eb, firmaBytes: sb);
         }));
         for (final r in resultados) {
-          if (r.fotoBytes != null) fotos[r.id] = r.fotoBytes!;
+          if (r.recepcion != null) fotosRecepcion[r.id] = r.recepcion!;
+          if (r.entrega != null) fotosEntrega[r.id] = r.entrega!;
           if (r.firmaBytes != null) firmas[r.id] = r.firmaBytes!;
           hechas++;
         }
         if (!mounted) return;
-        setState(() => _progreso = 'Descargando fotos… $hechas de ${lista.length}');
+        setState(() => _progreso = 'Descargando fotos y firmas… '
+            '$hechas de ${lista.length}');
       }
 
       if (!mounted) return;
@@ -159,7 +167,8 @@ class _EstadoPestanaEncomiendas extends ConsumerState<PestanaEncomiendas> {
         instalacion: perfil?.nombreCondominio ?? 'Instalación',
         dias: dias,
         encomiendas: lista,
-        fotos: fotos,
+        fotosRecepcion: fotosRecepcion,
+        fotosEntrega: fotosEntrega,
         firmas: firmas,
       );
 

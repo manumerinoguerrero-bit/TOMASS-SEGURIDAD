@@ -42,15 +42,23 @@ class _Tinta {
 class InformeDeEncomiendasPdf {
   /// Arma el PDF y lo devuelve listo para compartir, imprimir o guardar.
   ///
-  /// [fotos] trae, para cada encomienda que sí se pudo bajar, sus bytes ya
-  /// achicados. La que no está en el mapa sale con el aviso de "sin foto":
-  /// eso pasa si la foto ya no existía en el servidor cuando se armó el
-  /// informe, y no debe romper el resto del documento.
+  /// Cada encomienda tiene potencialmente TRES piezas visuales como prueba:
+  ///   * [fotosRecepcion] — foto del paquete cuando entró a portería (quien
+  ///     recibió, qué era, en qué estado llegó).
+  ///   * [fotosEntrega] — foto del residente con el paquete al momento de
+  ///     retirarlo (prueba visual del "recibí conforme").
+  ///   * [firmas] — firma manuscrita del residente al retirar.
+  ///
+  /// Las tres son opcionales por entrega: si una no está en el mapa, en el
+  /// PDF sale un recuadro gris con "sin foto" / "sin firma" en vez de romper
+  /// el documento. Las entregas antiguas (previas a que la app capturara
+  /// foto de entrega) salen solo con recepción + firma.
   static Future<Uint8List> armar({
     required String instalacion,
     required int dias,
     required List<EncomiendaDelInforme> encomiendas,
-    required Map<String, Uint8List> fotos,
+    Map<String, Uint8List> fotosRecepcion = const {},
+    Map<String, Uint8List> fotosEntrega = const {},
     Map<String, Uint8List> firmas = const {},
   }) async {
     final doc = pw.Document(
@@ -61,7 +69,10 @@ class InformeDeEncomiendasPdf {
     final escudo = await _leerEscudo();
     final hasta = DateTime.now();
     final desde = hasta.subtract(Duration(days: dias));
-    final conFoto = encomiendas.where((e) => fotos[e.id] != null).length;
+    final conFoto = encomiendas
+        .where((e) =>
+            fotosRecepcion[e.id] != null || fotosEntrega[e.id] != null)
+        .length;
 
     doc.addPage(
       pw.MultiPage(
@@ -81,7 +92,7 @@ class InformeDeEncomiendasPdf {
           pw.SizedBox(height: 18),
           _titulo('Detalle, del más reciente al más antiguo'),
           pw.SizedBox(height: 10),
-          ..._grilla(encomiendas, fotos, firmas),
+          ..._grilla(encomiendas, fotosRecepcion, fotosEntrega, firmas),
         ],
       ),
     );
@@ -191,7 +202,8 @@ class InformeDeEncomiendasPdf {
 
   static List<pw.Widget> _grilla(
     List<EncomiendaDelInforme> encomiendas,
-    Map<String, Uint8List> fotos,
+    Map<String, Uint8List> fotosRecepcion,
+    Map<String, Uint8List> fotosEntrega,
     Map<String, Uint8List> firmas,
   ) {
     final filas = <pw.Widget>[];
@@ -205,13 +217,23 @@ class InformeDeEncomiendasPdf {
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
               pw.Expanded(
-                  child: _tarjeta(izquierda, fotos[izquierda.id],
-                      firmas[izquierda.id])),
+                child: _tarjeta(
+                  izquierda,
+                  fotosRecepcion[izquierda.id],
+                  fotosEntrega[izquierda.id],
+                  firmas[izquierda.id],
+                ),
+              ),
               pw.SizedBox(width: 8),
               pw.Expanded(
                 child: derecha == null
                     ? pw.SizedBox()
-                    : _tarjeta(derecha, fotos[derecha.id], firmas[derecha.id]),
+                    : _tarjeta(
+                        derecha,
+                        fotosRecepcion[derecha.id],
+                        fotosEntrega[derecha.id],
+                        firmas[derecha.id],
+                      ),
               ),
             ],
           ),
@@ -221,8 +243,16 @@ class InformeDeEncomiendasPdf {
     return filas;
   }
 
+  /// Tarjeta con las tres pruebas visuales de la entrega:
+  ///   1. Datos: descripción, retiró, unidad, fechas, guardia.
+  ///   2. Fotos lado a lado: recepción (al llegar) y entrega (al retirar).
+  ///   3. Firma del residente, abajo de todo.
   static pw.Widget _tarjeta(
-      EncomiendaDelInforme e, Uint8List? foto, Uint8List? firma) {
+    EncomiendaDelInforme e,
+    Uint8List? fotoRecepcion,
+    Uint8List? fotoEntrega,
+    Uint8List? firma,
+  ) {
     final descripcion = (e.descripcion ?? '').trim();
 
     return pw.Container(
@@ -234,76 +264,63 @@ class InformeDeEncomiendasPdf {
       child: pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
-          // ---- Fila superior: foto + datos ----
+          // ---- 1. Datos (ancho completo) ----
+          pw.Text(
+            descripcion.isEmpty ? 'Encomienda' : descripcion,
+            maxLines: 1,
+            overflow: pw.TextOverflow.clip,
+            style: pw.TextStyle(
+                fontSize: 9,
+                fontWeight: pw.FontWeight.bold,
+                color: _Tinta.grafito),
+          ),
+          pw.SizedBox(height: 2),
+          pw.Text('Retiró: ${e.quienRetiro}',
+              maxLines: 1,
+              overflow: pw.TextOverflow.clip,
+              style: const pw.TextStyle(
+                  fontSize: 7.8, color: _Tinta.grafito)),
+          if (e.unidad != null)
+            pw.Text(e.unidad!,
+                style: const pw.TextStyle(fontSize: 7.2, color: _Tinta.gris)),
+          pw.SizedBox(height: 2),
+          pw.Text(
+            e.fueEntregado
+                ? 'Entregado ${Formato.fechaYHora(e.entregadoEn!)}'
+                : 'Recibido ${Formato.fechaYHora(e.recibidoEn)} · '
+                    'aún en portería',
+            style: pw.TextStyle(
+              fontSize: 7.2,
+              color: e.fueEntregado ? _Tinta.gris : _Tinta.naranja,
+              fontWeight: e.fueEntregado
+                  ? pw.FontWeight.normal
+                  : pw.FontWeight.bold,
+            ),
+          ),
+          if (e.guardiaEntrega != null)
+            pw.Text('Entregó: ${e.guardiaEntrega}',
+                style: const pw.TextStyle(fontSize: 7.2, color: _Tinta.gris)),
+
+          // ---- 2. Fotos de recepción y de entrega lado a lado ----
+          pw.SizedBox(height: 6),
           pw.Row(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              pw.Container(
-                width: 60,
-                height: 60,
-                alignment: pw.Alignment.center,
-                decoration: const pw.BoxDecoration(color: _Tinta.fondoFoto),
-                child: foto == null
-                    ? pw.Text('Sin foto',
-                        textAlign: pw.TextAlign.center,
-                        style: const pw.TextStyle(
-                            fontSize: 6.5, color: _Tinta.gris))
-                    : pw.Image(pw.MemoryImage(foto),
-                        fit: pw.BoxFit.cover, width: 60, height: 60),
-              ),
-              pw.SizedBox(width: 8),
+              pw.Expanded(child: _bloqueFoto('Recepción', fotoRecepcion)),
+              pw.SizedBox(width: 6),
               pw.Expanded(
-                child: pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    pw.Text(
-                      descripcion.isEmpty ? 'Encomienda' : descripcion,
-                      maxLines: 1,
-                      overflow: pw.TextOverflow.clip,
-                      style: pw.TextStyle(
-                          fontSize: 8.5,
-                          fontWeight: pw.FontWeight.bold,
-                          color: _Tinta.grafito),
-                    ),
-                    pw.SizedBox(height: 2),
-                    pw.Text('Retiró: ${e.quienRetiro}',
-                        maxLines: 1,
-                        overflow: pw.TextOverflow.clip,
-                        style: const pw.TextStyle(
-                            fontSize: 7.5, color: _Tinta.grafito)),
-                    if (e.unidad != null)
-                      pw.Text(e.unidad!,
-                          style: const pw.TextStyle(
-                              fontSize: 7, color: _Tinta.gris)),
-                    pw.SizedBox(height: 2),
-                    pw.Text(
-                        e.fueEntregado
-                            ? 'Entregado ${Formato.fechaYHora(e.entregadoEn!)}'
-                            : 'Recibido ${Formato.fechaYHora(e.recibidoEn)} · '
-                                'aún en portería',
-                        style: pw.TextStyle(
-                          fontSize: 7,
-                          color:
-                              e.fueEntregado ? _Tinta.gris : _Tinta.naranja,
-                          fontWeight: e.fueEntregado
-                              ? pw.FontWeight.normal
-                              : pw.FontWeight.bold,
-                        )),
-                    if (e.guardiaEntrega != null)
-                      pw.Text('Entregó: ${e.guardiaEntrega}',
-                          style: const pw.TextStyle(
-                              fontSize: 7, color: _Tinta.gris)),
-                  ],
+                child: _bloqueFoto(
+                  'Entrega',
+                  fotoEntrega,
+                  textoVacio: e.fueEntregado ? 'sin foto' : 'no entregada',
                 ),
               ),
             ],
           ),
-          // ---- Firma del residente (si el paquete se entregó) ----
-          // La firma es la constancia manuscrita del "recibí conforme". Va
-          // debajo de los datos para no achicar la foto — que es lo que
-          // más se mira. Si no hay firma (paquetes viejos previos al
-          // canvas de firma, o entregas donde el residente no firmó),
-          // sale el texto en gris.
+
+          // ---- 3. Firma del residente ----
+          // La firma manuscrita del "recibí conforme". Si no hay (entregas
+          // viejas o residente que no firmó), sale "sin firma" en gris.
           if (e.fueEntregado) ...[
             pw.SizedBox(height: 6),
             pw.Divider(color: _Tinta.grisClaro, height: 1, thickness: 0.4),
@@ -342,6 +359,36 @@ class InformeDeEncomiendasPdf {
           ],
         ],
       ),
+    );
+  }
+
+  /// Un bloque con el label arriba y la foto (o recuadro gris "sin foto")
+  /// abajo. Se usa dos veces por tarjeta: recepción y entrega.
+  static pw.Widget _bloqueFoto(String label, Uint8List? bytes,
+      {String textoVacio = 'sin foto'}) {
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Text(label.toUpperCase(),
+            style: pw.TextStyle(
+              fontSize: 6.5,
+              fontWeight: pw.FontWeight.bold,
+              letterSpacing: 0.6,
+              color: _Tinta.gris,
+            )),
+        pw.SizedBox(height: 2),
+        pw.Container(
+          height: 70,
+          alignment: pw.Alignment.center,
+          decoration: const pw.BoxDecoration(color: _Tinta.fondoFoto),
+          child: bytes == null
+              ? pw.Text(textoVacio,
+                  textAlign: pw.TextAlign.center,
+                  style: const pw.TextStyle(
+                      fontSize: 7, color: _Tinta.gris))
+              : pw.Image(pw.MemoryImage(bytes), fit: pw.BoxFit.cover),
+        ),
+      ],
     );
   }
 
