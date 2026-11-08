@@ -23,6 +23,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../config/tema.dart';
 import '../../estado/proveedores.dart';
 import '../../nucleo/almacenamiento_seguro.dart';
+import '../../nucleo/permisos.dart';
 import '../../nucleo/errores.dart';
 import '../comunes/componentes.dart';
 
@@ -91,6 +92,11 @@ class _EstadoLogin extends ConsumerState<PantallaLogin> {
             correo: _correo.text,
             contrasena: _contrasena.text,
           );
+      // Pedimos todos los permisos de la app apenas entre: ubicación
+      // (con precisión + en background), notificaciones y cámara. Es
+      // silenciosa si ya estaban otorgados — resuelve el caso del
+      // celular nuevo donde nadie los había activado todavía.
+      await PermisosDeLaApp.pedirTodos();
       // La navegación la maneja sola el vigilante de sesión de rutas.dart.
     } catch (falla) {
       if (!mounted) return;
@@ -114,6 +120,8 @@ class _EstadoLogin extends ConsumerState<PantallaLogin> {
         return;
       }
       if (mounted) ref.invalidate(perfilProvider);
+      // Mismo barrido de permisos que en el login por correo.
+      await PermisosDeLaApp.pedirTodos();
     } catch (falla) {
       if (!mounted) return;
       setState(() => _problema = Traductor.traducir(falla));
