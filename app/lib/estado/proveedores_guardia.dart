@@ -118,6 +118,11 @@ final cubroTodoProvider = Provider<bool>((ref) {
   return ref.watch(miTurnoProvider).valueOrNull?.cubreTodo ?? false;
 });
 
+/// El ciclo 4x4 del guardia (día/noche + ancla). null si todavía no lo cargó.
+final miCicloDeTurnoProvider = FutureProvider<CicloDeTurno?>((ref) {
+  return ref.watch(servicioGuardiaProvider).miCicloDeTurno();
+});
+
 // ============================================================================
 // LA COLA DE AUTOS — EN VIVO
 // ============================================================================

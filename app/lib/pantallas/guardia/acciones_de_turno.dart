@@ -40,24 +40,36 @@ import '../../nucleo/formato.dart';
 // ============================================================================
 
 abstract final class AccionesDeTurno {
-  /// Cierra el turno del guardia y le deja una nota al que entra.
+  /// Cierra el turno del guardia, le deja una nota al que entra y cierra la
+  /// sesión para que el relevo entre con su propio usuario.
   ///
-  /// No cierra la sesión: son cosas distintas. Un guardia puede cerrar su turno
-  /// y seguir con la app abierta hasta que llegue el relevo.
+  /// POR QUÉ CIERRA SESIÓN TAMBIÉN
+  ///
+  ///   Antes, "Terminar turno" dejaba la app abierta con la sesión del que se
+  ///   iba. En la práctica el que entraba agarraba el celular, veía el
+  ///   "Comenzar turno" y lo tocaba sin fijarse que arriba decía el nombre del
+  ///   anterior: el turno nuevo quedaba anotado a nombre del guardia ya fuera
+  ///   del puesto, y durante horas los movimientos de acceso se le atribuían
+  ///   a él. Pedido por Manuel el 08/11/2026 con fotos del flujo donde pasaba
+  ///   exactamente eso.
+  ///
+  ///   Quien quiera salir SIN cerrar el turno (raro, pero existe el botón "No
+  ///   soy yo" en la pantalla de abrir turno) usa [cerrarSesion] en su lugar.
   static Future<void> cerrarTurno(BuildContext context, WidgetRef ref) async {
     final notas = TextEditingController();
 
     final confirmado = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('¿Cerrar tu turno?'),
+        title: const Text('¿Terminar turno?'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Vas a dejar de recibir los avisos de este puesto. Si querés, '
-              'dejale una nota al guardia que entra.',
+              'Vas a cerrar tu turno y salir de la app, así el guardia que '
+              'entra puede empezar con su propio usuario. Si querés, dejale '
+              'una nota.',
               style: TextStyle(fontSize: 13.5, height: 1.45),
             ),
             const SizedBox(height: 14),
@@ -79,10 +91,13 @@ abstract final class AccionesDeTurno {
             onPressed: () => Navigator.pop(context, false),
             child: const Text('Cancelar'),
           ),
-          FilledButton(
+          FilledButton.icon(
             onPressed: () => Navigator.pop(context, true),
-            style: FilledButton.styleFrom(backgroundColor: Colores.grafito),
-            child: const Text('Cerrar turno'),
+            icon: const Icon(Icons.logout_rounded, size: 18),
+            label: const Text('Terminar y salir'),
+            style: FilledButton.styleFrom(
+              backgroundColor: Colores.verdeOscuro,
+            ),
           ),
         ],
       ),
@@ -98,16 +113,25 @@ abstract final class AccionesDeTurno {
             notasParaElSiguiente: texto.isEmpty ? null : texto,
           );
       ref.invalidate(miTurnoProvider);
-      // La navegación a la pantalla de turno la hace sola el vigilante de rutas
     } catch (falla) {
+      // Si no se pudo cerrar el turno (sin red, error del servidor), NO
+      // cerramos sesión: el guardia se iría pensando que su turno está
+      // cerrado y los avisos seguirían saliendo a su cuenta.
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(Traductor.traducir(falla).mensaje),
+          content: Text('No se pudo cerrar el turno: '
+              '${Traductor.traducir(falla).mensaje}'),
           backgroundColor: Colores.rojo,
         ),
       );
+      return;
     }
+
+    // Turno cerrado OK: salimos de la app para que el relevo entre con su
+    // propio usuario. La navegación al login la hace sola el vigilante de
+    // rutas cuando detecta que ya no hay sesión.
+    await ref.read(servicioSesionProvider).salir();
   }
 
   /// Cierra la sesión, para que entre otro guardia con su propio usuario.
@@ -253,6 +277,8 @@ class MenuDelGuardia extends ConsumerWidget {
         switch (elegido) {
           case 'turno':
             AccionesDeTurno.cerrarTurno(context, ref);
+          case 'mis-turnos':
+            context.push(Rutas.misTurnos);
           case 'clave':
             context.push(Rutas.cambiarClave);
           case 'sesion':
@@ -298,9 +324,19 @@ class MenuDelGuardia extends ConsumerWidget {
               dense: true,
               leading: Icon(Icons.logout_rounded, size: 20),
               title: Text('Terminar turno'),
-              subtitle: Text('Para entregarle el puesto al que entra'),
+              subtitle: Text('Cerrás el turno y salís de la app'),
             ),
           ),
+        const PopupMenuItem<String>(
+          value: 'mis-turnos',
+          child: ListTile(
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+            leading: Icon(Icons.calendar_month_rounded, size: 20),
+            title: Text('Mis turnos'),
+            subtitle: Text('Mirá qué días te toca trabajar'),
+          ),
+        ),
         const PopupMenuItem<String>(
           value: 'clave',
           child: ListTile(

@@ -183,8 +183,45 @@ class Traductor {
       );
     }
 
-    // Los candados de la base de datos rechazaron la operación
-    if (codigo == '42501' || codigo == 'PGRST301' || falla.code == '403') {
+    // Sesión vencida o inválida: PostgREST devuelve PGRST301 cuando el JWT ya
+    // no sirve. Hay que mandar al guardia a iniciar sesión de nuevo, no
+    // confundirlo con "no tenés permiso para hacer eso".
+    if (codigo == 'PGRST301') {
+      return const ErrorAmigable(
+        'Tu sesión venció.',
+        detalle: 'Volvé a iniciar sesión.',
+        hayQueIniciarSesion: true,
+      );
+    }
+
+    // Los candados de la base de datos rechazaron la operación.
+    //
+    // Hay dos cosas distintas que llegan acá con el mismo código 42501:
+    //
+    //   1) Nuestras funciones del servidor (registrar_acceso_manual,
+    //      crear_punto_control, etc.) lanzan avisos pensados PARA el guardia:
+    //      "Tenés que abrir tu turno antes de anotar ingresos.",
+    //      "Esa garita no existe o no es de tu instalación.". Esos textos ya
+    //      le dicen exactamente qué hacer y hay que mostrarlos tal cual —
+    //      si en vez le decimos "no tenés permiso", busca al admin confundido
+    //      cuando el problema real es que todavía no apretó "Empezar turno".
+    //
+    //   2) Los avisos crudos de Postgres y PostgREST, que son en inglés y
+    //      suenan a infraestructura ("permission denied for table X", "new row
+    //      violates row-level security policy..."). Esos sí los tapamos con
+    //      el aviso genérico, porque leídos literal asustan y no le aportan
+    //      nada al guardia.
+    if (codigo == '42501' || falla.code == '403') {
+      final mensaje = falla.message.trim();
+      final esMensajeCrudoDePostgres = mensaje.isEmpty ||
+          RegExp(
+            r'(permission denied|new row violates|'
+            r'row.?level security|rls policy|role .* does not exist)',
+            caseSensitive: false,
+          ).hasMatch(mensaje);
+      if (!esMensajeCrudoDePostgres) {
+        return ErrorAmigable(mensaje, sePuedeReintentar: false);
+      }
       return const ErrorAmigable(
         'No tenés permiso para hacer eso.',
         detalle: 'Si creés que es un error, avisale a la administración.',

@@ -1337,5 +1337,58 @@ class ServicioGuardia {
       throw Traductor.traducir(falla);
     }
   }
+
+  // ==========================================================================
+  // EL CALENDARIO 4x4 DEL GUARDIA
+  // ==========================================================================
+  // El guardia guarda UNA vez su turno (día o noche) y una fecha de referencia
+  // en la que sí trabajó. Con eso la app arma el calendario entero y le
+  // muestra qué le toca hoy, mañana y los próximos 30 días. Toda la lógica
+  // del cálculo vive en el modelo CicloDeTurno; acá solo persistimos.
+  // ==========================================================================
+
+  Future<CicloDeTurno?> miCicloDeTurno() async {
+    try {
+      final fila = await _supabase
+          .from('ciclos_turno_guardia')
+          .select('turno, primer_dia_trabajo, hora_inicio_aprox')
+          .eq('guardia_id', _miId)
+          .maybeSingle()
+          .timeout(Entorno.esperaMaxima);
+      if (fila == null) return null;
+      return CicloDeTurno.desdeMapa(Map<String, dynamic>.from(fila));
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+
+  /// Guarda (o actualiza) el ciclo 4x4 del guardia.
+  ///
+  /// La fecha va como 'YYYY-MM-DD' y la hora (si viene) como 'HH:MM:SS':
+  /// Postgres las parsea solo a date y time, pero los strings tienen que
+  /// estar con ese formato o rechaza todo.
+  Future<void> guardarMiCiclo({
+    required String turno,
+    required DateTime primerDiaTrabajo,
+    int? horaAprox,
+    int? minutoAprox,
+  }) async {
+    final fecha = '${primerDiaTrabajo.year.toString().padLeft(4, '0')}-'
+        '${primerDiaTrabajo.month.toString().padLeft(2, '0')}-'
+        '${primerDiaTrabajo.day.toString().padLeft(2, '0')}';
+    final hora = horaAprox == null
+        ? null
+        : '${horaAprox.toString().padLeft(2, '0')}:'
+            '${(minutoAprox ?? 0).toString().padLeft(2, '0')}:00';
+    try {
+      await _supabase.rpc('guardar_mi_ciclo_de_turno', params: {
+        'p_turno': turno,
+        'p_primer_dia_trabajo': fecha,
+        'p_hora_inicio_aprox': hora,
+      }).timeout(Entorno.esperaMaxima);
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
 }
 

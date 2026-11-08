@@ -35,6 +35,7 @@ import '../pantallas/guardia/contenedor_guardia.dart';
 import '../pantallas/guardia/pantalla_acceso_manual.dart';
 import '../pantallas/guardia/pantalla_autos_esperando.dart';
 import '../pantallas/guardia/pantalla_escaner_guardia.dart';
+import '../pantallas/guardia/pantalla_mis_turnos.dart';
 import '../pantallas/guardia/pantalla_novedades.dart';
 import '../pantallas/guardia/pantalla_panel.dart';
 import '../pantallas/guardia/pantalla_rondas.dart';
@@ -87,6 +88,7 @@ class Rutas {
   static const accesoManual = '/anotar-ingreso';
   static const rondas = '/rondas';
   static const visitasGuardia = '/visitas-porteria';
+  static const misTurnos = '/mis-turnos';
 
   // Administrador
   static const adminInicio = '/administracion';
@@ -332,6 +334,10 @@ final rutasProvider = Provider<GoRouter>((ref) {
             path: Rutas.incidentes,
             builder: (context, estado) => const PantallaNovedades(),
           ),
+          GoRoute(
+            path: Rutas.misTurnos,
+            builder: (context, estado) => const PantallaMisTurnos(),
+          ),
         ],
       ),
     ],
@@ -401,6 +407,7 @@ const _dePorteria = {
   Rutas.incidentes,
   Rutas.turno,
   Rutas.cambiarClave,
+  Rutas.misTurnos,
 };
 
 /// Le avisa a go_router cuando cambia algo que puede obligar a redirigir:
