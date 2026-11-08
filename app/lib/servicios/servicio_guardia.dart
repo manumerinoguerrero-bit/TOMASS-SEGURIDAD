@@ -392,6 +392,86 @@ class ServicioGuardia {
     }
   }
 
+  /// Marca un punto por GPS (geocerca). La app detecta que el guardia entró
+  /// al radio del punto y llama a esta función directamente — sin escanear
+  /// nada. La validación de distancia la hace el backend, no el cliente, así
+  /// que no se puede falsificar desde el teléfono.
+  Future<ResultadoDeMarca> marcarPuntoPorGps({
+    required String idLocal,
+    required String puntoControlId,
+    required double latitud,
+    required double longitud,
+    required String nombrePunto,
+  }) async {
+    final params = <String, dynamic>{
+      'p_id_local': idLocal,
+      'p_punto_control_id': puntoControlId,
+      'p_geo_lat': latitud,
+      'p_geo_lng': longitud,
+    };
+    try {
+      final filas = await _supabase
+          .rpc('marcar_punto_por_gps', params: params)
+          .timeout(Entorno.esperaMaxima);
+
+      final lista = filas as List;
+      if (lista.isEmpty) {
+        throw const ErrorAmigable('El servidor no contestó lo que esperábamos.');
+      }
+      return ResultadoDeMarca.desdeMapa(Map<String, dynamic>.from(lista.first));
+    } catch (falla) {
+      // Sin internet, se encola — el sincronizador la manda cuando vuelve.
+      // Cualquier otro error (lejos, no hay ronda abierta) se propaga.
+      if (cola != null && esErrorDeRed(falla)) {
+        await cola!.encolar(
+          idLocal: idLocal,
+          tipo: 'marcar_punto_por_gps',
+          params: params,
+        );
+        return ResultadoDeMarca.enCola(nombrePunto: nombrePunto);
+      }
+      throw Traductor.traducir(falla);
+    }
+  }
+
+  /// Marca un punto a mano, sin GPS. Se usa cuando el teléfono no toma señal
+  /// (indoor profundo, sótano) pero el guardia sí pasó por el punto. El
+  /// motivo es obligatorio y queda guardado para que el administrador vea
+  /// en el informe que esa marca fue manual.
+  Future<ResultadoDeMarca> marcarPuntoManual({
+    required String idLocal,
+    required String puntoControlId,
+    required String motivo,
+    required String nombrePunto,
+  }) async {
+    final params = <String, dynamic>{
+      'p_id_local': idLocal,
+      'p_punto_control_id': puntoControlId,
+      'p_motivo': motivo,
+    };
+    try {
+      final filas = await _supabase
+          .rpc('marcar_punto_manual', params: params)
+          .timeout(Entorno.esperaMaxima);
+
+      final lista = filas as List;
+      if (lista.isEmpty) {
+        throw const ErrorAmigable('El servidor no contestó lo que esperábamos.');
+      }
+      return ResultadoDeMarca.desdeMapa(Map<String, dynamic>.from(lista.first));
+    } catch (falla) {
+      if (cola != null && esErrorDeRed(falla)) {
+        await cola!.encolar(
+          idLocal: idLocal,
+          tipo: 'marcar_punto_manual',
+          params: params,
+        );
+        return ResultadoDeMarca.enCola(nombrePunto: nombrePunto);
+      }
+      throw Traductor.traducir(falla);
+    }
+  }
+
   /// Cierra el recorrido. Devuelve cuantos puntos marco de cuantos, y cuanto
   /// tardo en minutos.
   Future<(int marcados, int total, int minutos)> cerrarRonda({String? notas}) async {
