@@ -690,6 +690,7 @@ class _Mapa extends StatefulWidget {
 class _EstadoMapa extends State<_Mapa> {
   final _ctl = MapController();
   bool _primerCentrado = false;
+  bool _satelital = true; // arranca en satelital — Manuel lo pidió
 
   @override
   void didUpdateWidget(covariant _Mapa old) {
@@ -716,20 +717,95 @@ class _EstadoMapa extends State<_Mapa> {
             ? LatLng(widget.puntos.first.latitud!, widget.puntos.first.longitud!)
             : const LatLng(-29.95, -71.22); // La Serena por si no hay nada
 
-    return FlutterMap(
-      mapController: _ctl,
-      options: MapOptions(
-        initialCenter: centro,
-        initialZoom: 17,
-        minZoom: 12,
-        maxZoom: 19,
-      ),
+    return Stack(
       children: [
-        TileLayer(
-          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-          userAgentPackageName: 'cl.tomass.tomass_seguridad',
-          maxNativeZoom: 19,
+        FlutterMap(
+          mapController: _ctl,
+          options: MapOptions(
+            initialCenter: centro,
+            initialZoom: 17,
+            minZoom: 12,
+            maxZoom: 19,
+          ),
+          children: [
+            _tileLayer(),
+            ..._capas(),
+          ],
         ),
+        // Botón toggle para cambiar entre satelital y calles. Arriba a la
+        // derecha, estilo "layers" de Google Maps.
+        Positioned(
+          top: 8,
+          right: 8,
+          child: Material(
+            color: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+              side: const BorderSide(color: Colores.linea),
+            ),
+            elevation: 2,
+            child: InkWell(
+              onTap: () => setState(() => _satelital = !_satelital),
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      _satelital ? Icons.map_outlined : Icons.satellite_alt_rounded,
+                      size: 18,
+                      color: Colores.grafito,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      _satelital ? 'Calles' : 'Satélite',
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w800,
+                        color: Colores.grafito,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Capa de mosaicos del mapa. Dos variantes:
+  ///
+  ///   · Esri World Imagery — satelital a color de alta resolución, GRATIS
+  ///     sin API key. Cobertura mundial. Para predios chicos como la Bodega
+  ///     PY La Serena se ven los techos y hasta los autos. Es lo que pidió
+  ///     Manuel el 08/11/2026 porque OSM mostraba calles vacías sin forma
+  ///     de reconocer el predio.
+  ///
+  ///   · OpenStreetMap — mapa de calles con nombres. Útil cuando el guardia
+  ///     quiere orientarse por intersecciones o cuando el satélite está mal
+  ///     alineado.
+  TileLayer _tileLayer() {
+    if (_satelital) {
+      return TileLayer(
+        urlTemplate:
+            'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        userAgentPackageName: 'cl.tomass.tomass_seguridad',
+        maxNativeZoom: 19,
+      );
+    }
+    return TileLayer(
+      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+      userAgentPackageName: 'cl.tomass.tomass_seguridad',
+      maxNativeZoom: 19,
+    );
+  }
+
+  /// Marcadores y círculos, extraídos para que _tileLayer() cambie sin
+  /// tocar el resto del árbol del mapa.
+  List<Widget> _capas() => [
         CircleLayer(
           circles: [
             for (final p in widget.puntos)
@@ -772,9 +848,7 @@ class _EstadoMapa extends State<_Mapa> {
               ),
           ],
         ),
-      ],
-    );
-  }
+      ];
 }
 
 // ============================================================================
