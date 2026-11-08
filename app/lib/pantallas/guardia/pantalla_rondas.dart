@@ -91,11 +91,40 @@ class _EstadoRondas extends ConsumerState<PantallaRondas> {
   /// Arranca el stream de GPS con alta precisión y distanceFilter chico.
   /// Importante: NO prende foregroundNotificationConfig — ese lo lleva el
   /// rastreador del turno; si lo prendiéramos acá también chocarían.
+  ///
+  /// Dos cosas para que la posición no quede desfasada 100+ metros como le
+  /// pasó a Manuel la primera vez:
+  ///
+  ///   1) Pedimos UNA posición al arranque con getCurrentPosition. Fuerza
+  ///      al Fused Location Provider a darnos una fresca, en vez de que la
+  ///      pantalla espere el primer evento del stream (que puede tardar
+  ///      30+ s en Android cuando el chip GPS estaba dormido).
+  ///
+  ///   2) Rechazamos posiciones con precision peor que 50 m: son el GPS
+  ///      diciendo "estoy perdido". Si entrara al pin del mapa, el guardia
+  ///      vería su punto azul 100 m fuera del lugar real y se confundiría
+  ///      — mejor no mostrar nada y que vea "esperando señal".
   Future<void> _arrancarGps() async {
     final permiso = await Geolocator.checkPermission();
     if (permiso == LocationPermission.denied ||
         permiso == LocationPermission.deniedForever) {
       return; // el rastreador del turno ya se encarga de pedir el permiso
+    }
+
+    // Primera lectura forzada: fresca y precisa, sin cache.
+    try {
+      final p = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.best,
+          timeLimit: Duration(seconds: 12),
+        ),
+      );
+      if (mounted && _esPosicionConfiable(p)) {
+        setState(() => _miPos = p);
+        _revisarGeocercas(p);
+      }
+    } catch (_) {
+      // Se cae al stream, no es grave.
     }
 
     _subGps = Geolocator.getPositionStream(
@@ -105,12 +134,18 @@ class _EstadoRondas extends ConsumerState<PantallaRondas> {
       ),
     ).listen((p) {
       if (!mounted) return;
+      if (!_esPosicionConfiable(p)) return;
       setState(() => _miPos = p);
       _revisarGeocercas(p);
     }, onError: (_) {
       // sigue silencioso, el ValueNotifier del rastreador del turno ya avisa
     });
   }
+
+  /// Umbral de confianza: por abajo de ~50 m de error el pin sirve.
+  /// Por encima es una posición "perdida" (triangulación por torre celular,
+  /// Wi-Fi mal mapeado) y mostrarla desorienta al guardia.
+  static bool _esPosicionConfiable(Position p) => p.accuracy <= 50;
 
   // ==========================================================================
   // EL CORAZÓN: cada posición del stream dispara esta función. Revisa si el
@@ -522,6 +557,11 @@ class _EstadoRondas extends ConsumerState<PantallaRondas> {
           ),
         ),
 
+        // Estado del GPS en vivo: le dice al guardia si la señal está buena,
+        // media o si todavía no agarró. Fundamental en terreno para que sepa
+        // si confiar en el pin o esperar un rato antes de caminar.
+        _ChipGps(posicion: _miPos),
+
         if (_problema != null) ...[
           const SizedBox(height: 8),
           Padding(
@@ -695,6 +735,74 @@ class _EstadoMapa extends State<_Mapa> {
           ],
         ),
       ],
+    );
+  }
+}
+
+// ============================================================================
+// CHIP DE ESTADO DEL GPS
+// ============================================================================
+// Muestra en vivo cuánto está errando el GPS en metros. Verde si < 15 m (el
+// guardia puede confiar), naranja si 15-30 m (uso con cuidado), rojo si está
+// peor que 30 m. "Esperando señal" si todavía no agarró ninguna lectura.
+// ============================================================================
+
+class _ChipGps extends StatelessWidget {
+  const _ChipGps({required this.posicion});
+
+  final Position? posicion;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color color;
+    final IconData icono;
+    final String texto;
+
+    if (posicion == null) {
+      color = Colores.textoSuave;
+      icono = Icons.gps_off_rounded;
+      texto = 'Esperando señal GPS…';
+    } else {
+      final metros = posicion!.accuracy.round();
+      if (metros <= 15) {
+        color = Colores.verde;
+        icono = Icons.gps_fixed_rounded;
+        texto = 'GPS preciso · ±$metros m';
+      } else if (metros <= 30) {
+        color = Colores.naranjaOscuro;
+        icono = Icons.gps_not_fixed_rounded;
+        texto = 'GPS medio · ±$metros m';
+      } else {
+        color = Colores.rojo;
+        icono = Icons.gps_off_rounded;
+        texto = 'GPS pobre · ±$metros m';
+      }
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        border: Border(
+          bottom: BorderSide(color: color.withValues(alpha: 0.3)),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(icono, size: 16, color: color),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              texto,
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+                color: color,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -63,19 +63,23 @@ class _EstadoContenedorGuardia extends ConsumerState<ContenedorGuardia> {
   ///   La opción "anota" sigue existiendo pero se muestra como "Registrar":
   ///   es el formulario a mano para dar entrada/salida a personas y
   ///   vehículos (con foto de patente y datos básicos).
+  // Con 6 pestañas los nombres largos ("Mis turnos", "Registrar", "Novedades")
+  // no entraban en el espacio del bottom nav y se partían en dos líneas feas
+  // ("Registra" / "r"). Para que no pase: etiquetas cortas de UNA palabra y
+  // una sola. El guardia reconoce el ícono rápido y el texto solo refuerza.
   List<_Opcion> _opcionesDe({required bool rondas}) => [
         const _Opcion(
             Rutas.panel, 'Inicio', Icons.home_outlined, Icons.home_rounded),
-        const _Opcion(Rutas.accesoManual, 'Registrar',
+        const _Opcion(Rutas.accesoManual, 'Anotar',
             Icons.edit_note_outlined, Icons.edit_note_rounded),
         if (rondas)
           const _Opcion(Rutas.rondas, 'Rondas', Icons.route_outlined,
               Icons.route_rounded),
         const _Opcion(Rutas.paquetesGuardia, 'Paquetes',
             Icons.inventory_2_outlined, Icons.inventory_2_rounded),
-        const _Opcion(Rutas.incidentes, 'Novedades', Icons.report_outlined,
+        const _Opcion(Rutas.incidentes, 'Avisos', Icons.report_outlined,
             Icons.report_rounded),
-        const _Opcion(Rutas.misTurnos, 'Mis turnos',
+        const _Opcion(Rutas.misTurnos, 'Turnos',
             Icons.calendar_month_outlined, Icons.calendar_month_rounded),
       ];
 
