@@ -176,10 +176,15 @@ class RastreadorGuardia {
             intervalDuration: cada,
             // 0 = mandar cada intervalDuration sin importar si se movió.
             distanceFilter: 0,
+            // Android obliga a mostrar una notificación permanente mientras el
+            // foreground service está activo (si no la hay, mata el proceso a
+            // los ~30 s de bloquear pantalla). Mantenemos la mínima
+            // indispensable: nombre de la app y "Turno abierto". Antes decía
+            // "enviando tu ubicación al panel del admin" y asustaba al
+            // guardia — se sacó el 08/11/2026 a pedido de Manuel.
             foregroundNotificationConfig: const ForegroundNotificationConfig(
               notificationTitle: 'Tomass Seguridad',
-              notificationText:
-                  'Turno abierto · enviando tu ubicación al panel del admin',
+              notificationText: 'Turno abierto',
               notificationChannelName: 'Rastreo del turno',
               setOngoing: true,
               enableWakeLock: true,
