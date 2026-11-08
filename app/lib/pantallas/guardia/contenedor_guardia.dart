@@ -75,6 +75,8 @@ class _EstadoContenedorGuardia extends ConsumerState<ContenedorGuardia> {
             Icons.inventory_2_outlined, Icons.inventory_2_rounded),
         const _Opcion(Rutas.incidentes, 'Novedades', Icons.report_outlined,
             Icons.report_rounded),
+        const _Opcion(Rutas.misTurnos, 'Mis turnos',
+            Icons.calendar_month_outlined, Icons.calendar_month_rounded),
       ];
 
   int _indiceActualDe(List<_Opcion> opciones) {

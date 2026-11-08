@@ -320,16 +320,9 @@ class _VistaCalendario extends ConsumerWidget {
         ),
         const SizedBox(height: 22),
 
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text('PRÓXIMOS 30 DÍAS',
-                style: Theme.of(context).textTheme.labelSmall),
-            _ChipLeyenda(ciclo: ciclo),
-          ],
-        ),
-        const SizedBox(height: 10),
-        _Lista30Dias(ciclo: ciclo),
+        _CalendarioMensual(ciclo: ciclo),
+        const SizedBox(height: 12),
+        _Leyenda(ciclo: ciclo),
         const SizedBox(height: 18),
 
         OutlinedButton.icon(
@@ -445,44 +438,65 @@ class _TarjetaProximoTurno extends StatelessWidget {
   }
 }
 
-class _ChipLeyenda extends StatelessWidget {
-  const _ChipLeyenda({required this.ciclo});
+// ============================================================================
+// CALENDARIO MENSUAL (cuadrícula Lun-Dom tipo planilla de guardia)
+// ============================================================================
+// Los guardias ya están acostumbrados a ver su mes así: cuadrícula con las
+// semanas en filas y los días de la semana en columnas, con los días de
+// trabajo pintados. Pueden ir mes para adelante o para atrás.
+// ============================================================================
+
+class _CalendarioMensual extends StatefulWidget {
+  const _CalendarioMensual({required this.ciclo});
 
   final CicloDeTurno ciclo;
 
   @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        _puntito(Colores.verde),
-        const SizedBox(width: 4),
-        const Text('trabajo',
-            style: TextStyle(fontSize: 11, color: Colores.textoSuave)),
-        const SizedBox(width: 10),
-        _puntito(Colores.textoTenue),
-        const SizedBox(width: 4),
-        const Text('descanso',
-            style: TextStyle(fontSize: 11, color: Colores.textoSuave)),
-      ],
-    );
-  }
-
-  Widget _puntito(Color color) => Container(
-        width: 9,
-        height: 9,
-        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-      );
+  State<_CalendarioMensual> createState() => _EstadoCalendarioMensual();
 }
 
-class _Lista30Dias extends StatelessWidget {
-  const _Lista30Dias({required this.ciclo});
+class _EstadoCalendarioMensual extends State<_CalendarioMensual> {
+  late DateTime _mesMostrado;
 
-  final CicloDeTurno ciclo;
+  // Los meses en español, como los dicen todos. Se evita cargar el formatter
+  // con locale porque acá alcanza con esta lista fija.
+  static const _nombresDeMeses = [
+    'ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO',
+    'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    final hoy = DateTime.now();
+    _mesMostrado = DateTime(hoy.year, hoy.month, 1);
+  }
+
+  void _mesAnterior() {
+    setState(() {
+      _mesMostrado = DateTime(_mesMostrado.year, _mesMostrado.month - 1, 1);
+    });
+  }
+
+  void _mesSiguiente() {
+    setState(() {
+      _mesMostrado = DateTime(_mesMostrado.year, _mesMostrado.month + 1, 1);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
+    // Lunes es 1 en DateTime.weekday, entonces para que la columna 0 sea
+    // lunes restamos (weekday - 1) días al primer día del mes.
+    final primerDiaMes = DateTime(_mesMostrado.year, _mesMostrado.month, 1);
+    final primerDiaCuadricula =
+        primerDiaMes.subtract(Duration(days: primerDiaMes.weekday - 1));
+
     final hoy = DateTime.now();
-    final base = DateTime(hoy.year, hoy.month, hoy.day);
+    final hoySimple = DateTime(hoy.year, hoy.month, hoy.day);
+
+    final colorTrabajo =
+        widget.ciclo.esDeDia ? Colores.dorado : Colores.azulOscuro;
 
     return Container(
       decoration: BoxDecoration(
@@ -492,76 +506,237 @@ class _Lista30Dias extends StatelessWidget {
       ),
       child: Column(
         children: [
-          for (var i = 0; i < 30; i++)
-            _FilaDia(
-              dia: base.add(Duration(days: i)),
-              esTrabajo: ciclo.estaDeTrabajo(base.add(Duration(days: i))),
-              esHoy: i == 0,
-              esUltima: i == 29,
+          // Encabezado con el nombre del mes y las flechas para navegar
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+            child: Row(
+              children: [
+                IconButton(
+                  onPressed: _mesAnterior,
+                  icon: const Icon(Icons.chevron_left_rounded),
+                  tooltip: 'Mes anterior',
+                ),
+                Expanded(
+                  child: Center(
+                    child: Text(
+                      '${_nombresDeMeses[_mesMostrado.month - 1]} '
+                      '${_mesMostrado.year}',
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.8,
+                        color: Colores.texto,
+                      ),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: _mesSiguiente,
+                  icon: const Icon(Icons.chevron_right_rounded),
+                  tooltip: 'Mes siguiente',
+                ),
+              ],
             ),
+          ),
+
+          // Fila con los días de la semana
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            decoration: const BoxDecoration(
+              border: Border(
+                top: BorderSide(color: Colores.linea),
+                bottom: BorderSide(color: Colores.linea),
+              ),
+            ),
+            child: const Row(
+              children: [
+                _HeaderDiaSemana('Lun'),
+                _HeaderDiaSemana('Mar'),
+                _HeaderDiaSemana('Mié'),
+                _HeaderDiaSemana('Jue'),
+                _HeaderDiaSemana('Vie'),
+                _HeaderDiaSemana('Sáb'),
+                _HeaderDiaSemana('Dom'),
+              ],
+            ),
+          ),
+
+          // Las seis filas de la cuadrícula (42 celdas fijas: así el calendario
+          // no cambia de alto al pasar de mes, que si no da un saltito feo).
+          for (var semana = 0; semana < 6; semana++)
+            Row(
+              children: [
+                for (var dia = 0; dia < 7; dia++)
+                  _CeldaDelDia(
+                    fecha: primerDiaCuadricula
+                        .add(Duration(days: semana * 7 + dia)),
+                    mesMostrado: _mesMostrado.month,
+                    ciclo: widget.ciclo,
+                    colorTrabajo: colorTrabajo,
+                    esHoy: _esMismoDia(
+                      primerDiaCuadricula
+                          .add(Duration(days: semana * 7 + dia)),
+                      hoySimple,
+                    ),
+                  ),
+              ],
+            ),
+          const SizedBox(height: 6),
         ],
+      ),
+    );
+  }
+
+  static bool _esMismoDia(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+}
+
+class _HeaderDiaSemana extends StatelessWidget {
+  const _HeaderDiaSemana(this.texto);
+  final String texto;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Center(
+        child: Text(
+          texto,
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            color: Colores.textoSuave,
+            letterSpacing: 0.7,
+          ),
+        ),
       ),
     );
   }
 }
 
-class _FilaDia extends StatelessWidget {
-  const _FilaDia({
-    required this.dia,
-    required this.esTrabajo,
+class _CeldaDelDia extends StatelessWidget {
+  const _CeldaDelDia({
+    required this.fecha,
+    required this.mesMostrado,
+    required this.ciclo,
+    required this.colorTrabajo,
     required this.esHoy,
-    required this.esUltima,
   });
 
-  final DateTime dia;
-  final bool esTrabajo;
+  final DateTime fecha;
+  final int mesMostrado;
+  final CicloDeTurno ciclo;
+  final Color colorTrabajo;
   final bool esHoy;
-  final bool esUltima;
 
   @override
   Widget build(BuildContext context) {
-    final color = esTrabajo ? Colores.verde : Colores.textoTenue;
+    final esDelMes = fecha.month == mesMostrado;
+    final trabaja = ciclo.estaDeTrabajo(fecha);
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        border: esUltima
-            ? null
-            : const Border(
-                bottom: BorderSide(color: Colores.linea, width: 1),
-              ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 10,
-            height: 10,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Text(
-              esHoy
-                  ? 'HOY · ${Formato.diaCompleto(dia)}'
-                  : Formato.diaCompleto(dia),
-              style: TextStyle(
-                fontSize: 13.5,
-                fontWeight: esHoy ? FontWeight.w800 : FontWeight.w600,
-                color: Colores.texto,
-              ),
-            ),
-          ),
-          Text(
-            esTrabajo ? 'Trabajo' : 'Descanso',
+    // Los días que son del mes de al lado (para rellenar la cuadrícula) se
+    // muestran más apagados: están, pero son del mes vecino.
+    final Color colorFondo;
+    final Color colorTexto;
+
+    if (!esDelMes) {
+      colorFondo = Colores.fondo;
+      colorTexto = Colores.textoTenue;
+    } else if (trabaja) {
+      colorFondo = colorTrabajo;
+      colorTexto = Colors.white;
+    } else {
+      colorFondo = Colores.superficie;
+      colorTexto = Colores.texto;
+    }
+
+    return Expanded(
+      child: Container(
+        height: 46,
+        margin: const EdgeInsets.all(2),
+        decoration: BoxDecoration(
+          color: colorFondo,
+          borderRadius: BorderRadius.circular(8),
+          border: esHoy ? Border.all(color: Colores.rojo, width: 2) : null,
+        ),
+        child: Center(
+          child: Text(
+            '${fecha.day}',
             style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              color: color,
-              letterSpacing: 0.5,
+              fontSize: 13.5,
+              fontWeight: esHoy || trabaja ? FontWeight.w800 : FontWeight.w600,
+              color: colorTexto,
             ),
           ),
-        ],
+        ),
       ),
+    );
+  }
+}
+
+class _Leyenda extends StatelessWidget {
+  const _Leyenda({required this.ciclo});
+
+  final CicloDeTurno ciclo;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorTrabajo =
+        ciclo.esDeDia ? Colores.dorado : Colores.azulOscuro;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _ItemLeyenda(color: colorTrabajo, texto: 'Trabajás'),
+        const SizedBox(width: 18),
+        _ItemLeyenda(color: Colores.superficie, texto: 'Descansás', borde: true),
+        const SizedBox(width: 18),
+        _ItemLeyenda(color: Colores.superficie, texto: 'Hoy', bordeRojo: true),
+      ],
+    );
+  }
+}
+
+class _ItemLeyenda extends StatelessWidget {
+  const _ItemLeyenda({
+    required this.color,
+    required this.texto,
+    this.borde = false,
+    this.bordeRojo = false,
+  });
+
+  final Color color;
+  final String texto;
+  final bool borde;
+  final bool bordeRojo;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 16,
+          height: 16,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(5),
+            border: bordeRojo
+                ? Border.all(color: Colores.rojo, width: 2)
+                : borde
+                    ? Border.all(color: Colores.linea)
+                    : null,
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          texto,
+          style: const TextStyle(
+            fontSize: 12,
+            color: Colores.textoSuave,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
     );
   }
 }

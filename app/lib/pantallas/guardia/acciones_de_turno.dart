@@ -277,8 +277,6 @@ class MenuDelGuardia extends ConsumerWidget {
         switch (elegido) {
           case 'turno':
             AccionesDeTurno.cerrarTurno(context, ref);
-          case 'mis-turnos':
-            context.push(Rutas.misTurnos);
           case 'clave':
             context.push(Rutas.cambiarClave);
           case 'sesion':
@@ -327,16 +325,6 @@ class MenuDelGuardia extends ConsumerWidget {
               subtitle: Text('Cerrás el turno y salís de la app'),
             ),
           ),
-        const PopupMenuItem<String>(
-          value: 'mis-turnos',
-          child: ListTile(
-            contentPadding: EdgeInsets.zero,
-            dense: true,
-            leading: Icon(Icons.calendar_month_rounded, size: 20),
-            title: Text('Mis turnos'),
-            subtitle: Text('Mirá qué días te toca trabajar'),
-          ),
-        ),
         const PopupMenuItem<String>(
           value: 'clave',
           child: ListTile(
