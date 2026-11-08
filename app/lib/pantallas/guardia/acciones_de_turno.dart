@@ -114,18 +114,29 @@ abstract final class AccionesDeTurno {
           );
       ref.invalidate(miTurnoProvider);
     } catch (falla) {
-      // Si no se pudo cerrar el turno (sin red, error del servidor), NO
-      // cerramos sesión: el guardia se iría pensando que su turno está
-      // cerrado y los avisos seguirían saliendo a su cuenta.
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('No se pudo cerrar el turno: '
-              '${Traductor.traducir(falla).mensaje}'),
-          backgroundColor: Colores.rojo,
-        ),
-      );
-      return;
+      final mensaje = Traductor.traducir(falla).mensaje;
+
+      // Caso típico: la app tenía el turno "abierto" en caché pero en el
+      // servidor ya estaba cerrado (otro tab, otra sesión, el servidor lo
+      // cerró solo por tiempo). Si el backend nos dice que no hay turno,
+      // significa que el trabajo YA ESTÁ HECHO: refrescamos el estado y
+      // salimos al login igual. Antes esto dejaba al guardia trabado.
+      final yaEstabaCerrado = mensaje.toLowerCase().contains('ningún turno') ||
+          mensaje.toLowerCase().contains('ningun turno') ||
+          mensaje.toLowerCase().contains('sin turno');
+      if (yaEstabaCerrado) {
+        ref.invalidate(miTurnoProvider);
+      } else {
+        // Error real: no cerramos sesión para que el guardia pueda reintentar.
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('No se pudo cerrar el turno: $mensaje'),
+            backgroundColor: Colores.rojo,
+          ),
+        );
+        return;
+      }
     }
 
     // Turno cerrado OK: salimos de la app para que el relevo entre con su
@@ -206,18 +217,23 @@ abstract final class AccionesDeTurno {
             );
         ref.invalidate(miTurnoProvider);
       } catch (falla) {
-        // Si no se pudo cerrar el turno (sin red, error del servidor),
-        // NO cerramos sesión: el guardia se iría pensando que su turno
-        // está cerrado y los avisos seguirían saliendo a su cuenta.
-        if (!context.mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('No se pudo cerrar el turno: '
-                '${Traductor.traducir(falla).mensaje}'),
-            backgroundColor: Colores.rojo,
-          ),
-        );
-        return;
+        final mensaje = Traductor.traducir(falla).mensaje;
+        // Si el servidor dice que ya no hay turno, es idempotente: salimos
+        // al login igual (ver nota más abajo en cerrarTurno).
+        final yaEstabaCerrado = mensaje.toLowerCase().contains('ningún turno') ||
+            mensaje.toLowerCase().contains('ningun turno') ||
+            mensaje.toLowerCase().contains('sin turno');
+        if (!yaEstabaCerrado) {
+          if (!context.mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('No se pudo cerrar el turno: $mensaje'),
+              backgroundColor: Colores.rojo,
+            ),
+          );
+          return;
+        }
+        ref.invalidate(miTurnoProvider);
       }
 
       await ref.read(servicioSesionProvider).salir();

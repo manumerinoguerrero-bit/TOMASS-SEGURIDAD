@@ -111,12 +111,58 @@ class _EstadoRondas extends ConsumerState<PantallaRondas> {
       return; // el rastreador del turno ya se encarga de pedir el permiso
     }
 
-    // Primera lectura forzada: fresca y precisa, sin cache.
+    // 1) Fallback INSTANTÁNEO: la última posición conocida del celular, aunque
+    //    sea vieja. Es mejor que mostrar nada mientras esperamos el GPS
+    //    fresco; el chip arriba va a decir claramente que es imprecisa.
+    try {
+      final previa = await Geolocator.getLastKnownPosition();
+      if (previa != null && mounted) {
+        setState(() => _miPos = previa);
+      }
+    } catch (_) {/* seguimos */}
+
+    // 2) Primera lectura "fresca": pedimos al Fused Location Provider la
+    //    mejor que pueda darnos ahora. `accuracy: high` arranca más rápido
+    //    que `best` (no exige GPS satelital puro, acepta WiFi/cell).
+    try {
+      final p = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 15),
+        ),
+      );
+      if (mounted) {
+        setState(() => _miPos = p);
+        if (_esPosicionBuenaParaMarcar(p)) _revisarGeocercas(p);
+      }
+    } catch (_) {/* seguimos al stream */}
+
+    // 3) Stream permanente: cada ~3 m que camine el guardia llega un update.
+    _subGps = Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 3,
+      ),
+    ).listen((p) {
+      if (!mounted) return;
+      // Mostramos SIEMPRE el pin (aunque el error sea alto). El chip de arriba
+      // avisa cuánto está errando. Antes descartábamos silenciosamente las
+      // posiciones con precisión > 50 m y Manuel no veía ningún pin —
+      // parecía bug cuando en realidad era el GPS impreciso de MIUI.
+      setState(() => _miPos = p);
+      if (_esPosicionBuenaParaMarcar(p)) _revisarGeocercas(p);
+    }, onError: (_) {/* el chip pasa a "sin señal" solo */});
+  }
+
+  /// Pide al sistema operativo una posición nueva a demanda. Se llama cuando
+  /// el guardia toca el botón "Refrescar GPS" de la pantalla: sirve si llegó
+  /// al punto y la app todavía no actualizó la posición.
+  Future<void> _refrescarGps() async {
     try {
       final p = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
           accuracy: LocationAccuracy.best,
-          timeLimit: Duration(seconds: 12),
+          timeLimit: Duration(seconds: 15),
         ),
       );
       if (mounted) {
@@ -124,26 +170,15 @@ class _EstadoRondas extends ConsumerState<PantallaRondas> {
         if (_esPosicionBuenaParaMarcar(p)) _revisarGeocercas(p);
       }
     } catch (_) {
-      // Se cae al stream, no es grave.
-    }
-
-    _subGps = Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.best,
-        distanceFilter: 3, // metros: casi cualquier paso dispara un update
-      ),
-    ).listen((p) {
       if (!mounted) return;
-      // Mostramos SIEMPRE el pin (aunque el error sea alto) — así el guardia
-      // ve que la app está leyendo el GPS. El chip de arriba del mapa le dice
-      // si confiar o no. Antes descartábamos silenciosamente las posiciones
-      // con precision > 50 m y Manuel no veía ningún pin — se pensaba que la
-      // app estaba rota cuando en realidad era el GPS imperfecto de MIUI.
-      setState(() => _miPos = p);
-      if (_esPosicionBuenaParaMarcar(p)) _revisarGeocercas(p);
-    }, onError: (_) {
-      // sigue silencioso, el ValueNotifier del rastreador del turno ya avisa
-    });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No llegó una posición nueva. '
+              'Esperá unos segundos y probá otra vez.'),
+          backgroundColor: Colores.naranjaOscuro,
+        ),
+      );
+    }
   }
 
   /// Umbral para la auto-marca: si la precisión del GPS es peor que el radio
@@ -562,10 +597,8 @@ class _EstadoRondas extends ConsumerState<PantallaRondas> {
           ),
         ),
 
-        // Estado del GPS en vivo: le dice al guardia si la señal está buena,
-        // media o si todavía no agarró. Fundamental en terreno para que sepa
-        // si confiar en el pin o esperar un rato antes de caminar.
-        _ChipGps(posicion: _miPos),
+        // Estado del GPS en vivo + botón para refrescar a demanda.
+        _ChipGps(posicion: _miPos, alRefrescar: _refrescarGps),
 
         if (_problema != null) ...[
           const SizedBox(height: 8),
@@ -753,9 +786,10 @@ class _EstadoMapa extends State<_Mapa> {
 // ============================================================================
 
 class _ChipGps extends StatelessWidget {
-  const _ChipGps({required this.posicion});
+  const _ChipGps({required this.posicion, required this.alRefrescar});
 
   final Position? posicion;
+  final VoidCallback alRefrescar;
 
   @override
   Widget build(BuildContext context) {
@@ -785,7 +819,7 @@ class _ChipGps extends StatelessWidget {
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      padding: const EdgeInsets.only(left: 14, right: 6, top: 2, bottom: 2),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.08),
         border: Border(
@@ -805,6 +839,13 @@ class _ChipGps extends StatelessWidget {
                 color: color,
               ),
             ),
+          ),
+          IconButton(
+            onPressed: alRefrescar,
+            icon: const Icon(Icons.refresh_rounded, size: 20),
+            color: color,
+            tooltip: 'Forzar nueva lectura del GPS',
+            visualDensity: VisualDensity.compact,
           ),
         ],
       ),

@@ -254,11 +254,32 @@ class Traductor {
 
     // No pasó una validación de la base de datos
     if (codigo == '23514') {
+      final mensaje = falla.message.trim();
+      final esMensajeCrudo = mensaje.isEmpty ||
+          RegExp(
+            r'(violates check constraint|constraint)',
+            caseSensitive: false,
+          ).hasMatch(mensaje);
+      if (!esMensajeCrudo) {
+        return ErrorAmigable(mensaje, sePuedeReintentar: false);
+      }
       return const ErrorAmigable(
         'Alguno de los datos no es válido.',
         detalle: 'Revisá el formulario e intentá de nuevo.',
         sePuedeReintentar: false,
       );
+    }
+
+    // P0001 es "raise_exception" de plpgsql sin errcode específico. Nuestras
+    // funciones del servidor lanzan muchos mensajes ya escritos en español
+    // ("No tenés ningún turno abierto.", "Primero tocá Empezar ronda.",
+    // etc.). Antes caían al genérico "La base de datos rechazó la operación"
+    // y confundían al guardia — ahora los pasamos tal cual.
+    if (codigo == 'P0001') {
+      final mensaje = falla.message.trim();
+      if (mensaje.isNotEmpty) {
+        return ErrorAmigable(mensaje, sePuedeReintentar: false);
+      }
     }
 
     return ErrorAmigable(
