@@ -119,9 +119,9 @@ class _EstadoRondas extends ConsumerState<PantallaRondas> {
           timeLimit: Duration(seconds: 12),
         ),
       );
-      if (mounted && _esPosicionConfiable(p)) {
+      if (mounted) {
         setState(() => _miPos = p);
-        _revisarGeocercas(p);
+        if (_esPosicionBuenaParaMarcar(p)) _revisarGeocercas(p);
       }
     } catch (_) {
       // Se cae al stream, no es grave.
@@ -134,18 +134,23 @@ class _EstadoRondas extends ConsumerState<PantallaRondas> {
       ),
     ).listen((p) {
       if (!mounted) return;
-      if (!_esPosicionConfiable(p)) return;
+      // Mostramos SIEMPRE el pin (aunque el error sea alto) — así el guardia
+      // ve que la app está leyendo el GPS. El chip de arriba del mapa le dice
+      // si confiar o no. Antes descartábamos silenciosamente las posiciones
+      // con precision > 50 m y Manuel no veía ningún pin — se pensaba que la
+      // app estaba rota cuando en realidad era el GPS imperfecto de MIUI.
       setState(() => _miPos = p);
-      _revisarGeocercas(p);
+      if (_esPosicionBuenaParaMarcar(p)) _revisarGeocercas(p);
     }, onError: (_) {
       // sigue silencioso, el ValueNotifier del rastreador del turno ya avisa
     });
   }
 
-  /// Umbral de confianza: por abajo de ~50 m de error el pin sirve.
-  /// Por encima es una posición "perdida" (triangulación por torre celular,
-  /// Wi-Fi mal mapeado) y mostrarla desorienta al guardia.
-  static bool _esPosicionConfiable(Position p) => p.accuracy <= 50;
+  /// Umbral para la auto-marca: si la precisión del GPS es peor que el radio
+  /// de tolerancia del punto, no dispares la RPC — serían marcas falsas. El
+  /// pin se sigue mostrando en el mapa; lo que se bloquea es el intento de
+  /// marcar automático. Para marcar sí o sí está el botón manual.
+  static bool _esPosicionBuenaParaMarcar(Position p) => p.accuracy <= 30;
 
   // ==========================================================================
   // EL CORAZÓN: cada posición del stream dispara esta función. Revisa si el
