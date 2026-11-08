@@ -145,10 +145,14 @@ class _EstadoRondas extends ConsumerState<PantallaRondas> {
       ),
     ).listen((p) {
       if (!mounted) return;
-      // Mostramos SIEMPRE el pin (aunque el error sea alto). El chip de arriba
-      // avisa cuánto está errando. Antes descartábamos silenciosamente las
-      // posiciones con precisión > 50 m y Manuel no veía ningún pin —
-      // parecía bug cuando en realidad era el GPS impreciso de MIUI.
+      // Descartamos fixes EXTREMADAMENTE malos (precisión > 150 m): esos son
+      // el GPS tirando posiciones salvajes de triangulación celular que
+      // saltan el pin a 300 m del lugar real y confunden al guardia. Las
+      // lecturas razonables (±5 a ±100 m) se muestran igual: el chip de
+      // arriba avisa cuánto está errando. Antes de este filtro, Manuel
+      // reportaba que el pin "saltaba" mientras él no se movía — este bug
+      // se veía en terreno el 08/11/2026 con fixes de hasta 350 m.
+      if (p.accuracy > 150) return;
       setState(() => _miPos = p);
       if (_esPosicionBuenaParaMarcar(p)) _revisarGeocercas(p);
     }, onError: (_) {/* el chip pasa a "sin señal" solo */});
@@ -691,18 +695,36 @@ class _EstadoMapa extends State<_Mapa> {
   final _ctl = MapController();
   bool _primerCentrado = false;
   bool _satelital = true; // arranca en satelital — Manuel lo pidió
+  bool _siguiendo = true; // modo seguimiento auto del pin del guardia
 
   @override
   void didUpdateWidget(covariant _Mapa old) {
     super.didUpdateWidget(old);
-    // Primer centrado: cuando llega la primera posición del guardia, enfocamos
-    // el mapa en ella. Después el guardia puede mover el mapa a mano.
-    if (!_primerCentrado && widget.miPos != null) {
+    if (widget.miPos == null) return;
+
+    // Primera posición: centrar con zoom cómodo para ver el predio.
+    if (!_primerCentrado) {
       _primerCentrado = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
         _ctl.move(
           LatLng(widget.miPos!.latitude, widget.miPos!.longitude),
           17,
+        );
+      });
+      return;
+    }
+
+    // Siguientes posiciones: si está en modo seguimiento, el mapa viaja con
+    // el guardia (manteniendo el zoom que él tenga ahora). Si el guardia
+    // tocó el mapa para mover a mano, _siguiendo se apagó y el mapa se
+    // queda quieto hasta que vuelva a tocar el botón de "centrar en mí".
+    if (_siguiendo) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _ctl.move(
+          LatLng(widget.miPos!.latitude, widget.miPos!.longitude),
+          _ctl.camera.zoom,
         );
       });
     }
@@ -726,6 +748,14 @@ class _EstadoMapa extends State<_Mapa> {
             initialZoom: 17,
             minZoom: 12,
             maxZoom: 19,
+            // Si el guardia arrastra o hace pinch-zoom (hasGesture = true),
+            // apagamos el seguimiento para no pelearnos con él. Vuelve a
+            // activarse cuando toque el botón "centrar en mí" de abajo.
+            onPositionChanged: (pos, hasGesture) {
+              if (hasGesture && _siguiendo) {
+                setState(() => _siguiendo = false);
+              }
+            },
           ),
           children: [
             _tileLayer(),
@@ -772,6 +802,37 @@ class _EstadoMapa extends State<_Mapa> {
             ),
           ),
         ),
+        // Botón "centrar en mí" abajo a la derecha. Aparece cuando el guardia
+        // movió el mapa a mano y perdió su posición. Mientras está en modo
+        // seguimiento (default) no se muestra para no ocupar espacio al dope.
+        if (!_siguiendo && widget.miPos != null)
+          Positioned(
+            bottom: 8,
+            right: 8,
+            child: Material(
+              color: Colores.grafito,
+              shape: const CircleBorder(),
+              elevation: 3,
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: () {
+                  setState(() => _siguiendo = true);
+                  _ctl.move(
+                    LatLng(widget.miPos!.latitude, widget.miPos!.longitude),
+                    _ctl.camera.zoom,
+                  );
+                },
+                child: const Padding(
+                  padding: EdgeInsets.all(12),
+                  child: Icon(
+                    Icons.my_location_rounded,
+                    color: Colors.white,
+                    size: 22,
+                  ),
+                ),
+              ),
+            ),
+          ),
       ],
     );
   }
