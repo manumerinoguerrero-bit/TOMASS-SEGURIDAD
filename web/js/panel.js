@@ -429,10 +429,23 @@ async function renderMapa() {
     // Inicializar mapa si todavía no.
     if (!estado.mapa) {
       estado.mapa = L.map('mapa').setView([-33.4489, -70.6693], 12);
-      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap',
-        maxZoom: 19,
-      }).addTo(estado.mapa);
+      // Satelital de Esri con labels de calles encima. Antes usábamos OSM
+      // (tile.openstreetmap.org) pero a veces fallaba cargando los tiles y
+      // el mapa quedaba en blanco — Manuel lo reportó el 10/11/2026 al
+      // mirar el PDF de la ronda de Encomenderos. Esri es más estable y
+      // muestra la imagen aérea con los nombres de las calles arriba.
+      L.tileLayer(
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        { attribution: '© Esri', maxZoom: 19 }
+      ).addTo(estado.mapa);
+      L.tileLayer(
+        'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',
+        { maxZoom: 19 }
+      ).addTo(estado.mapa);
+      L.tileLayer(
+        'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+        { maxZoom: 19 }
+      ).addTo(estado.mapa);
     }
 
     // Limpiar markers anteriores.

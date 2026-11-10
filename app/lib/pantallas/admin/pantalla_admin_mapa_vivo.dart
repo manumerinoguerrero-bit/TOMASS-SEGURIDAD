@@ -34,6 +34,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../config/tema.dart';
 import '../../estado/proveedores_admin.dart';
 import '../../modelos/admin.dart';
+import '../../nucleo/capas_mapa.dart';
 import '../../nucleo/errores.dart';
 import '../../nucleo/formato.dart';
 import '../comunes/componentes.dart';
@@ -121,12 +122,7 @@ class _EstadoMapaVivo extends ConsumerState<PantallaAdminMapaVivo> {
                   maxZoom: 19,
                 ),
                 children: [
-                  TileLayer(
-                    urlTemplate:
-                        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                    userAgentPackageName: 'cl.tomass.tomass_seguridad',
-                    maxNativeZoom: 19,
-                  ),
+                  ...CapasMapa.satelitalConCalles(),
                   MarkerLayer(
                     markers: [
                       for (final g in conUbicacion)

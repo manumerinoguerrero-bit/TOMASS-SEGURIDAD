@@ -43,6 +43,7 @@ import 'package:latlong2/latlong.dart';
 
 import '../../config/tema.dart';
 import '../../estado/proveedores_guardia.dart';
+import '../../nucleo/capas_mapa.dart';
 import '../../modelos/guardia.dart';
 import '../../nucleo/errores.dart';
 import '../../nucleo/formato.dart';
@@ -758,7 +759,7 @@ class _EstadoMapa extends State<_Mapa> {
             },
           ),
           children: [
-            _tileLayer(),
+            ..._tileLayer(),
             ..._capas(),
           ],
         ),
@@ -837,32 +838,18 @@ class _EstadoMapa extends State<_Mapa> {
     );
   }
 
-  /// Capa de mosaicos del mapa. Dos variantes:
+  /// Capas de mosaicos del mapa. Dos variantes, elegibles con el toggle
+  /// arriba a la derecha:
   ///
-  ///   · Esri World Imagery — satelital a color de alta resolución, GRATIS
-  ///     sin API key. Cobertura mundial. Para predios chicos como la Bodega
-  ///     PY La Serena se ven los techos y hasta los autos. Es lo que pidió
-  ///     Manuel el 08/11/2026 porque OSM mostraba calles vacías sin forma
-  ///     de reconocer el predio.
+  ///   · Satélite (default): imagen aérea de Esri World Imagery + capas
+  ///     de calles y nombres encima. Se ven los techos de los edificios y
+  ///     al mismo tiempo los nombres de las calles — como la vista
+  ///     "Hybrid" de Google Maps.
   ///
-  ///   · OpenStreetMap — mapa de calles con nombres. Útil cuando el guardia
-  ///     quiere orientarse por intersecciones o cuando el satélite está mal
-  ///     alineado.
-  TileLayer _tileLayer() {
-    if (_satelital) {
-      return TileLayer(
-        urlTemplate:
-            'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-        userAgentPackageName: 'cl.tomass.tomass_seguridad',
-        maxNativeZoom: 19,
-      );
-    }
-    return TileLayer(
-      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-      userAgentPackageName: 'cl.tomass.tomass_seguridad',
-      maxNativeZoom: 19,
-    );
-  }
+  ///   · Calles: OpenStreetMap, el mapa cartográfico tradicional.
+  List<Widget> _tileLayer() => _satelital
+      ? CapasMapa.satelitalConCalles()
+      : [CapasMapa.calles()];
 
   /// Marcadores y círculos, extraídos para que _tileLayer() cambie sin
   /// tocar el resto del árbol del mapa.
