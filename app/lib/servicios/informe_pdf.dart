@@ -97,18 +97,21 @@ class InformeDeRondasPdf {
     final hasta = DateTime.now();
     final desde = hasta.subtract(Duration(days: dias));
 
-    // Mapa real con calles (Geoapify) para la hoja 2. Se pinta:
+    // Mapa satelital con calles (Mapbox) para la hoja 2. Se pinta:
     //   * cada sector con su número (grafito Tomass)
     //   * cada marcación del guardia como punto verde (cerca) o rojo (lejos)
-    // Si Geoapify no responde, mapaBytes queda null y la hoja 2 explica
-    // por qué no está el mapa, y muestra solo el plano dibujado a mano.
+    //
+    // Si Mapbox no responde, mapaBytes queda null y la hoja 2 explica
+    // por qué no está el mapa — ese "por qué" ahora viene del propio
+    // servicio con el motivo exacto (HTTP code, timeout, error de red).
     Uint8List? mapaBytes;
+    String? mapaError;
     final sectoresConUbicacion =
         sectores.where((s) => s.tieneUbicacion).toList();
     final marcasConUbicacion =
         marcas.where((m) => m.marcaLat != null && m.marcaLng != null).toList();
     if (sectoresConUbicacion.isNotEmpty) {
-      mapaBytes = await ServicioMapaEstatico.conRecorrido(
+      final resultado = await ServicioMapaEstatico.conRecorrido(
         sectores: [
           for (final s in sectoresConUbicacion)
             SectorMapa(
@@ -125,6 +128,8 @@ class InformeDeRondasPdf {
         ancho: 900,
         alto: 550,
       );
+      mapaBytes = resultado.bytes;
+      mapaError = resultado.error;
     }
 
     // ---- Hoja 1: el resumen ----
@@ -203,15 +208,31 @@ class InformeDeRondasPdf {
                     ),
                     borderRadius: pw.BorderRadius.circular(4),
                   ),
-                  child: pw.Text(
-                    'El mapa con calles no pudo cargarse desde el proveedor '
-                    'externo. Abajo queda el plano dibujado con las mismas '
-                    'coordenadas: los sectores y las marcas del guardia se '
-                    'ven igual.',
-                    style: const pw.TextStyle(
-                      fontSize: 9,
-                      color: PdfColor.fromInt(0xFF92400E),
-                    ),
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text(
+                        'El mapa satelital con calles no pudo cargarse. '
+                        'Abajo queda el plano dibujado con las mismas '
+                        'coordenadas: los sectores y las marcas del guardia '
+                        'se ven igual.',
+                        style: const pw.TextStyle(
+                          fontSize: 9,
+                          color: PdfColor.fromInt(0xFF92400E),
+                        ),
+                      ),
+                      if (mapaError != null) ...[
+                        pw.SizedBox(height: 4),
+                        pw.Text(
+                          'Motivo: $mapaError',
+                          style: pw.TextStyle(
+                            fontSize: 8,
+                            color: const PdfColor.fromInt(0xFF92400E),
+                            fontStyle: pw.FontStyle.italic,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
                 pw.SizedBox(height: 10),

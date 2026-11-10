@@ -21,6 +21,7 @@
 //   que cuenta ante el cliente.
 // ============================================================================
 
+import 'dart:async';
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 
@@ -78,19 +79,22 @@ class ServicioMapaEstatico {
   static const _colorMarcaCerca = '27ae60';     // verde: dentro de tolerancia
   static const _colorMarcaLejos = 'e74c3c';     // rojo: lejos del cartel
 
-  /// Baja un PNG con el mapa centrado en [sectores] y las [marcas] del
-  /// guardia superpuestas. Devuelve null si el servicio no responde en 10 s
-  /// o si la respuesta no es una imagen válida — el PDF debe seguir
-  /// funcionando aún sin mapa, cae al plano abstracto dibujado a mano.
+  /// Lo que devuelve `conRecorrido`: los bytes de la imagen (null si falló)
+  /// y un mensaje de diagnóstico corto cuando falló — el PDF lo muestra en
+  /// el pie del plano abstracto para que Manuel y yo sepamos qué pasó en
+  /// terreno sin tener que mirar logs con adb.
   ///
-  /// El zoom se calcula para que TODO entre en el marco (sectores + marcas).
-  static Future<Uint8List?> conRecorrido({
+  /// Si [bytes] no es null, [error] es null. Si [bytes] es null, [error]
+  /// tiene un string que explica qué falló (timeout, HTTP code, etc.).
+  static Future<({Uint8List? bytes, String? error})> conRecorrido({
     required List<SectorMapa> sectores,
     List<MarcaMapa> marcas = const [],
     int ancho = 900,
     int alto = 550,
   }) async {
-    if (sectores.isEmpty) return null;
+    if (sectores.isEmpty) {
+      return (bytes: null, error: 'sin sectores con ubicación');
+    }
 
     final centro = _centroide(sectores, marcas);
     final zoom = _zoomAdecuado(sectores, marcas);
@@ -104,11 +108,10 @@ class ServicioMapaEstatico {
     // texto, dibuja el pin vacío — por eso para números > 99 se le
     // pone un pin sin label.
     //
-    // Mapbox separa overlays con comas, al contrario de Geoapify que
-    // usaba "|".
+    // Mapbox separa overlays con comas. Los paréntesis se dejan sin
+    // codificar porque Mapbox acepta tanto `(` como `%28`.
     final overlays = [
-      for (final s in sectores)
-        _pinSector(s),
+      for (final s in sectores) _pinSector(s),
       for (final m in marcas)
         'pin-s+${m.lejos ? _colorMarcaLejos : _colorMarcaCerca}'
             '(${m.lng},${m.lat})',
@@ -125,16 +128,42 @@ class ServicioMapaEstatico {
     try {
       final resp = await http
           .get(url, headers: {'User-Agent': 'TomassSeguridad/1.0'})
-          .timeout(const Duration(seconds: 10));
+          .timeout(const Duration(seconds: 20));
 
-      if (resp.statusCode != 200) return null;
+      if (resp.statusCode != 200) {
+        // Mapbox devuelve texto plano con la razón cuando el HTTP no es
+        // 200. Lo truncamos a 120 chars para que entre en el PDF.
+        final cuerpo = resp.body.length > 120
+            ? '${resp.body.substring(0, 120)}…'
+            : resp.body;
+        return (
+          bytes: null,
+          error: 'HTTP ${resp.statusCode} de Mapbox: $cuerpo',
+        );
+      }
       final tipo = resp.headers['content-type'] ?? '';
-      if (!tipo.startsWith('image/')) return null;
-      if (resp.bodyBytes.length < 800) return null;
+      if (!tipo.startsWith('image/')) {
+        return (
+          bytes: null,
+          error: 'Mapbox devolvió $tipo en vez de una imagen',
+        );
+      }
+      if (resp.bodyBytes.length < 800) {
+        return (
+          bytes: null,
+          error: 'Mapbox devolvió solo ${resp.bodyBytes.length} bytes',
+        );
+      }
 
-      return resp.bodyBytes;
-    } catch (_) {
-      return null;
+      return (bytes: resp.bodyBytes, error: null);
+    } on TimeoutException {
+      return (bytes: null, error: 'Mapbox no respondió en 20 s');
+    } catch (e) {
+      // Cualquier otra excepción — típicamente SocketException sin red.
+      // El toString() de la excepción es más útil que un mensaje genérico.
+      final msg = e.toString();
+      final corto = msg.length > 120 ? '${msg.substring(0, 120)}…' : msg;
+      return (bytes: null, error: 'Falla de red: $corto');
     }
   }
 

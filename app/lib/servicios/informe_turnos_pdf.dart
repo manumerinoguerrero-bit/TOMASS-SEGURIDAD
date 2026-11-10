@@ -96,7 +96,7 @@ class InformeDeTurnosPdf {
             .where((m) => m.tieneGpsGuardia)
             .toList();
         if (marcasConGps.isEmpty) continue;
-        mapas[entry.key] = await ServicioMapaEstatico.conRecorrido(
+        final r = await ServicioMapaEstatico.conRecorrido(
           sectores: [
             for (var i = 0; i < marcasConGps.length; i++)
               SectorMapa(
@@ -109,6 +109,7 @@ class InformeDeTurnosPdf {
               ),
           ],
         );
+        mapas[entry.key] = r.bytes;
       }
     }
 
