@@ -70,13 +70,16 @@ class _EstadoContenedorGuardia extends ConsumerState<ContenedorGuardia> {
   List<_Opcion> _opcionesDe({required bool rondas}) => [
         const _Opcion(
             Rutas.panel, 'Inicio', Icons.home_outlined, Icons.home_rounded),
-        const _Opcion(Rutas.accesoManual, 'Anotar',
+        const _Opcion(Rutas.accesoManual, 'Ingreso',
             Icons.edit_note_outlined, Icons.edit_note_rounded),
         if (rondas)
           const _Opcion(Rutas.rondas, 'Rondas', Icons.route_outlined,
               Icons.route_rounded),
+        // Paquetes usa local_mall (bolsa) en vez de inventory_2 (caja con tapa)
+        // porque inventory_2 tiene una tapa alta que lo hacia verse mas arriba
+        // que los demas iconos en la barra. local_mall esta mejor alineado.
         const _Opcion(Rutas.paquetesGuardia, 'Paquetes',
-            Icons.inventory_2_outlined, Icons.inventory_2_rounded),
+            Icons.local_mall_outlined, Icons.local_mall_rounded),
         const _Opcion(Rutas.incidentes, 'Avisos', Icons.report_outlined,
             Icons.report_rounded),
         const _Opcion(Rutas.misTurnos, 'Turnos',

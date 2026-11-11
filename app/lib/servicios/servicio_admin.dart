@@ -994,6 +994,76 @@ class ServicioAdmin {
     }
   }
 
+  /// Baja al guardia del sistema: lo marca inactivo, le saca los accesos a
+  /// instalaciones y le cierra la sesión. CONSERVA el historial (turnos,
+  /// rondas, novedades) para informes o reclamos futuros.
+  ///
+  /// Se puede reactivar con [reactivarGuardia]. Es la opción recomendada
+  /// cuando un guardia renuncia o sale de la empresa — el borrado definitivo
+  /// solo se permite cuando no tiene historial.
+  Future<void> darDeBajaGuardia({
+    required String guardiaId,
+    String? motivo,
+  }) async {
+    try {
+      await _supabase.rpc('dar_de_baja_guardia', params: {
+        'p_guardia_id': guardiaId,
+        if (motivo != null && motivo.trim().isNotEmpty) 'p_motivo': motivo.trim(),
+      }).timeout(Entorno.esperaMaxima);
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+
+  /// Vuelve a dejar activo a un guardia que fue dado de baja. Le restaura
+  /// los accesos a todas las instalaciones; la clave la mantiene (si la
+  /// perdió, usar [cambiarClaveDeGuardia] despues).
+  Future<void> reactivarGuardia(String guardiaId) async {
+    try {
+      await _supabase.rpc('reactivar_guardia', params: {
+        'p_guardia_id': guardiaId,
+      }).timeout(Entorno.esperaMaxima);
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+
+  /// Borrado DESTRUCTIVO del guardia. El servidor solo lo permite si el
+  /// guardia NO tiene historial (ningún turno, ronda, novedad, paquete,
+  /// movimiento ni ping GPS) y si [confirmacionNombre] coincide exactamente
+  /// con el nombre registrado. Para el 99% de los casos corresponde usar
+  /// [darDeBajaGuardia], que conserva el historial.
+  Future<void> borrarGuardiaDefinitivo({
+    required String guardiaId,
+    required String confirmacionNombre,
+  }) async {
+    try {
+      await _supabase.rpc('borrar_guardia_definitivo', params: {
+        'p_guardia_id': guardiaId,
+        'p_confirmacion_nombre': confirmacionNombre,
+      }).timeout(Entorno.esperaMaxima);
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+
+  /// El administrador le pone una clave nueva al guardia (por ejemplo cuando
+  /// el guardia la olvidó y no tiene como recuperarla por email). También
+  /// cierra la sesión actual del guardia para forzar un login nuevo.
+  Future<void> cambiarClaveDeGuardia({
+    required String guardiaId,
+    required String nuevaClave,
+  }) async {
+    try {
+      await _supabase.rpc('cambiar_clave_de_guardia', params: {
+        'p_guardia_id': guardiaId,
+        'p_nueva_clave': nuevaClave,
+      }).timeout(Entorno.esperaMaxima);
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+
   // ==========================================================================
   // MAPA EN VIVO: guardias con turno abierto y su última ubicación
   // ==========================================================================

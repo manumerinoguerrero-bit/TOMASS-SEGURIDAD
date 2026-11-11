@@ -698,6 +698,7 @@ class RondaDelInforme {
     required this.completa,
     required this.marcasLejanas,
     required this.sePasoDelLimite,
+    this.garita,
     this.cerradaEn,
     this.horasDesdeLaAnterior,
     this.notas,
@@ -705,6 +706,11 @@ class RondaDelInforme {
 
   final String id;
   final String guardia;
+
+  /// Garita que cubría el guardia durante esta ronda — null si cubría todo el
+  /// condominio (caso normal en instalaciones con una sola entrada; en colegios
+  /// con 2+ garitas, el guardia elige su garita al abrir turno).
+  final String? garita;
   final DateTime inicio;
   final DateTime? cerradaEn;
   final int minutos;
@@ -730,6 +736,7 @@ class RondaDelInforme {
   factory RondaDelInforme.desdeMapa(Map<String, dynamic> m) => RondaDelInforme(
         id: m['ronda_id'] as String,
         guardia: (m['guardia'] ?? 'Sin nombre') as String,
+        garita: m['garita'] as String?,
         inicio: DateTime.parse(m['inicio'] as String),
         cerradaEn: m['cerrada_en'] == null
             ? null

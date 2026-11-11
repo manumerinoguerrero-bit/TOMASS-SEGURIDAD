@@ -272,7 +272,7 @@ class InformeDeRondasPdf {
             style: const pw.TextStyle(fontSize: 9.5, color: _Tinta.gris),
           ),
           pw.SizedBox(height: 16),
-          ..._detallePorRonda(rondas, marcas, sectores.length),
+          ..._detallePorRonda(rondas, marcas),
         ],
       ),
     );
@@ -1020,7 +1020,6 @@ class InformeDeRondasPdf {
   static List<pw.Widget> _detallePorRonda(
     List<RondaDelInforme> rondas,
     List<MarcaDelInforme> marcas,
-    int totalSectores,
   ) {
     final hojas = <pw.Widget>[];
 
@@ -1047,6 +1046,7 @@ class InformeDeRondasPdf {
                 decoration: const pw.BoxDecoration(
                     color: PdfColor.fromInt(0xFFF4F5F6)),
                 child: pw.Row(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
                     pw.Expanded(
                       child: pw.Text(
@@ -1056,8 +1056,18 @@ class InformeDeRondasPdf {
                             fontSize: 10, fontWeight: pw.FontWeight.bold),
                       ),
                     ),
-                    pw.Text(r.guardia,
-                        style: const pw.TextStyle(fontSize: 9.5, color: _Tinta.gris)),
+                    pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.end,
+                      children: [
+                        pw.Text(r.guardia,
+                            style: const pw.TextStyle(
+                                fontSize: 9.5, color: _Tinta.gris)),
+                        if (r.garita != null && r.garita!.isNotEmpty)
+                          pw.Text(r.garita!,
+                              style: const pw.TextStyle(
+                                  fontSize: 8.5, color: _Tinta.gris)),
+                      ],
+                    ),
                   ],
                 ),
               ),
@@ -1096,11 +1106,11 @@ class InformeDeRondasPdf {
                           ),
                       ],
                     ),
-                    if (suyas.length < totalSectores) ...[
+                    if (suyas.length < r.total) ...[
                       pw.SizedBox(height: 6),
                       pw.Text(
-                        'Quedaron ${totalSectores - suyas.length} '
-                        '${totalSectores - suyas.length == 1 ? "sector" : "sectores"} '
+                        'Quedaron ${r.total - suyas.length} '
+                        '${r.total - suyas.length == 1 ? "sector" : "sectores"} '
                         'sin marcar en esta ronda.',
                         style: pw.TextStyle(
                             fontSize: 8.5,

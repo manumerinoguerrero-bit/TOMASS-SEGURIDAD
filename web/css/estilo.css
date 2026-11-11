@@ -714,6 +714,108 @@ h1, h2, h3 { margin: 0; }
   background: #000;
 }
 
+/* ======================= INFORMES ======================= */
+
+.informes-wrap { padding: 4px 0; }
+.informes-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+.informe-card {
+  background: var(--superficie);
+  border: 1px solid var(--linea);
+  border-radius: 12px;
+  padding: 18px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.informe-card:hover {
+  border-color: var(--grafito);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+}
+.informe-icono { font-size: 28px; line-height: 1; }
+.informe-nombre {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--texto);
+}
+.informe-detalle {
+  font-size: 12.5px;
+  color: var(--texto-suave);
+  line-height: 1.4;
+}
+
+.informe-panel {
+  background: var(--superficie);
+  border: 1px solid var(--linea);
+  border-radius: 12px;
+  padding: 20px;
+}
+.informe-panel.oculto { display: none; }
+.informe-volver {
+  background: none;
+  border: none;
+  color: var(--grafito);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 4px 0;
+  margin-bottom: 14px;
+}
+.informe-volver:hover { text-decoration: underline; }
+
+.informe-filtros {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.informe-filtros label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--texto-suave);
+}
+.informe-filtros input,
+.informe-filtros select {
+  padding: 8px 10px;
+  border: 1px solid var(--linea);
+  border-radius: 6px;
+  font-size: 13.5px;
+}
+.informe-botones {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+.informe-vista-previa {
+  margin-top: 16px;
+  padding: 12px;
+  border-radius: 8px;
+  background: #F6F7F9;
+  font-size: 12.5px;
+  max-height: 340px;
+  overflow: auto;
+}
+
+/* Mapa escondido fuera del flujo: se usa solo para generar PNG con
+   html2canvas y mandarlo al PDF. No se muestra al usuario. */
+.mapa-oculto {
+  position: absolute;
+  left: -10000px;
+  top: 0;
+  width: 900px;
+  height: 600px;
+}
+
 /* ======================= RESPONSIVE ======================= */
 
 @media (max-width: 720px) {
@@ -724,4 +826,5 @@ h1, h2, h3 { margin: 0; }
   .mapa-grande { height: 360px; }
   .tabla { font-size: 12.5px; }
   .tabla th, .tabla td { padding: 8px 10px; }
+  .informes-grid { grid-template-columns: 1fr; }
 }

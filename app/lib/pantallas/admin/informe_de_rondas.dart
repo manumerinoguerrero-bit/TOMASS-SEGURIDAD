@@ -401,9 +401,20 @@ class _FilaRonda extends StatelessWidget {
                 ),
                 const SizedBox(width: 9),
                 Expanded(
-                  child: Text(r.guardia,
-                      style: const TextStyle(
-                          fontSize: 14.5, fontWeight: FontWeight.w700)),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(r.guardia,
+                          style: const TextStyle(
+                              fontSize: 14.5, fontWeight: FontWeight.w700)),
+                      if (r.garita != null && r.garita!.isNotEmpty)
+                        Text(r.garita!,
+                            style: const TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w500,
+                                color: Colores.textoSuave)),
+                    ],
+                  ),
                 ),
                 if (r.sigueAbierta)
                   const Etiqueta(texto: 'En curso', tono: TonoEtiqueta.espera)

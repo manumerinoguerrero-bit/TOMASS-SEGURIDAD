@@ -330,8 +330,8 @@ class _TarjetaGuardia extends StatelessWidget {
         trailing: PopupMenuButton<String>(
           icon: const Icon(Icons.more_vert_rounded),
           onSelected: (accion) => _hacer(context, accion),
-          itemBuilder: (_) => const [
-            PopupMenuItem(
+          itemBuilder: (_) => [
+            const PopupMenuItem(
               value: 'informe',
               child: ListTile(
                 contentPadding: EdgeInsets.zero,
@@ -340,14 +340,59 @@ class _TarjetaGuardia extends StatelessWidget {
                 title: Text('Descargar informe (30 días)'),
               ),
             ),
-            PopupMenuDivider(),
-            PopupMenuItem(
+            const PopupMenuDivider(),
+            const PopupMenuItem(
+              value: 'cambiar_clave',
+              child: ListTile(
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                leading: Icon(Icons.key_rounded, size: 19),
+                title: Text('Cambiar clave'),
+              ),
+            ),
+            const PopupMenuItem(
               value: 'cerrar_sesion',
               child: ListTile(
                 contentPadding: EdgeInsets.zero,
                 dense: true,
                 leading: Icon(Icons.logout_rounded, size: 19),
                 title: Text('Cerrar sesión'),
+              ),
+            ),
+            const PopupMenuDivider(),
+            if (activo)
+              const PopupMenuItem(
+                value: 'dar_de_baja',
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  leading: Icon(Icons.person_off_rounded,
+                      size: 19, color: Colores.naranja),
+                  title: Text('Dar de baja',
+                      style: TextStyle(color: Colores.naranja)),
+                ),
+              )
+            else
+              const PopupMenuItem(
+                value: 'reactivar',
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  leading: Icon(Icons.restart_alt_rounded,
+                      size: 19, color: Colores.verdeOscuro),
+                  title: Text('Reactivar',
+                      style: TextStyle(color: Colores.verdeOscuro)),
+                ),
+              ),
+            const PopupMenuItem(
+              value: 'borrar',
+              child: ListTile(
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                leading: Icon(Icons.delete_forever_rounded,
+                    size: 19, color: Colores.rojo),
+                title: Text('Borrar definitivamente',
+                    style: TextStyle(color: Colores.rojo)),
               ),
             ),
           ],
@@ -357,12 +402,23 @@ class _TarjetaGuardia extends StatelessWidget {
   }
 
   Future<void> _hacer(BuildContext context, String accion) async {
-    if (accion == 'informe') {
-      await _descargarInforme(context);
-      return;
+    switch (accion) {
+      case 'informe':
+        await _descargarInforme(context);
+      case 'cerrar_sesion':
+        await _cerrarSesion(context);
+      case 'cambiar_clave':
+        await _cambiarClave(context);
+      case 'dar_de_baja':
+        await _darDeBaja(context);
+      case 'reactivar':
+        await _reactivar(context);
+      case 'borrar':
+        await _borrarDefinitivo(context);
     }
-    if (accion != 'cerrar_sesion') return;
+  }
 
+  Future<void> _cerrarSesion(BuildContext context) async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -385,27 +441,109 @@ class _TarjetaGuardia extends StatelessWidget {
         ],
       ),
     );
-    if (ok != true) return;
+    if (ok != true || !context.mounted) return;
+    await _ejecutar(context,
+        tarea: () => ref
+            .read(servicioAdminProvider)
+            .cerrarSesionGuardia(guardia['id'] as String),
+        exito: 'Sesión de ${guardia['nombre_completo']} cerrada.');
+  }
 
+  Future<void> _cambiarClave(BuildContext context) async {
+    final nuevaClave = await showDialog<String>(
+      context: context,
+      builder: (_) => const _DialogoCambiarClave(),
+    );
+    if (nuevaClave == null || nuevaClave.isEmpty || !context.mounted) return;
+    await _ejecutar(context,
+        tarea: () => ref.read(servicioAdminProvider).cambiarClaveDeGuardia(
+              guardiaId: guardia['id'] as String,
+              nuevaClave: nuevaClave,
+            ),
+        exito:
+            'Clave de ${guardia['nombre_completo']} actualizada. Ya puede entrar con la nueva clave.');
+  }
+
+  Future<void> _darDeBaja(BuildContext context) async {
+    final motivo = await showDialog<String>(
+      context: context,
+      builder: (_) => _DialogoDarDeBaja(nombre: guardia['nombre_completo'] as String),
+    );
+    if (motivo == null || !context.mounted) return;
+    await _ejecutar(context,
+        tarea: () => ref.read(servicioAdminProvider).darDeBajaGuardia(
+              guardiaId: guardia['id'] as String,
+              motivo: motivo,
+            ),
+        exito: '${guardia['nombre_completo']} dado de baja. El historial se conserva.');
+  }
+
+  Future<void> _reactivar(BuildContext context) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Reactivar guardia'),
+        content: Text(
+          '¿Reactivar a ${guardia['nombre_completo']}?\n\n'
+          'Vuelve a estar activo y con acceso a todas las instalaciones. '
+          'Si olvidó la clave, usá "Cambiar clave" después.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Reactivar'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !context.mounted) return;
+    await _ejecutar(context,
+        tarea: () => ref
+            .read(servicioAdminProvider)
+            .reactivarGuardia(guardia['id'] as String),
+        exito: '${guardia['nombre_completo']} reactivado.');
+  }
+
+  Future<void> _borrarDefinitivo(BuildContext context) async {
+    final nombreReal = guardia['nombre_completo'] as String? ?? '';
+    final confirmado = await showDialog<String>(
+      context: context,
+      builder: (_) => _DialogoBorrarDefinitivo(nombreReal: nombreReal),
+    );
+    if (confirmado == null || confirmado.isEmpty || !context.mounted) return;
+    await _ejecutar(context,
+        tarea: () => ref.read(servicioAdminProvider).borrarGuardiaDefinitivo(
+              guardiaId: guardia['id'] as String,
+              confirmacionNombre: confirmado,
+            ),
+        exito: '$nombreReal borrado del sistema.');
+  }
+
+  Future<void> _ejecutar(BuildContext context,
+      {required Future<void> Function() tarea, required String exito}) async {
     try {
-      await ref
-          .read(servicioAdminProvider)
-          .cerrarSesionGuardia(guardia['id'] as String);
+      await tarea();
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Sesión de ${guardia['nombre_completo']} cerrada.'),
-          backgroundColor: Colores.verde,
-        ),
+        SnackBar(content: Text(exito), backgroundColor: Colores.verde),
       );
       ref.invalidate(guardiasEnVivoProvider);
       ref.invalidate(listaGuardiasProvider);
     } catch (falla) {
       if (!context.mounted) return;
+      final e = Traductor.traducir(falla);
+      final texto = e.detalle != null && e.detalle!.isNotEmpty
+          ? '${e.mensaje}\n${e.detalle}'
+          : e.mensaje;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(Traductor.traducir(falla).mensaje),
+          content: Text(texto),
           backgroundColor: Colores.rojo,
+          duration: const Duration(seconds: 7),
         ),
       );
     }
@@ -694,6 +832,275 @@ class _EstadoFormulario extends ConsumerState<_FormularioGuardia> {
           ),
         ),
       ),
+    );
+  }
+}
+
+// ============================================================================
+// DIÁLOGO: cambiar la clave de un guardia
+// ============================================================================
+// El admin tipea una clave nueva. Si tiene al menos 6 caracteres, confirma;
+// después el guardia va a tener que entrar con esa clave. Útil cuando un
+// guardia pierde su clave y no puede recuperarla por email.
+// ============================================================================
+
+class _DialogoCambiarClave extends StatefulWidget {
+  const _DialogoCambiarClave();
+
+  @override
+  State<_DialogoCambiarClave> createState() => _EstadoDialogoCambiarClave();
+}
+
+class _EstadoDialogoCambiarClave extends State<_DialogoCambiarClave> {
+  final _controlador = TextEditingController();
+  bool _mostrar = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _controlador.dispose();
+    super.dispose();
+  }
+
+  void _confirmar() {
+    final valor = _controlador.text.trim();
+    if (valor.length < 6) {
+      setState(() => _error = 'Al menos 6 caracteres.');
+      return;
+    }
+    Navigator.pop(context, valor);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Cambiar clave del guardia'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'La nueva clave reemplaza a la actual. Se cierra la sesión y el '
+            'guardia va a tener que entrar con esta nueva clave.',
+            style: TextStyle(fontSize: 12.5, color: Colores.textoSuave),
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            controller: _controlador,
+            obscureText: !_mostrar,
+            autofocus: true,
+            decoration: InputDecoration(
+              labelText: 'Clave nueva',
+              errorText: _error,
+              suffixIcon: IconButton(
+                icon: Icon(_mostrar
+                    ? Icons.visibility_off_outlined
+                    : Icons.visibility_outlined),
+                onPressed: () => setState(() => _mostrar = !_mostrar),
+              ),
+            ),
+            onSubmitted: (_) => _confirmar(),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: _confirmar,
+          child: const Text('Cambiar clave'),
+        ),
+      ],
+    );
+  }
+}
+
+// ============================================================================
+// DIÁLOGO: dar de baja (soft delete)
+// ============================================================================
+// El admin anota un motivo (opcional). El guardia queda inactivo pero su
+// historial se conserva, y puede reactivarse después.
+// ============================================================================
+
+class _DialogoDarDeBaja extends StatefulWidget {
+  const _DialogoDarDeBaja({required this.nombre});
+  final String nombre;
+
+  @override
+  State<_DialogoDarDeBaja> createState() => _EstadoDialogoDarDeBaja();
+}
+
+class _EstadoDialogoDarDeBaja extends State<_DialogoDarDeBaja> {
+  final _controlador = TextEditingController();
+  String? _motivoElegido;
+
+  @override
+  void dispose() {
+    _controlador.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text('Dar de baja a ${widget.nombre}'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'El guardia queda inactivo y no puede abrir turnos. Se conservan '
+            'sus turnos, novedades y rondas para informes futuros. Se puede '
+            'reactivar más adelante.',
+            style: TextStyle(fontSize: 12.5, color: Colores.textoSuave),
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            children: [
+              for (final m in const ['Renuncia', 'Despido', 'Fin de contrato'])
+                ChoiceChip(
+                  label: Text(m),
+                  selected: _motivoElegido == m,
+                  onSelected: (_) {
+                    setState(() {
+                      _motivoElegido = m;
+                      _controlador.text = m;
+                    });
+                  },
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _controlador,
+            decoration: const InputDecoration(
+              labelText: 'Motivo (opcional)',
+              hintText: 'Ej: Renuncia voluntaria',
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: Colores.naranja),
+          onPressed: () => Navigator.pop(context, _controlador.text.trim()),
+          child: const Text('Dar de baja'),
+        ),
+      ],
+    );
+  }
+}
+
+// ============================================================================
+// DIÁLOGO: borrar definitivamente (destructivo)
+// ============================================================================
+// Exige que el admin escriba el nombre COMPLETO del guardia tal como aparece
+// en la ficha. El servidor además valida que no tenga historial — si tiene
+// aunque sea 1 turno, rechaza el borrado y sugiere "Dar de baja". El admin
+// recibe ese error como un snackbar rojo si lo intenta.
+// ============================================================================
+
+class _DialogoBorrarDefinitivo extends StatefulWidget {
+  const _DialogoBorrarDefinitivo({required this.nombreReal});
+  final String nombreReal;
+
+  @override
+  State<_DialogoBorrarDefinitivo> createState() =>
+      _EstadoDialogoBorrarDefinitivo();
+}
+
+class _EstadoDialogoBorrarDefinitivo
+    extends State<_DialogoBorrarDefinitivo> {
+  final _controlador = TextEditingController();
+  String? _error;
+
+  @override
+  void dispose() {
+    _controlador.dispose();
+    super.dispose();
+  }
+
+  void _confirmar() {
+    final tipeado = _controlador.text.trim();
+    if (tipeado.toLowerCase() != widget.nombreReal.trim().toLowerCase()) {
+      setState(() => _error = 'El nombre no coincide.');
+      return;
+    }
+    Navigator.pop(context, tipeado);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Borrar definitivamente'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colores.rojo.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colores.rojo.withValues(alpha: 0.3)),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.warning_amber_rounded, color: Colores.rojo, size: 20),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Esto borra la cuenta y la vuelve inaccesible. Solo se '
+                    'permite si el guardia NO tiene historial (turnos, rondas, '
+                    'paquetes). En otro caso, usá "Dar de baja".',
+                    style: TextStyle(fontSize: 12, color: Colores.rojo),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            'Para confirmar, escribí el nombre completo del guardia:',
+            style: TextStyle(fontSize: 12.5, color: Colores.textoSuave),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            widget.nombreReal,
+            style: const TextStyle(
+                fontSize: 13.5, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _controlador,
+            autofocus: true,
+            decoration: InputDecoration(
+              labelText: 'Nombre completo',
+              errorText: _error,
+            ),
+            onSubmitted: (_) => _confirmar(),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: Colores.rojo),
+          onPressed: _confirmar,
+          child: const Text('Borrar para siempre'),
+        ),
+      ],
     );
   }
 }

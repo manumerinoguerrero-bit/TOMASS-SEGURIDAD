@@ -83,4 +83,94 @@ const api = {
     await supabaseClient.auth.signOut();
     window.location.replace('index.html');
   },
+
+  // ========================================================================
+  // INFORMES
+  // ========================================================================
+
+  async garitasDelCondominio(condominioId) {
+    const { data, error } = await supabaseClient.rpc('web_garitas_del_condominio', {
+      p_condominio_id: condominioId,
+    });
+    if (error) throw error;
+    return data || [];
+  },
+
+  async guardiasDelCondominio(condominioId) {
+    const { data, error } = await supabaseClient.rpc('web_guardias_del_condominio', {
+      p_condominio_id: condominioId,
+    });
+    if (error) throw error;
+    return data || [];
+  },
+
+  async puntosDeControl({ condominioId, garitaId = null }) {
+    const { data, error } = await supabaseClient.rpc('web_puntos_de_control', {
+      p_condominio_id: condominioId,
+      p_garita_id: garitaId,
+    });
+    if (error) throw error;
+    return data || [];
+  },
+
+  async informeDeRondas({ condominioId, desde, hasta, guardiaId = null, garitaId = null }) {
+    const { data, error } = await supabaseClient.rpc('web_informe_de_rondas', {
+      p_condominio_id: condominioId,
+      p_desde: desde,
+      p_hasta: hasta,
+      p_guardia_id: guardiaId,
+      p_garita_id: garitaId,
+    });
+    if (error) throw error;
+    return data || [];
+  },
+
+  async detalleDeRondas({ condominioId, desde, hasta, guardiaId = null, garitaId = null }) {
+    const { data, error } = await supabaseClient.rpc('web_detalle_de_rondas', {
+      p_condominio_id: condominioId,
+      p_desde: desde,
+      p_hasta: hasta,
+      p_guardia_id: guardiaId,
+      p_garita_id: garitaId,
+    });
+    if (error) throw error;
+    return data || [];
+  },
+
+  async turnosDelCondominio({ condominioId, desde, hasta }) {
+    const { data, error } = await supabaseClient.rpc('web_turnos_del_condominio', {
+      p_condominio_id: condominioId,
+      p_desde: desde,
+      p_hasta: hasta,
+    });
+    if (error) throw error;
+    return data || [];
+  },
+
+  async recorridoGpsTurno(turnoId) {
+    const { data, error } = await supabaseClient.rpc('web_recorrido_gps_turno', {
+      p_turno_id: turnoId,
+    });
+    if (error) throw error;
+    return data || [];
+  },
+
+  async resumenDelPeriodo({ desde, hasta, condominioId = null }) {
+    const { data, error } = await supabaseClient.rpc('web_resumen_del_periodo', {
+      p_desde: desde,
+      p_hasta: hasta,
+      p_condominio_id: condominioId,
+    });
+    if (error) throw error;
+    return data || [];
+  },
+
+  async paquetesAtrasados({ diasUmbral = 7, condominioId = null }) {
+    const { data, error } = await supabaseClient.rpc('web_paquetes_pendientes_atrasados', {
+      p_dias_umbral: diasUmbral,
+      p_condominio_id: condominioId,
+    });
+    if (error) throw error;
+    return data || [];
+  },
 };

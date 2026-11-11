@@ -28,7 +28,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:printing/printing.dart';
-import 'package:qr_flutter/qr_flutter.dart';
+// qr_flutter se sacó el 11/11/2026 junto con el QR del cartel: las rondas
+// ahora se marcan por GPS. La dependencia queda en pubspec.yaml por si se
+// quiere revivir, pero no se importa.
 
 import '../../config/tema.dart';
 import '../../estado/proveedores.dart';
@@ -868,8 +870,8 @@ class _Sector extends StatelessWidget {
               child: ListTile(
                 contentPadding: EdgeInsets.zero,
                 dense: true,
-                leading: Icon(Icons.qr_code_2_rounded, size: 19),
-                title: Text('Ver el cartel'),
+                leading: Icon(Icons.gps_fixed_rounded, size: 19),
+                title: Text('Ver cartel e imprimir'),
               ),
             ),
             PopupMenuItem(
@@ -950,26 +952,49 @@ class _Sector extends StatelessWidget {
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: 4),
-              const Text('Cartel del sector',
+              const Text('Cartel del sector · marcaje por GPS',
                   style: TextStyle(fontSize: 12.5, color: Colores.textoSuave)),
               const SizedBox(height: 18),
 
-              // El código, bien grande y sobre blanco: así se puede fotografiar
-              // desde otra pantalla si hace falta imprimirlo de apuro.
+              // Panel grande que reemplaza al QR. El guardia no escanea nada:
+              // al acercarse al sector, el GPS del teléfono lo detecta.
               Container(
-                padding: const EdgeInsets.all(18),
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 24, vertical: 28),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(Medidas.redondeo),
                   border: Border.all(color: Colores.linea),
                 ),
-                child: QrImageView(
-                  data: punto.codigoQr,
-                  size: 220,
-                  // El nivel más alto de resistencia a la suciedad: estos
-                  // carteles viven a la intemperie.
-                  errorCorrectionLevel: QrErrorCorrectLevel.H,
-                  backgroundColor: Colors.white,
+                child: Column(
+                  children: [
+                    Icon(Icons.gps_fixed_rounded,
+                        size: 72, color: Colores.grafito),
+                    const SizedBox(height: 10),
+                    const Text('MARCAJE POR GPS',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 2.5,
+                          color: Colores.grafito,
+                        )),
+                    const SizedBox(height: 6),
+                    Text(
+                      punto.tieneUbicacion
+                          ? 'Radio de tolerancia: ${punto.metrosDeTolerancia} m'
+                          : 'Ubicación pendiente de tomar',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        color: punto.tieneUbicacion
+                            ? Colores.textoSuave
+                            : Colores.naranjaOscuro,
+                        fontWeight: punto.tieneUbicacion
+                            ? FontWeight.normal
+                            : FontWeight.w700,
+                      ),
+                    ),
+                  ],
                 ),
               ),
 
@@ -977,8 +1002,7 @@ class _Sector extends StatelessWidget {
               if (punto.tieneUbicacion)
                 Text(
                   'Ubicación tomada'
-                  '${punto.ubicacionTomadaEn == null ? "" : " el ${Formato.fecha(punto.ubicacionTomadaEn!)}"}'
-                  ' · tolerancia ${punto.metrosDeTolerancia} m',
+                  '${punto.ubicacionTomadaEn == null ? "" : " el ${Formato.fecha(punto.ubicacionTomadaEn!)}"}',
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                       fontSize: 12, color: Colores.verdeOscuro),
@@ -1008,6 +1032,7 @@ class _Sector extends StatelessWidget {
                           sector: punto.nombre,
                           codigoQr: punto.codigoQr,
                           tieneUbicacion: punto.tieneUbicacion,
+                          metrosDeTolerancia: punto.metrosDeTolerancia,
                         ),
                       );
                     } catch (_) {
@@ -1034,16 +1059,28 @@ class _Sector extends StatelessWidget {
                 width: double.infinity,
                 child: OutlinedButton.icon(
                   onPressed: () {
-                    Clipboard.setData(ClipboardData(text: punto.codigoQr));
+                    if (!punto.tieneUbicacion) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Primero tomá la ubicación del sector.'),
+                          backgroundColor: Colores.naranja,
+                        ),
+                      );
+                      return;
+                    }
+                    final coords =
+                        '${punto.latitud!.toStringAsFixed(6)}, '
+                        '${punto.longitud!.toStringAsFixed(6)}';
+                    Clipboard.setData(ClipboardData(text: coords));
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Código copiado.'),
+                      SnackBar(
+                        content: Text('Coordenadas copiadas: $coords'),
                         backgroundColor: Colores.grafito,
                       ),
                     );
                   },
-                  icon: const Icon(Icons.copy_rounded, size: 18),
-                  label: const Text('Copiar código'),
+                  icon: const Icon(Icons.gps_fixed_rounded, size: 18),
+                  label: const Text('Copiar coordenadas GPS'),
                   style: OutlinedButton.styleFrom(
                     minimumSize: const Size(0, Medidas.altoBoton),
                   ),

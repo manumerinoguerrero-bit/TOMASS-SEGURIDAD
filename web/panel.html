@@ -35,6 +35,7 @@
     <button class="pestana" data-tab="novedades">Novedades</button>
     <button class="pestana" data-tab="paquetes">Paquetes</button>
     <button class="pestana" data-tab="mapa">Guardias en vivo</button>
+    <button class="pestana" data-tab="informes">Informes</button>
   </nav>
 
   <!-- ======================= CUERPO ======================= -->
@@ -151,6 +152,58 @@
         <div class="cargando">Cargando guardias de turno…</div>
       </div>
     </section>
+
+    <!-- INFORMES -->
+    <section class="vista oculta" data-vista="informes">
+      <div class="informes-wrap">
+        <!-- Catálogo de informes disponibles. Cada card abre su propio
+             panel de filtros al clickearse. -->
+        <div class="informes-grid" id="informesGrid">
+          <button class="informe-card" data-informe="rondas">
+            <div class="informe-icono">🗺</div>
+            <div class="informe-nombre">Informe de rondas</div>
+            <div class="informe-detalle">Con mapa satelital de los puntos y las marcaciones del guardia.</div>
+          </button>
+          <button class="informe-card" data-informe="resumen-mensual">
+            <div class="informe-icono">📊</div>
+            <div class="informe-nombre">Resumen mensual consolidado</div>
+            <div class="informe-detalle">Turnos, horas, rondas, novedades, paquetes por cada instalación.</div>
+          </button>
+          <button class="informe-card" data-informe="recorrido-turno">
+            <div class="informe-icono">📍</div>
+            <div class="informe-nombre">Mapa de recorrido del turno</div>
+            <div class="informe-detalle">El rastro GPS completo del guardia dibujado sobre satelital.</div>
+          </button>
+          <button class="informe-card" data-informe="novedades-pdf">
+            <div class="informe-icono">⚠️</div>
+            <div class="informe-nombre">Novedades con fotos</div>
+            <div class="informe-detalle">Listado filtrable de incidentes con foto y descripción.</div>
+          </button>
+          <button class="informe-card" data-informe="movimientos">
+            <div class="informe-icono">🚪</div>
+            <div class="informe-nombre">Movimientos de acceso</div>
+            <div class="informe-detalle">Entradas y salidas de personas y vehículos en el período.</div>
+          </button>
+          <button class="informe-card" data-informe="paquetes-atrasados">
+            <div class="informe-icono">📦</div>
+            <div class="informe-nombre">Paquetes atrasados</div>
+            <div class="informe-detalle">Paquetes recibidos hace más de N días sin retirar por el residente.</div>
+          </button>
+          <button class="informe-card" data-informe="comparativa">
+            <div class="informe-icono">📈</div>
+            <div class="informe-nombre">Comparativa entre instalaciones</div>
+            <div class="informe-detalle">Benchmarks por instalación: rondas, horas, novedades, pendientes.</div>
+          </button>
+        </div>
+
+        <!-- Panel de filtros del informe elegido. Se dibuja via JS. -->
+        <div class="informe-panel oculto" id="informePanel">
+          <button class="informe-volver" id="informeVolver">← Volver al catálogo</button>
+          <div id="informePanelContenido"></div>
+        </div>
+      </div>
+      <div id="informeMapaOculto" class="mapa-oculto"></div>
+    </section>
   </main>
 
   <!-- Modal de detalle de novedad -->
@@ -165,10 +218,14 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+  <!-- html2canvas: captura el mapa Leaflet como PNG para incrustarlo en el PDF.
+       Sin esto los PDFs con mapa salen en blanco. -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="js/config.js"></script>
   <script src="js/api.js"></script>
   <script src="js/csv.js"></script>
   <script src="js/pdf.js"></script>
+  <script src="js/informes.js"></script>
   <script src="js/panel.js"></script>
 </body>
 </html>

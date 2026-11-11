@@ -13,17 +13,17 @@
 //   para imprimirlo más tarde: las tres opciones las da el mismo diálogo del
 //   sistema operativo (ver Printing.layoutPdf en pantalla_admin_sectores.dart).
 //
-// POR QUÉ EL CÓDIGO QR SE DIBUJA COMO LÍNEAS Y NO COMO UNA FOTO
+// MARCAJE POR GPS, NO MÁS QR
 //
-//   Un dibujo de líneas (vectorial) sale nítido en cualquier tamaño, desde una
-//   hoja carta hasta un cartel ampliado en una imprenta. Una foto se pixela al
-//   agrandarla. Es la misma razón por la que herramientas/generar_carteles.dart
-//   dibuja sus QR como SVG en vez de como imagen.
+//   El 11/11/2026 se eliminó el QR del cartel: las rondas se marcan por GPS
+//   al acercarse al sector (radio de tolerancia configurable). El cartel
+//   ahora identifica el sector solamente y recuerda al guardia que la marca
+//   es automática. Los carteles viejos con QR pegados en los sectores pueden
+//   seguir ahí mientras tanto — el QR ya no se usa pero no molesta.
 // ============================================================================
 
 import 'dart:typed_data';
 
-import 'package:barcode/barcode.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -42,11 +42,15 @@ class _Tinta {
 
 class CartelDeSectorPdf {
   /// Arma el cartel de un sector, listo para imprimir o guardar.
+  ///
+  /// [codigoQr] se mantiene en la firma por compatibilidad con los callers,
+  /// pero ya no se dibuja en el PDF: las rondas se marcan por GPS.
   static Future<Uint8List> armar({
     required String instalacion,
     required String sector,
     required String codigoQr,
     required bool tieneUbicacion,
+    int metrosDeTolerancia = 20,
   }) async {
     final doc = pw.Document(
       title: 'Cartel de sector — $sector',
@@ -81,54 +85,87 @@ class CartelDeSectorPdf {
                         sector,
                         textAlign: pw.TextAlign.center,
                         style: pw.TextStyle(
-                          fontSize: 30,
+                          fontSize: 32,
                           fontWeight: pw.FontWeight.bold,
                           color: _Tinta.grafito,
                         ),
                       ),
                     ),
-                    pw.SizedBox(height: 30),
+                    pw.SizedBox(height: 36),
+                    // Sello grande "MARCAJE POR GPS" en reemplazo del QR.
+                    // El guardia no escanea nada: con acercarse al sector, la
+                    // app lo detecta por el GPS del teléfono.
                     pw.Container(
-                      padding: const pw.EdgeInsets.all(18),
+                      padding: const pw.EdgeInsets.symmetric(
+                          horizontal: 40, vertical: 30),
                       decoration: pw.BoxDecoration(
                         color: _Tinta.blanco,
                         border: pw.Border.all(color: _Tinta.grafito, width: 1.4),
+                        borderRadius: pw.BorderRadius.circular(10),
                       ),
-                      // El nivel más alto de resistencia a la suciedad: este
-                      // cartel va a vivir a la intemperie, con polvo, sol y
-                      // manos sucias.
-                      child: pw.BarcodeWidget(
-                        data: codigoQr,
-                        barcode: Barcode.qrCode(
-                            errorCorrectLevel: BarcodeQRCorrectionLevel.high),
-                        drawText: false,
-                        width: 230,
-                        height: 230,
+                      child: pw.Column(
+                        children: [
+                          pw.Text('📍',
+                              style: const pw.TextStyle(fontSize: 64)),
+                          pw.SizedBox(height: 10),
+                          pw.Text('MARCAJE POR GPS',
+                              style: pw.TextStyle(
+                                fontSize: 18,
+                                fontWeight: pw.FontWeight.bold,
+                                letterSpacing: 2.5,
+                                color: _Tinta.grafito,
+                              )),
+                          pw.SizedBox(height: 6),
+                          pw.Text(
+                            tieneUbicacion
+                                ? 'Radio de tolerancia: $metrosDeTolerancia m'
+                                : 'Ubicación pendiente de tomar',
+                            style: pw.TextStyle(
+                              fontSize: 10,
+                              color: tieneUbicacion
+                                  ? _Tinta.gris
+                                  : _Tinta.naranja,
+                              fontWeight: tieneUbicacion
+                                  ? pw.FontWeight.normal
+                                  : pw.FontWeight.bold,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    pw.SizedBox(height: 26),
+                    pw.SizedBox(height: 24),
                     pw.Padding(
-                      padding: const pw.EdgeInsets.symmetric(horizontal: 60),
+                      padding: const pw.EdgeInsets.symmetric(horizontal: 50),
                       child: pw.Text(
-                        'El guardia escanea este código al pasar por acá '
-                        'durante la ronda.',
+                        'El guardia no necesita escanear nada. Al acercarse '
+                        'a este sector durante la ronda, la app lo detecta '
+                        'automáticamente por GPS y registra la marca con '
+                        'fecha, hora y ubicación.',
                         textAlign: pw.TextAlign.center,
-                        style: const pw.TextStyle(fontSize: 10, color: _Tinta.gris),
+                        style: const pw.TextStyle(
+                          fontSize: 10,
+                          color: _Tinta.gris,
+                          lineSpacing: 2.5,
+                        ),
                       ),
                     ),
                     if (!tieneUbicacion) ...[
-                      pw.SizedBox(height: 18),
+                      pw.SizedBox(height: 20),
                       pw.Container(
-                        padding:
-                            const pw.EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        padding: const pw.EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
                         decoration: pw.BoxDecoration(
                           color: _Tinta.naranjaFondo,
-                          border: pw.Border.all(color: _Tinta.naranja, width: 0.8),
+                          border: pw.Border.all(
+                              color: _Tinta.naranja, width: 0.8),
                         ),
                         child: pw.Text(
-                          'Este sector todavía no tiene ubicación tomada.',
+                          'Este sector todavía no tiene ubicación tomada. '
+                          'El guardia no va a poder marcarlo hasta que el '
+                          'admin pase y la cargue.',
                           style: pw.TextStyle(
-                              fontSize: 9, fontWeight: pw.FontWeight.bold,
+                              fontSize: 9,
+                              fontWeight: pw.FontWeight.bold,
                               color: _Tinta.naranja),
                         ),
                       ),
@@ -137,7 +174,7 @@ class CartelDeSectorPdf {
                 ),
               ),
             ),
-            _pie(codigoQr),
+            _pie(),
           ],
         ),
       ),
@@ -181,7 +218,7 @@ class CartelDeSectorPdf {
     );
   }
 
-  static pw.Widget _pie(String codigoQr) => pw.Padding(
+  static pw.Widget _pie() => pw.Padding(
         padding: const pw.EdgeInsets.fromLTRB(24, 0, 24, 16),
         child: pw.Row(
           mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
@@ -190,7 +227,7 @@ class CartelDeSectorPdf {
               'Generado el ${Formato.fechaYHora(DateTime.now())}',
               style: const pw.TextStyle(fontSize: 7, color: _Tinta.gris),
             ),
-            pw.Text(codigoQr,
+            pw.Text('Tomass Seguridad Privada',
                 style: const pw.TextStyle(fontSize: 7, color: _Tinta.gris)),
           ],
         ),

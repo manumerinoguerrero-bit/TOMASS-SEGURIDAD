@@ -99,6 +99,11 @@ const estado = {
   document.getElementById('btnPdfPaquetes').addEventListener('click',
     descargarPdfPaquetes);
 
+  // Informes: catalogo de PDFs. Lo cablea una sola vez al cargar — cada
+  // card abre su propio panel de filtros al clickearse, y el boton Volver
+  // vuelve al catalogo.
+  iniciarInformes();
+
   // Vista inicial.
   await renderResumen();
 })();
@@ -158,6 +163,19 @@ function renderVistaActiva() {
   if (t === 'novedades') return renderNovedades();
   if (t === 'paquetes') return renderPaquetes();
   if (t === 'mapa') return renderMapa();
+  if (t === 'informes') return renderInformes();
+}
+
+// Volvemos al catalogo de informes cada vez que se abre la pestaña,
+// para no dejar un panel abierto con filtros obsoletos.
+function renderInformes() {
+  const grid = document.getElementById('informesGrid');
+  const panel = document.getElementById('informePanel');
+  if (grid && grid.classList.contains('oculto') && panel) {
+    panel.classList.add('oculto');
+    grid.classList.remove('oculto');
+    document.getElementById('informePanelContenido').innerHTML = '';
+  }
 }
 
 // ============================================================================
