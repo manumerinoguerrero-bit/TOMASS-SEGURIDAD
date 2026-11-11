@@ -23,6 +23,7 @@ class ErrorAmigable implements Exception {
     this.detalle,
     this.sePuedeReintentar = true,
     this.hayQueIniciarSesion = false,
+    this.causa,
   });
 
   /// La frase principal. Corta y clara.
@@ -36,6 +37,11 @@ class ErrorAmigable implements Exception {
 
   /// Si es true, hay que mandar a la persona a la pantalla de login.
   final bool hayQueIniciarSesion;
+
+  /// La falla original, sin traducir. Sirve para que la cola offline sepa
+  /// si detrás de este aviso en español había un problema de red (por
+  /// ejemplo una SocketException que ServicioFotos.subir ya tradujo).
+  final Object? causa;
 
   @override
   String toString() => detalle == null ? mensaje : '$mensaje $detalle';
@@ -51,23 +57,26 @@ class Traductor {
 
     // ---- Problemas de red -------------------------------------------------
     if (falla is SocketException) {
-      return const ErrorAmigable(
+      return ErrorAmigable(
         'Sin conexión a internet.',
         detalle: 'Revisá el wifi o los datos del celular e intentá de nuevo.',
+        causa: falla,
       );
     }
 
     if (falla is TimeoutException) {
-      return const ErrorAmigable(
+      return ErrorAmigable(
         'El servidor no responde.',
         detalle: 'Puede ser tu conexión. Intentá de nuevo en unos segundos.',
+        causa: falla,
       );
     }
 
     if (falla is HandshakeException || falla is TlsException) {
-      return const ErrorAmigable(
+      return ErrorAmigable(
         'No se pudo establecer una conexión segura.',
         detalle: 'Si estás en una red pública, probá con los datos del celular.',
+        causa: falla,
       );
     }
 
@@ -121,9 +130,10 @@ class Traductor {
     }
 
     // ---- Cualquier otra cosa ----------------------------------------------
-    return const ErrorAmigable(
+    return ErrorAmigable(
       'Algo no funcionó como esperábamos.',
       detalle: 'Intentá de nuevo. Si sigue pasando, avisale a la administración.',
+      causa: falla,
     );
   }
 

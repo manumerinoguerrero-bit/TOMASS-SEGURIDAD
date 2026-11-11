@@ -25,6 +25,8 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
+import '../nucleo/errores.dart';
+
 class ColaOffline {
   ColaOffline._(this._db);
 
@@ -53,7 +55,7 @@ class ColaOffline {
     final ruta = p.join(dir, 'cola_offline.db');
     final db = await openDatabase(
       ruta,
-      version: 2,
+      version: 3,
       onCreate: (db, _) async {
         await db.execute('''
           CREATE TABLE pendientes (
@@ -64,7 +66,10 @@ class ColaOffline {
             archivos TEXT,
             creada_en TEXT NOT NULL,
             intentos INTEGER NOT NULL DEFAULT 0,
-            ultimo_error TEXT
+            ultimo_error TEXT,
+            usuario_id TEXT,
+            estado TEXT NOT NULL DEFAULT 'pendiente',
+            proximo_intento TEXT
           )
         ''');
         await db.execute(
@@ -75,6 +80,17 @@ class ColaOffline {
         // acompañan a entregarPaquete y reportarIncidente offline.
         if (oldVersion < 2) {
           await db.execute('ALTER TABLE pendientes ADD COLUMN archivos TEXT');
+        }
+        // v2 → v3: dueño de la op (para no enviar lo del guardia de día con
+        // la sesión del de noche), estado (pendiente / rechazada) y espera
+        // entre reintentos. Las filas viejas quedan con usuario_id NULL y
+        // estado 'pendiente' por el default.
+        if (oldVersion < 3) {
+          await db.execute('ALTER TABLE pendientes ADD COLUMN usuario_id TEXT');
+          await db.execute(
+              "ALTER TABLE pendientes ADD COLUMN estado TEXT NOT NULL DEFAULT 'pendiente'");
+          await db.execute(
+              'ALTER TABLE pendientes ADD COLUMN proximo_intento TEXT');
         }
       },
     );
@@ -116,6 +132,7 @@ class ColaOffline {
     required String idLocal,
     required String tipo,
     required Map<String, dynamic> params,
+    required String usuarioId,
     Map<String, File> archivos = const {},
   }) async {
     final rutasGuardadas = <String, String>{};
@@ -137,30 +154,53 @@ class ColaOffline {
         'params': jsonEncode(params),
         'archivos': rutasGuardadas.isEmpty ? null : jsonEncode(rutasGuardadas),
         'creada_en': DateTime.now().toUtc().toIso8601String(),
+        'usuario_id': usuarioId,
       },
       conflictAlgorithm: ConflictAlgorithm.ignore,
     );
     _conteoCtrl.add(await conteo());
   }
 
-  Future<List<OperacionPendiente>> pendientes({int limite = 50}) async {
+  /// Ops listas para enviar del usuario indicado, en el orden en que se
+  /// encolaron (por `id` autoincrement, no por reloj). Se saltean las que
+  /// están esperando su próximo reintento y las rechazadas. Las filas viejas
+  /// sin dueño (usuario_id NULL, anteriores a la v3) se incluyen para no
+  /// dejarlas huérfanas.
+  Future<List<OperacionPendiente>> pendientes({
+    required String usuarioId,
+    int limite = 200,
+  }) async {
+    final ahora = DateTime.now().toUtc().toIso8601String();
     final filas = await _db.query(
       'pendientes',
-      orderBy: 'creada_en ASC',
+      where: "estado = 'pendiente' "
+          'AND (usuario_id = ? OR usuario_id IS NULL) '
+          'AND (proximo_intento IS NULL OR proximo_intento <= ?)',
+      whereArgs: [usuarioId, ahora],
+      orderBy: 'id ASC',
       limit: limite,
     );
     return filas.map(OperacionPendiente.desdeFila).toList();
   }
 
+  /// Cuenta lo que todavía espera salir (no incluye las rechazadas, que ya
+  /// no se reintentan solas).
   Future<int> conteo() async {
-    final r = await _db.rawQuery('SELECT COUNT(*) AS c FROM pendientes');
+    final r = await _db.rawQuery(
+        "SELECT COUNT(*) AS c FROM pendientes WHERE estado = 'pendiente'");
     return Sqflite.firstIntValue(r) ?? 0;
   }
 
   Future<void> marcarEnviada(int idDb) async {
-    // Antes de borrar la fila, limpiamos los archivos locales adjuntos.
-    // Lo hacemos best-effort: si alguno falla igual seguimos. En peor caso
-    // queda un blob huérfano que el OS libera cuando el usuario desinstala.
+    await _borrarArchivosDe(idDb);
+    await _db.delete('pendientes', where: 'id = ?', whereArgs: [idDb]);
+    _conteoCtrl.add(await conteo());
+  }
+
+  /// Borra best-effort los archivos adjuntos de una operación. Si alguno
+  /// falla igual seguimos; en peor caso queda un blob huérfano que el OS
+  /// libera cuando el usuario desinstala.
+  Future<void> _borrarArchivosDe(int idDb) async {
     final filas = await _db.query(
       'pendientes',
       columns: ['archivos'],
@@ -180,17 +220,57 @@ class ColaOffline {
         }
       }
     }
-    await _db.delete('pendientes', where: 'id = ?', whereArgs: [idDb]);
+  }
+
+  /// Falla transitoria (5xx, 429, desconocida): se reintenta más tarde, con
+  /// espera creciente (30 s, 1 min, 2 min… tope 30 min). Nunca se descarta.
+  Future<void> programarReintento(
+      int idDb, String error, int intentosPrevios) async {
+    final segundos = (30 * (1 << intentosPrevios.clamp(0, 6))).clamp(30, 1800);
+    final cuando = DateTime.now().toUtc().add(Duration(seconds: segundos));
+    await _db.rawUpdate(
+      'UPDATE pendientes SET intentos = intentos + 1, ultimo_error = ?, '
+      'proximo_intento = ? WHERE id = ?',
+      [error, cuando.toIso8601String(), idDb],
+    );
+  }
+
+  /// El servidor la rechazó por los datos (validación, permiso, restricción).
+  /// NO se borra: queda apartada con su error y sus archivos, para que el
+  /// guardia o el supervisor decidan qué hacer. Así no se pierde evidencia.
+  Future<void> marcarRechazada(int idDb, String error) async {
+    await _db.rawUpdate(
+      "UPDATE pendientes SET estado = 'rechazada', intentos = intentos + 1, "
+      'ultimo_error = ? WHERE id = ?',
+      [error, idDb],
+    );
     _conteoCtrl.add(await conteo());
   }
 
-  /// Registra un intento fallido. Si pasa cierto tope de intentos el
-  /// llamador puede decidir descartarla.
-  Future<void> marcarIntentoFallido(int idDb, String error) async {
+  /// Las operaciones apartadas por el servidor, para mostrarlas y decidir.
+  Future<List<OperacionPendiente>> rechazadas() async {
+    final filas = await _db.query('pendientes',
+        where: "estado = 'rechazada'", orderBy: 'id ASC');
+    return filas.map(OperacionPendiente.desdeFila).toList();
+  }
+
+  /// El guardia toca "Reintentar" en una rechazada (ej: ya abrió el turno que
+  /// faltaba). Vuelve a la cola para el próximo barrido.
+  Future<void> reintentarRechazada(int idDb) async {
     await _db.rawUpdate(
-      'UPDATE pendientes SET intentos = intentos + 1, ultimo_error = ? WHERE id = ?',
-      [error, idDb],
+      "UPDATE pendientes SET estado = 'pendiente', proximo_intento = NULL "
+      'WHERE id = ?',
+      [idDb],
     );
+    _conteoCtrl.add(await conteo());
+  }
+
+  /// Descarta definitivamente una operación rechazada (el guardia la abandona).
+  /// Borra también sus archivos adjuntos.
+  Future<void> descartarRechazada(int idDb) async {
+    await _borrarArchivosDe(idDb);
+    await _db.delete('pendientes', where: 'id = ?', whereArgs: [idDb]);
+    _conteoCtrl.add(await conteo());
   }
 
   /// Borra todo (solo para pruebas o para resetear tras un error gordo).
@@ -212,12 +292,16 @@ class OperacionPendiente {
     required this.creadaEn,
     required this.intentos,
     this.ultimoError,
+    this.estado = 'pendiente',
   });
 
   final int idDb;
   final String idLocal;
   final String tipo;
   final Map<String, dynamic> params;
+
+  /// 'pendiente' (espera salir) o 'rechazada' (el servidor la apartó).
+  final String estado;
 
   /// Archivos locales que acompañan la operación. Clave = nombre lógico
   /// ('firma', 'foto', 'foto_0'…); valor = path persistente dentro de
@@ -242,6 +326,7 @@ class OperacionPendiente {
       creadaEn: DateTime.parse(f['creada_en'] as String),
       intentos: (f['intentos'] as int?) ?? 0,
       ultimoError: f['ultimo_error'] as String?,
+      estado: (f['estado'] as String?) ?? 'pendiente',
     );
   }
 }
@@ -256,14 +341,23 @@ class OperacionPendiente {
 // ============================================================================
 
 bool esErrorDeRed(Object falla) {
+  // Un aviso ya traducido puede esconder una falla de red: pasa con
+  // ServicioFotos.subir, que traduce la SocketException a un ErrorAmigable
+  // en español antes de que la cola lo vea. Miramos la causa original.
+  if (falla is ErrorAmigable) {
+    final causa = falla.causa;
+    return causa != null && esErrorDeRed(causa);
+  }
   if (falla is TimeoutException) return true;
   if (falla is SocketException) return true;
   if (falla is HttpException) return true;
+  if (falla is HandshakeException) return true;
   final s = falla.toString().toLowerCase();
   return s.contains('socketexception') ||
       s.contains('failed host lookup') ||
       s.contains('network is unreachable') ||
       s.contains('connection closed') ||
+      s.contains('connection reset') ||
       s.contains('connection refused') ||
       s.contains('clientexception');
 }

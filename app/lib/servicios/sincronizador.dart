@@ -34,8 +34,29 @@ import 'dart:io';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../nucleo/errores.dart';
 import 'cola_offline.dart';
 import 'servicio_fotos.dart';
+
+/// Cómo clasificamos una falla al intentar enviar una operación de la cola.
+enum _Falla {
+  /// No hay red: no es culpa de la op. Se corta la pasada sin gastar intento.
+  red,
+
+  /// La sesión venció o no hay usuario: se corta sin gastar intento; la cola
+  /// espera a que su dueño vuelva a entrar.
+  sesion,
+
+  /// 5xx, 429 o algo desconocido: puede andar más tarde. Espera creciente.
+  transitoria,
+
+  /// El servidor la rechazó por los datos (validación, permiso, restricción).
+  /// No tiene sentido reintentarla sola: se aparta para que alguien la mire.
+  permanente,
+
+  /// 23505 por id_local: el envío anterior SÍ había llegado. Es un éxito.
+  yaEstaba,
+}
 
 class Sincronizador {
   Sincronizador(this._cola, this._supabase, {ServicioFotos? fotos})
@@ -48,7 +69,14 @@ class Sincronizador {
 
   StreamSubscription<List<ConnectivityResult>>? _subConectividad;
   Timer? _reloj;
-  bool _sincronizando = false;
+
+  /// Una sola pasada a la vez en TODO el proceso, aunque Riverpod recree el
+  /// Sincronizador: dos instancias no pueden pisarse (evita doble envío).
+  static Future<int>? _pasadaEnCurso;
+
+  /// Tope por operación. Sin esto una llamada colgada deja la cola bloqueada
+  /// hasta reiniciar la app.
+  static const _esperaPorOperacion = Duration(seconds: 45);
 
   void arrancar() {
     final c = Connectivity();
@@ -78,41 +106,90 @@ class Sincronizador {
     _reloj?.cancel();
   }
 
-  /// Vacía la cola, respetando el orden FIFO. Devuelve cuántas ops logró
-  /// enviar en esta pasada.
-  Future<int> sincronizarAhora() async {
-    if (_sincronizando) return 0;
-    _sincronizando = true;
+  /// Vacía la cola del usuario logueado, respetando el orden. Devuelve cuántas
+  /// ops logró enviar en esta pasada. Dos llamadas simultáneas comparten la
+  /// misma pasada (no se duplican envíos).
+  Future<int> sincronizarAhora() {
+    return _pasadaEnCurso ??=
+        _pasada().whenComplete(() => _pasadaEnCurso = null);
+  }
+
+  Future<int> _pasada() async {
+    // Sin sesión no se envía NADA y no se gasta ningún intento: la cola
+    // espera a que su dueño vuelva a entrar. Así lo del guardia de día no
+    // se manda con la sesión del de noche.
+    final usuario = _supabase.auth.currentUser;
+    if (usuario == null) return 0;
+
     var enviadas = 0;
-    try {
-      while (true) {
-        final lote = await _cola.pendientes(limite: 20);
-        if (lote.isEmpty) break;
-        for (final op in lote) {
-          try {
-            await _procesar(op);
+    // Foto del momento: cada op se intenta UNA sola vez por pasada.
+    final lote = await _cola.pendientes(usuarioId: usuario.id);
+    for (final op in lote) {
+      // Si cambió la sesión a mitad de la pasada, cortar.
+      if (_supabase.auth.currentUser?.id != usuario.id) break;
+      try {
+        await _procesar(op).timeout(_esperaPorOperacion);
+        await _cola.marcarEnviada(op.idDb);
+        enviadas++;
+      } catch (falla) {
+        switch (_clasificar(falla)) {
+          case _Falla.yaEstaba:
+            // El envío anterior sí había llegado: es un éxito, no un duplicado.
             await _cola.marcarEnviada(op.idDb);
             enviadas++;
-          } catch (falla) {
-            if (esErrorDeRed(falla)) {
-              // Red cortada otra vez: no insistir, dejar en cola y salir.
-              return enviadas;
-            }
-            // Error no-de-red: el backend rechazó algo (RLS, validación,
-            // etc). Registramos el intento. Después de 3 intentos lo
-            // descartamos para que la cola no quede atascada por una op
-            // tóxica (ej: un QR que ya no existe porque el admin lo borró).
-            await _cola.marcarIntentoFallido(op.idDb, falla.toString());
-            if (op.intentos + 1 >= 3) {
-              await _cola.marcarEnviada(op.idDb);
-            }
-          }
+          case _Falla.red:
+          case _Falla.sesion:
+            // No es culpa de la op. Se corta la pasada para respetar el orden
+            // y NO se cuenta como intento.
+            return enviadas;
+          case _Falla.transitoria:
+            // Puede andar más tarde: espera creciente y se corta la pasada
+            // para no adelantar ops que dependan de esta.
+            await _cola.programarReintento(
+                op.idDb, falla.toString(), op.intentos);
+            return enviadas;
+          case _Falla.permanente:
+            // El servidor la rechazó por los datos. Se aparta (NO se borra)
+            // y se sigue con las demás.
+            await _cola.marcarRechazada(op.idDb, falla.toString());
         }
       }
-    } finally {
-      _sincronizando = false;
     }
     return enviadas;
+  }
+
+  /// Decide qué hacer con una falla al enviar una operación encolada.
+  _Falla _clasificar(Object falla) {
+    if (esErrorDeRed(falla)) return _Falla.red;
+    if (falla is ErrorAmigable && falla.hayQueIniciarSesion) {
+      return _Falla.sesion;
+    }
+    if (falla is AuthException) return _Falla.sesion;
+    if (falla is PostgrestException) {
+      final c = falla.code ?? '';
+      if (c == 'PGRST301' || c == '401') return _Falla.sesion;
+      if (c == '23505') return _Falla.yaEstaba;
+      // 22xxx dato mal formado · 23xxx restricción · 42501 permiso/validación
+      // propia · P0001 raise_exception · P0002 no_data_found · PGRST1xx/2xx
+      // problemas de forma de la petición. Todo eso no mejora reintentando.
+      if (c.startsWith('22') ||
+          c.startsWith('23') ||
+          c == '42501' ||
+          c == 'P0001' ||
+          c == 'P0002' ||
+          c.startsWith('PGRST1') ||
+          c.startsWith('PGRST2')) {
+        return _Falla.permanente;
+      }
+      return _Falla.transitoria;
+    }
+    if (falla is ErrorAmigable && !falla.sePuedeReintentar) {
+      return _Falla.permanente;
+    }
+    // Un StateError es un bug nuestro (ej: falta ServicioFotos): no se arregla
+    // reintentando a ciegas, mejor apartarla y que se vea.
+    if (falla is StateError) return _Falla.permanente;
+    return _Falla.transitoria;
   }
 
   /// Despacha la operación según su tipo. Las RPC genéricas van directo a

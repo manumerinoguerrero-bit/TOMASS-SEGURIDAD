@@ -385,6 +385,7 @@ class ServicioGuardia {
           idLocal: idLocal,
           tipo: 'marcar_punto_control',
           params: params,
+          usuarioId: _miId,
         );
         return ResultadoDeMarca.enCola(nombrePunto: codigoDelCartel);
       }
@@ -427,6 +428,7 @@ class ServicioGuardia {
           idLocal: idLocal,
           tipo: 'marcar_punto_por_gps',
           params: params,
+          usuarioId: _miId,
         );
         return ResultadoDeMarca.enCola(nombrePunto: nombrePunto);
       }
@@ -465,6 +467,7 @@ class ServicioGuardia {
           idLocal: idLocal,
           tipo: 'marcar_punto_manual',
           params: params,
+          usuarioId: _miId,
         );
         return ResultadoDeMarca.enCola(nombrePunto: nombrePunto);
       }
@@ -550,6 +553,7 @@ class ServicioGuardia {
           idLocal: idLocal,
           tipo: 'registrar_acceso_manual',
           params: paramsConHora,
+          usuarioId: _miId,
         );
         return true;
       }
@@ -1152,6 +1156,7 @@ class ServicioGuardia {
           idLocal: 'entrega_${paqueteId}_'
               '${DateTime.now().millisecondsSinceEpoch}',
           tipo: 'custom:entregar_paquete',
+          usuarioId: _miId,
           params: {
             'paqueteId': paqueteId,
             'condominioId': condominioId,
@@ -1352,6 +1357,7 @@ class ServicioGuardia {
         await cola!.encolar(
           idLocal: idLocal,
           tipo: 'custom:reportar_incidente',
+          usuarioId: _miId,
           params: {
             'condominioId': condominioId,
             'condominio_id': condominioId,
