@@ -103,3 +103,6 @@ MANUAL-DEL-GUARDIA.pdf
 # Auditoría de seguridad: NO subir a repo público (describe huecos abiertos)
 /auditoria/
 /PROJECT_OVERVIEW.md
+
+# Llave de firma de PUBLICACION: NUNCA subir al repo
+/secretos-firma/

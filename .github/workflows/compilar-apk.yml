@@ -72,6 +72,40 @@ jobs:
         working-directory: app
         run: flutter analyze
 
+      # 5.5 · Preparar la firma de PUBLICACIÓN (SEG-10).
+      #
+      #   Si están cargados los secretos del repositorio, se escribe el keystore
+      #   nuevo en un archivo temporal y se exportan las variables que lee
+      #   android/app/build.gradle.kts. Si no están, este paso no hace nada y
+      #   Gradle cae a la firma de pruebas (el APK sale firmado con la llave
+      #   vieja, útil solo para builds internos de prueba).
+      #
+      #   Secretos a cargar en GitHub → Settings → Secrets and variables →
+      #   Actions:
+      #     TOMASS_KEYSTORE_BASE64  (el .jks en base64)
+      #     TOMASS_KEYSTORE_CLAVE   (storePassword)
+      #     TOMASS_KEY_ALIAS        (keyAlias)
+      #     TOMASS_KEY_CLAVE        (keyPassword)
+      - name: Preparar la firma de publicación
+        env:
+          KEYSTORE_B64: ${{ secrets.TOMASS_KEYSTORE_BASE64 }}
+          STORE_PASS: ${{ secrets.TOMASS_KEYSTORE_CLAVE }}
+          KEY_ALIAS: ${{ secrets.TOMASS_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.TOMASS_KEY_CLAVE }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/firma-publicacion.jks"
+            {
+              echo "TOMASS_KEYSTORE_RUTA=$RUNNER_TEMP/firma-publicacion.jks"
+              echo "TOMASS_KEYSTORE_CLAVE=$STORE_PASS"
+              echo "TOMASS_KEY_ALIAS=$KEY_ALIAS"
+              echo "TOMASS_KEY_CLAVE=$KEY_PASS"
+            } >> "$GITHUB_ENV"
+            echo "Firmando con la llave de publicación."
+          else
+            echo "Sin secreto de keystore: se usa la firma de pruebas (fallback)."
+          fi
+
       # 6 · Compilar el APK en modo RELEASE.
       #
       #     Antes usábamos --debug, y eso tenía dos problemas graves:
@@ -83,9 +117,9 @@ jobs:
       #          ve como si la app se hubiera roto.
       #
       #     En release la app es rápida, y si algo falla se muestra un aviso
-      #     manejado por nosotros. La firma ya está configurada en
-      #     android/app/build.gradle.kts apuntando a firma-pruebas.jks, así
-      #     que Gradle firma el APK sin secretos adicionales.
+      #     manejado por nosotros. La firma la toma de las variables que exportó
+      #     el paso 5.5 (llave de publicación si están los secretos, o la de
+      #     pruebas como fallback) — ver android/app/build.gradle.kts.
       - name: Compilar el APK
         working-directory: app
         run: flutter build apk --release

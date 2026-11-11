@@ -83,11 +83,22 @@ android {
     //    y guardarla como secreto de GitHub. Eso va en la Fase 5.
     // ========================================================================
     signingConfigs {
+        // La firma de PUBLICACIÓN sale de variables de entorno cuando el build
+        // corre en GitHub Actions con los secretos cargados (TOMASS_KEYSTORE_*).
+        // Si no están (build local, o antes de cargar los secretos), cae a la
+        // firma de pruebas para no romper la compilación.
+        //
+        // ⚠️ La firma de pruebas (contraseña "android") es PÚBLICA. El APK que
+        //    instalan los guardias debe compilarse con los secretos cargados,
+        //    con una llave nueva generada fuera del repo. Ver LEEME /
+        //    auditoría SEG-10. Rotar la llave obliga a DESINSTALAR y reinstalar
+        //    la app en cada teléfono (Android rechaza una actualización firmada
+        //    con otra llave).
         getByName("debug") {
-            storeFile = file("../firma-pruebas.jks")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
+            storeFile = file(System.getenv("TOMASS_KEYSTORE_RUTA") ?: "../firma-pruebas.jks")
+            storePassword = System.getenv("TOMASS_KEYSTORE_CLAVE") ?: "android"
+            keyAlias = System.getenv("TOMASS_KEY_ALIAS") ?: "androiddebugkey"
+            keyPassword = System.getenv("TOMASS_KEY_CLAVE") ?: "android"
         }
     }
 
