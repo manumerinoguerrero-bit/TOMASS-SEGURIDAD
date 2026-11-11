@@ -32,7 +32,6 @@
 // ============================================================================
 
 import 'dart:async';
-import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -47,6 +46,7 @@ import '../../nucleo/capas_mapa.dart';
 import '../../modelos/guardia.dart';
 import '../../nucleo/errores.dart';
 import '../../nucleo/formato.dart';
+import '../../servicios/vigilante_de_ronda.dart';
 import '../comunes/componentes.dart';
 import 'acciones_de_turno.dart';
 
@@ -61,247 +61,155 @@ class _EstadoRondas extends ConsumerState<PantallaRondas> {
   bool _trabajando = false;
   ErrorAmigable? _problema;
 
-  /// Última posición del guardia leída del stream. null hasta que llega la
-  /// primera. La UI la usa para pintar el pin azul y calcular distancias.
+  /// Última posición del guardia leída del rastreador. null hasta que llega la
+  /// primera (o si se perdió la señal). La UI la usa para el pin y las
+  /// distancias. OJO: el GPS lo maneja el rastreador, NO esta pantalla — así
+  /// la auto-marca recibe fixes rápidos y sigue andando aunque el guardia
+  /// cambie de pestaña (auditoría G-01, G-02).
   Position? _miPos;
 
-  /// Stream propio de geolocator — solo vive mientras esta pantalla existe.
-  /// Al salir o cerrar ronda se cancela y el GPS del teléfono vuelve a su
-  /// ritmo normal.
-  StreamSubscription<Position>? _subGps;
+  StreamSubscription<Position>? _subPos;
+  StreamSubscription<MarcaAutomatica>? _subMarcas;
+  Timer? _relojSenal;
+  VigilanteDeRonda? _vigilante;
 
-  /// IDs de los puntos que estamos intentando marcar AHORA — evita que el
-  /// mismo update del stream dispare varias RPCs mientras la primera viaja.
-  final _marcandoAhora = <String>{};
+  /// Cuándo llegó el último fix. Sirve para detectar que el GPS se quedó mudo
+  /// (subterráneo, bajo techo) y avisarle al guardia en vez de dejar un pin
+  /// viejo como si fuera bueno.
+  DateTime? _ultimoFixEn;
+  bool _sinSenal = false;
 
-  /// Formato de la hora del servidor para los toasts. Se reutiliza.
-  static final _rng = Random.secure();
+  static const _silencioQueEsSinSenal = Duration(seconds: 25);
 
   @override
   void initState() {
     super.initState();
-    _arrancarGps();
+    final rastreador = ref.read(rastreadorGuardiaProvider);
+    _vigilante = ref.read(vigilanteDeRondaProvider);
+
+    _subPos = rastreador.posiciones.listen((p) {
+      if (!mounted) return;
+      // Fix salvaje (triangulación celular): no muevas el pin con eso.
+      if (p.accuracy > 150) return;
+      setState(() {
+        _miPos = p;
+        _ultimoFixEn = DateTime.now();
+        _sinSenal = false;
+      });
+    });
+    _subMarcas = _vigilante!.marcas.listen(_avisarMarca);
+    _vigilante!.resueltos.addListener(_repintar);
+    _relojSenal =
+        Timer.periodic(const Duration(seconds: 5), (_) => _revisarSenal());
+
+    // Para no arrancar con la pantalla vacía mientras llega el primer fix.
+    unawaited(
+        rastreador.pedirPosicionAhora(precision: LocationAccuracy.high));
   }
 
   @override
   void dispose() {
-    _subGps?.cancel();
+    _subPos?.cancel();
+    _subMarcas?.cancel();
+    _relojSenal?.cancel();
+    _vigilante?.resueltos.removeListener(_repintar);
     super.dispose();
   }
 
-  /// Arranca el stream de GPS con alta precisión y distanceFilter chico.
-  /// Importante: NO prende foregroundNotificationConfig — ese lo lleva el
-  /// rastreador del turno; si lo prendiéramos acá también chocarían.
-  ///
-  /// Dos cosas para que la posición no quede desfasada 100+ metros como le
-  /// pasó a Manuel la primera vez:
-  ///
-  ///   1) Pedimos UNA posición al arranque con getCurrentPosition. Fuerza
-  ///      al Fused Location Provider a darnos una fresca, en vez de que la
-  ///      pantalla espere el primer evento del stream (que puede tardar
-  ///      30+ s en Android cuando el chip GPS estaba dormido).
-  ///
-  ///   2) Rechazamos posiciones con precision peor que 50 m: son el GPS
-  ///      diciendo "estoy perdido". Si entrara al pin del mapa, el guardia
-  ///      vería su punto azul 100 m fuera del lugar real y se confundiría
-  ///      — mejor no mostrar nada y que vea "esperando señal".
-  Future<void> _arrancarGps() async {
-    final permiso = await Geolocator.checkPermission();
-    if (permiso == LocationPermission.denied ||
-        permiso == LocationPermission.deniedForever) {
-      return; // el rastreador del turno ya se encarga de pedir el permiso
-    }
-
-    // 1) Fallback INSTANTÁNEO: la última posición conocida del celular, aunque
-    //    sea vieja. Es mejor que mostrar nada mientras esperamos el GPS
-    //    fresco; el chip arriba va a decir claramente que es imprecisa.
-    try {
-      final previa = await Geolocator.getLastKnownPosition();
-      if (previa != null && mounted) {
-        setState(() => _miPos = previa);
-      }
-    } catch (_) {/* seguimos */}
-
-    // 2) Primera lectura "fresca": pedimos al Fused Location Provider la
-    //    mejor que pueda darnos ahora. `accuracy: high` arranca más rápido
-    //    que `best` (no exige GPS satelital puro, acepta WiFi/cell).
-    try {
-      final p = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          timeLimit: Duration(seconds: 15),
-        ),
-      );
-      if (mounted) {
-        setState(() => _miPos = p);
-        if (_esPosicionBuenaParaMarcar(p)) _revisarGeocercas(p);
-      }
-    } catch (_) {/* seguimos al stream */}
-
-    // 3) Stream permanente: cada ~3 m que camine el guardia llega un update.
-    _subGps = Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: 3,
-      ),
-    ).listen((p) {
-      if (!mounted) return;
-      // Descartamos fixes EXTREMADAMENTE malos (precisión > 150 m): esos son
-      // el GPS tirando posiciones salvajes de triangulación celular que
-      // saltan el pin a 300 m del lugar real y confunden al guardia. Las
-      // lecturas razonables (±5 a ±100 m) se muestran igual: el chip de
-      // arriba avisa cuánto está errando. Antes de este filtro, Manuel
-      // reportaba que el pin "saltaba" mientras él no se movía — este bug
-      // se veía en terreno el 08/11/2026 con fixes de hasta 350 m.
-      if (p.accuracy > 150) return;
-      setState(() => _miPos = p);
-      if (_esPosicionBuenaParaMarcar(p)) _revisarGeocercas(p);
-    }, onError: (_) {/* el chip pasa a "sin señal" solo */});
+  void _repintar() {
+    if (mounted) setState(() {});
   }
 
-  /// Pide al sistema operativo una posición nueva a demanda. Se llama cuando
-  /// el guardia toca el botón "Refrescar GPS" de la pantalla: sirve si llegó
-  /// al punto y la app todavía no actualizó la posición.
+  /// Sin fix nuevo en 25 s (en ronda llega uno cada 3 s) = no hay señal. Se
+  /// borra el pin para no mostrar una posición vieja como si fuera buena.
+  void _revisarSenal() {
+    if (!mounted) return;
+    final ultimo = _ultimoFixEn;
+    final mudo = ultimo == null ||
+        DateTime.now().difference(ultimo) > _silencioQueEsSinSenal;
+    if (mudo != _sinSenal) {
+      setState(() {
+        _sinSenal = mudo;
+        if (mudo) _miPos = null;
+      });
+    }
+  }
+
+  /// Pide un fix nuevo a demanda (botón "Refrescar GPS"). El rastreador es el
+  /// único que habla con el GPS; acá solo le pedimos que fuerce una lectura.
   Future<void> _refrescarGps() async {
-    try {
-      final p = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.best,
-          timeLimit: Duration(seconds: 15),
-        ),
-      );
-      if (mounted) {
-        setState(() => _miPos = p);
-        if (_esPosicionBuenaParaMarcar(p)) _revisarGeocercas(p);
-      }
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No llegó una posición nueva. '
-              'Esperá unos segundos y probá otra vez.'),
-          backgroundColor: Colores.naranjaOscuro,
-        ),
-      );
-    }
+    final p = await ref.read(rastreadorGuardiaProvider).pedirPosicionAhora();
+    if (p != null || !mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('No llegó una posición nueva. '
+            'Si estás bajo techo, marcá el punto a mano.'),
+        backgroundColor: Colores.naranjaOscuro,
+      ),
+    );
   }
 
-  /// Umbral para la auto-marca: si la precisión del GPS es peor que el radio
-  /// de tolerancia del punto, no dispares la RPC — serían marcas falsas. El
-  /// pin se sigue mostrando en el mapa; lo que se bloquea es el intento de
-  /// marcar automático. Para marcar sí o sí está el botón manual.
-  static bool _esPosicionBuenaParaMarcar(Position p) => p.accuracy <= 30;
-
-  // ==========================================================================
-  // EL CORAZÓN: cada posición del stream dispara esta función. Revisa si el
-  // guardia entró al radio de algún punto todavía pendiente, y si sí, lo
-  // marca con la RPC automática.
-  // ==========================================================================
-
-  Future<void> _revisarGeocercas(Position p) async {
-    final ronda = ref.read(miRondaAbiertaProvider).valueOrNull;
-    if (ronda == null) return;
-
-    final puntos = ref.read(puntosDeControlProvider).valueOrNull;
-    if (puntos == null || puntos.isEmpty) return;
-
-    final marcados = _puntosYaMarcados(puntos);
-
-    for (final pc in puntos) {
-      if (marcados.contains(pc.id)) continue;
-      if (_marcandoAhora.contains(pc.id)) continue;
-      if (!pc.tieneUbicacion) continue;
-
-      final metros = _distanciaMetros(
-        p.latitude,
-        p.longitude,
-        pc.latitud!,
-        pc.longitud!,
-      );
-
-      if (metros <= pc.metrosDeTolerancia) {
-        _marcandoAhora.add(pc.id);
-        unawaited(_marcarPorGps(pc, p));
-      }
-    }
-  }
-
-  Future<void> _marcarPorGps(PuntoControl pc, Position donde) async {
-    try {
-      final r = await ref.read(servicioGuardiaProvider).marcarPuntoPorGps(
-            idLocal: _nuevoId(),
-            puntoControlId: pc.id,
-            latitud: donde.latitude,
-            longitud: donde.longitude,
-            nombrePunto: pc.nombre,
-          );
-      if (!mounted) return;
-
-      unawaited(HapticFeedback.heavyImpact());
-      refrescarRonda(ref);
-
-      if (!r.yaEstaba) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                Icon(
-                  r.enCola
-                      ? Icons.cloud_off_rounded
-                      : Icons.check_circle_rounded,
-                  color: Colors.white,
-                  size: 24,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        '${pc.nombre.toUpperCase()} · COMPLETADO',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1.1,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        r.enCola
-                            ? 'Se enviará cuando vuelva la señal'
-                            : '${r.marcados} de ${r.total}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+  /// El vigilante marcó un punto solo: avisamos con vibración + toast.
+  void _avisarMarca(MarcaAutomatica m) {
+    if (!mounted) return;
+    unawaited(HapticFeedback.heavyImpact());
+    refrescarRonda(ref);
+    final r = m.resultado;
+    if (r.yaEstaba) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              r.enCola ? Icons.cloud_off_rounded : Icons.check_circle_rounded,
+              color: Colors.white,
+              size: 24,
             ),
-            backgroundColor:
-                r.enCola ? Colores.naranjaOscuro : Colores.verdeOscuro,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
-    } catch (_) {
-      // La próxima posición vuelve a intentar: no mostramos error — podría ser
-      // una desconexión momentánea o que el guardia salió del radio justo
-      // cuando la llamada arrancaba. Mejor silencioso que un toast falso.
-    } finally {
-      _marcandoAhora.remove(pc.id);
-    }
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '${m.punto.nombre.toUpperCase()} · COMPLETADO',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.1,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    r.enCola
+                        ? 'Se enviará cuando vuelva la señal'
+                        : '${r.marcados} de ${r.total}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: r.enCola ? Colores.naranjaOscuro : Colores.verdeOscuro,
+        duration: const Duration(seconds: 3),
+      ),
+    );
   }
 
   Set<String> _puntosYaMarcados(List<PuntoControl> puntos) {
-    // La lista de puntos del provider trae un flag yaMarcado por cada uno,
-    // calculado por la query. Si no viniera, caería al else.
-    return {for (final p in puntos) if (p.yaMarcado) p.id};
+    // Lo que trae la query como yaMarcado + lo que el vigilante resolvió en
+    // esta sesión aunque el servidor todavía no lo refleje.
+    final locales = _vigilante?.resueltos.value ?? const <String>{};
+    return {
+      for (final p in puntos)
+        if (p.yaMarcado || locales.contains(p.id)) p.id,
+    };
   }
 
   // ==========================================================================
@@ -427,14 +335,25 @@ class _EstadoRondas extends ConsumerState<PantallaRondas> {
     motivoCtrl.dispose();
     if (motivo == null || !mounted) return;
 
+    final ronda = ref.read(miRondaAbiertaProvider).valueOrNull;
+    if (ronda == null) return;
+    final vigilante = ref.read(vigilanteDeRondaProvider);
     try {
       final r = await ref.read(servicioGuardiaProvider).marcarPuntoManual(
-            idLocal: _nuevoId(),
+            idLocal: vigilante.idLocalDe(pc.id),
             puntoControlId: pc.id,
             motivo: motivo,
             nombrePunto: pc.nombre,
+            rondaId: ronda.id,
+            // Evidencia opcional: si el teléfono tenía alguna posición, queda
+            // guardada con su precisión para que el admin evalúe la marca.
+            latitud: _miPos?.latitude,
+            longitud: _miPos?.longitude,
+            precisionM: _miPos?.accuracy,
+            gpsSimulado: _miPos?.isMocked ?? false,
           );
       if (!mounted) return;
+      vigilante.anotarResuelto(pc.id);
       unawaited(HapticFeedback.mediumImpact());
       refrescarRonda(ref);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -602,8 +521,17 @@ class _EstadoRondas extends ConsumerState<PantallaRondas> {
           ),
         ),
 
-        // Estado del GPS en vivo + botón para refrescar a demanda.
-        _ChipGps(posicion: _miPos, alRefrescar: _refrescarGps),
+        // Estado del GPS en vivo + botón para refrescar a demanda. Se repinta
+        // solo si el teléfono empieza/deja de entregar una ubicación simulada.
+        ValueListenableBuilder<bool>(
+          valueListenable: ref.read(rastreadorGuardiaProvider).gpsSimulado,
+          builder: (_, simulado, __) => _ChipGps(
+            posicion: _miPos,
+            alRefrescar: _refrescarGps,
+            sinSenal: _sinSenal,
+            simulado: simulado,
+          ),
+        ),
 
         if (_problema != null) ...[
           const SizedBox(height: 8),
@@ -623,7 +551,7 @@ class _EstadoRondas extends ConsumerState<PantallaRondas> {
               final pc = puntos[i];
               final marcado = marcados.contains(pc.id);
               final metros = _miPos != null && pc.tieneUbicacion
-                  ? _distanciaMetros(
+                  ? metrosEntre(
                       _miPos!.latitude,
                       _miPos!.longitude,
                       pc.latitud!,
@@ -642,34 +570,6 @@ class _EstadoRondas extends ConsumerState<PantallaRondas> {
       ],
     );
   }
-
-  // ==========================================================================
-  // Util: UUID v4 "casero" para el id_local (sin dependencia nueva)
-  // ==========================================================================
-
-  static String _nuevoId() {
-    String bloque(int bytes) => List.generate(
-          bytes,
-          (_) => _rng.nextInt(256).toRadixString(16).padLeft(2, '0'),
-        ).join();
-    return '${bloque(4)}-${bloque(2)}-4${bloque(2).substring(1)}-'
-        '${(8 + _rng.nextInt(4)).toRadixString(16)}${bloque(2).substring(1)}-'
-        '${bloque(6)}';
-  }
-
-  /// Haversine en metros (es lo mismo que usa el backend con metros_entre).
-  static double _distanciaMetros(
-      double lat1, double lng1, double lat2, double lng2) {
-    const r = 6371000.0;
-    final dLat = _rad(lat2 - lat1);
-    final dLng = _rad(lng2 - lng1);
-    final a = pow(sin(dLat / 2), 2) +
-        cos(_rad(lat1)) * cos(_rad(lat2)) * pow(sin(dLng / 2), 2);
-    final c = 2 * atan2(sqrt(a), sqrt(1 - a));
-    return r * c;
-  }
-
-  static double _rad(double grados) => grados * pi / 180;
 }
 
 // ============================================================================
@@ -908,10 +808,17 @@ class _EstadoMapa extends State<_Mapa> {
 // ============================================================================
 
 class _ChipGps extends StatelessWidget {
-  const _ChipGps({required this.posicion, required this.alRefrescar});
+  const _ChipGps({
+    required this.posicion,
+    required this.alRefrescar,
+    this.sinSenal = false,
+    this.simulado = false,
+  });
 
   final Position? posicion;
   final VoidCallback alRefrescar;
+  final bool sinSenal;
+  final bool simulado;
 
   @override
   Widget build(BuildContext context) {
@@ -919,10 +826,16 @@ class _ChipGps extends StatelessWidget {
     final IconData icono;
     final String texto;
 
-    if (posicion == null) {
-      color = Colores.textoSuave;
+    if (simulado) {
+      color = Colores.rojo;
+      icono = Icons.gpp_bad_rounded;
+      texto = 'Ubicación simulada: cerrá la app de GPS falso. Queda registrado.';
+    } else if (posicion == null) {
+      color = sinSenal ? Colores.rojo : Colores.textoSuave;
       icono = Icons.gps_off_rounded;
-      texto = 'Esperando señal GPS…';
+      texto = sinSenal
+          ? 'Sin señal GPS. Si ya estás en el punto, marcalo a mano.'
+          : 'Esperando señal GPS…';
     } else {
       final metros = posicion!.accuracy.round();
       if (metros <= 15) {

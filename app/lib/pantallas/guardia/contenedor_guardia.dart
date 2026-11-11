@@ -47,6 +47,10 @@ class _EstadoContenedorGuardia extends ConsumerState<ContenedorGuardia> {
     // rastreador se enciende SOLO cuando hay turno abierto (escucha
     // miTurnoProvider) y se apaga automáticamente cuando se cierra.
     ref.read(rastreadorGuardiaProvider);
+    // El vigilante de geocercas también vive acá, a nivel del shell, para que
+    // la auto-marca de rondas siga funcionando aunque el guardia esté en otra
+    // pestaña o con la pantalla apagada.
+    ref.read(vigilanteDeRondaProvider);
   }
 
   /// El menú del guardia. Cambió al nuevo modelo de empresa de seguridad:

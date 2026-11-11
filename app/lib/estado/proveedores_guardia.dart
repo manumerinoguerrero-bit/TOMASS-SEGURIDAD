@@ -6,12 +6,15 @@
 // datos que no usa.
 // ============================================================================
 
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../modelos/admin.dart';
 import '../modelos/modelos.dart';
 import '../servicios/rastreador_guardia.dart';
 import '../servicios/servicio_guardia.dart';
+import '../servicios/vigilante_de_ronda.dart';
 import 'proveedores.dart';
 
 final servicioGuardiaProvider = Provider<ServicioGuardia>((ref) {
@@ -275,6 +278,32 @@ void refrescarRonda(WidgetRef ref) {
   ref.invalidate(miRondaAbiertaProvider);
   ref.invalidate(puntosDeControlProvider);
 }
+
+/// Mantiene vivo al vigilante de geocercas y pone al rastreador en ritmo de
+/// ronda mientras haya una abierta. Vive a nivel de provider para que la
+/// auto-marca siga funcionando aunque el guardia cambie de pestaña (G-02).
+final vigilanteDeRondaProvider = Provider<VigilanteDeRonda>((ref) {
+  final rastreador = ref.watch(rastreadorGuardiaProvider);
+  final vigilante =
+      VigilanteDeRonda(ref.watch(servicioGuardiaProvider), rastreador);
+
+  void sincronizar() {
+    final ronda = ref.read(miRondaAbiertaProvider).valueOrNull;
+    final puntos =
+        ref.read(puntosDeControlProvider).valueOrNull ?? const <PuntoControl>[];
+    vigilante.actualizar(rondaId: ronda?.id, puntos: puntos);
+    unawaited(rastreador.cambiarModo(
+      ronda != null ? ModoRastreo.ronda : ModoRastreo.turno,
+    ));
+  }
+
+  ref.listen(miRondaAbiertaProvider, (_, __) => sincronizar());
+  ref.listen(puntosDeControlProvider, (_, __) => sincronizar());
+  sincronizar();
+
+  ref.onDispose(vigilante.detener);
+  return vigilante;
+});
 
 // ============================================================================
 // VISITAS QUE LLEGAN SIN AVISO

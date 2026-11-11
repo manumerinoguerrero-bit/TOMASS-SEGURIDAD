@@ -403,12 +403,23 @@ class ServicioGuardia {
     required double latitud,
     required double longitud,
     required String nombrePunto,
+    required String rondaId,
+    double? precisionM,
+    bool gpsSimulado = false,
+    DateTime? fixTomadoEn,
   }) async {
     final params = <String, dynamic>{
       'p_id_local': idLocal,
       'p_punto_control_id': puntoControlId,
       'p_geo_lat': latitud,
       'p_geo_lng': longitud,
+      'p_precision_m': precisionM,
+      'p_gps_simulado': gpsSimulado,
+      'p_fix_tomado_en': fixTomadoEn?.toUtc().toIso8601String(),
+      'p_ronda_id': rondaId,
+      // Hora del teléfono al marcar: si la marca viaja por la cola offline,
+      // el informe muestra cuándo pasó y no cuándo volvió la señal.
+      'p_marcado_en': DateTime.now().toUtc().toIso8601String(),
     };
     try {
       final filas = await _supabase
@@ -445,11 +456,22 @@ class ServicioGuardia {
     required String puntoControlId,
     required String motivo,
     required String nombrePunto,
+    required String rondaId,
+    double? latitud,
+    double? longitud,
+    double? precisionM,
+    bool gpsSimulado = false,
   }) async {
     final params = <String, dynamic>{
       'p_id_local': idLocal,
       'p_punto_control_id': puntoControlId,
       'p_motivo': motivo,
+      'p_geo_lat': latitud,
+      'p_geo_lng': longitud,
+      'p_precision_m': precisionM,
+      'p_gps_simulado': gpsSimulado,
+      'p_ronda_id': rondaId,
+      'p_marcado_en': DateTime.now().toUtc().toIso8601String(),
     };
     try {
       final filas = await _supabase
@@ -599,19 +621,30 @@ class ServicioGuardia {
   // ninguno, no hace nada (para no molestar entre cerrar y abrir).
   // ==========================================================================
 
-  Future<void> actualizarMiUbicacion({
+  /// Manda una muestra de GPS del turno. Devuelve true si el servidor la
+  /// recibió. NO lanza: el envío periódico es "best effort", pero quien
+  /// llama necesita saber si llegó para no mostrar "GPS activo" en falso.
+  ///
+  /// [tomadaEn] solo se pasa al reenviar una muestra que quedó sin red, para
+  /// que el recorrido guarde la hora real y no la hora en que volvió la señal.
+  Future<bool> actualizarMiUbicacion({
     required double lat,
     required double lng,
+    double? precisionM,
+    bool simulada = false,
+    DateTime? tomadaEn,
   }) async {
     try {
       await _supabase.rpc('actualizar_mi_ubicacion', params: {
         'p_lat': lat,
         'p_lng': lng,
+        'p_precision_m': precisionM,
+        'p_simulada': simulada,
+        'p_tomada_en': tomadaEn?.toUtc().toIso8601String(),
       }).timeout(const Duration(seconds: 8));
+      return true;
     } catch (_) {
-      // A propósito: NO propagamos el error. El envío periódico de GPS es
-      // un "best effort": si falla porque el guardia perdió señal, no
-      // conviene interrumpirle nada; en el próximo tick vuelve a intentar.
+      return false;
     }
   }
 
