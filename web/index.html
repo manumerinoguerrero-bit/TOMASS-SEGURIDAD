@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- CSP (SEG-11): misma política que el panel, para que la página de login
+       solo pueda cargar lo esperado (Supabase para autenticar). -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' data: blob: https://ymgadpinqxqkjgxslftg.supabase.co; connect-src 'self' https://ymgadpinqxqkjgxslftg.supabase.co wss://ymgadpinqxqkjgxslftg.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'">
   <title>Tomass Seguridad — Ingresar</title>
   <meta name="description" content="Panel de administración de Tomass Seguridad Privada">
   <link rel="icon" type="image/png" href="img/logo.png">

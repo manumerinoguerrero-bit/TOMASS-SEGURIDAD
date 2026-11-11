@@ -3,6 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- CSP (SEG-11): acota de dónde puede cargar scripts/estilos/datos el panel.
+       Es la tercera barrera contra XSS, después del escape de datos y del
+       trigger que impide auto-editarse el nombre. 'unsafe-inline' en estilos
+       es necesario por los style="..." que arma informes.js. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' data: blob: https://ymgadpinqxqkjgxslftg.supabase.co https://server.arcgisonline.com https://unpkg.com; connect-src 'self' https://ymgadpinqxqkjgxslftg.supabase.co wss://ymgadpinqxqkjgxslftg.supabase.co https://server.arcgisonline.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'">
   <title>Tomass Seguridad — Panel</title>
   <link rel="icon" type="image/png" href="img/logo.png">
   <link rel="stylesheet" href="css/estilo.css">
