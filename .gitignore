@@ -99,3 +99,7 @@ desktop.ini
 # El manual va al Drive/WhatsApp, no al git.
 usuarios-tomass-seguridad.xlsx
 MANUAL-DEL-GUARDIA.pdf
+
+# Auditoría de seguridad: NO subir a repo público (describe huecos abiertos)
+/auditoria/
+/PROJECT_OVERVIEW.md

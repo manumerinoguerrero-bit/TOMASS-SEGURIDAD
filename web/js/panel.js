@@ -306,7 +306,7 @@ async function renderNovedades() {
           <span>${formatearFecha(f.ocurrido_en)}</span>
           <span>${escapar(f.condominio_nombre)}</span>
           <span>${escapar(f.reportado_por_nombre || 'Sistema')}</span>
-          <span class="chip-estado chip-estado-${f.estado}">${f.estado}</span>
+          <span class="chip-estado chip-estado-${escapar(f.estado)}">${escapar(f.estado)}</span>
         </div>
         ${f.descripcion ? `<p>${escapar(f.descripcion)}</p>` : ''}
         ${(f.fotos && f.fotos.length) ? `<div class="mini-fotos" data-fotos='${encodeURIComponent(JSON.stringify(f.fotos))}'>📷 ${f.fotos.length} foto${f.fotos.length > 1 ? 's' : ''} (click para ver)</div>` : ''}
@@ -513,7 +513,7 @@ async function renderMapa() {
           <span>${escapar(g.condominio_nombre)}</span>
           ${g.punto_acceso ? `<span>${escapar(g.punto_acceso)}</span>` : ''}
           <span>Turno abierto ${formatearFecha(g.inicio)}</span>
-          ${g.guardia_telefono ? `<a href="tel:${g.guardia_telefono}" class="link-telefono">📞 ${g.guardia_telefono}</a>` : ''}
+          ${g.guardia_telefono ? `<a href="tel:${escapar(String(g.guardia_telefono).replace(/[^0-9+]/g, ''))}" class="link-telefono">📞 ${escapar(g.guardia_telefono)}</a>` : ''}
         </div>
       </div>
     `).join('');

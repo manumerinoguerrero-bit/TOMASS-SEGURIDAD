@@ -268,7 +268,7 @@ const InformeRondas = {
       <div class="informe-filtros">
         <label>Instalación
           <select id="rndCondo">
-            ${condos.map((c) => `<option value="${c.id}">${c.nombre}</option>`).join('')}
+            ${condos.map((c) => `<option value="${escapar(c.id)}">${escapar(c.nombre)}</option>`).join('')}
           </select>
         </label>
         <label>Desde
@@ -298,10 +298,10 @@ const InformeRondas = {
       document.getElementById('rndGuardia').innerHTML =
         '<option value="">— Todos —</option>' +
         guardias.map((g) =>
-          `<option value="${g.id}">${g.nombre_completo}</option>`).join('');
+          `<option value="${escapar(g.id)}">${escapar(g.nombre_completo)}</option>`).join('');
       document.getElementById('rndGarita').innerHTML =
         '<option value="">— Todas —</option>' +
-        garitas.map((g) => `<option value="${g.id}">${g.nombre}</option>`).join('');
+        garitas.map((g) => `<option value="${escapar(g.id)}">${escapar(g.nombre)}</option>`).join('');
     };
     document.getElementById('rndCondo').addEventListener('change', refreshFiltros);
     await refreshFiltros();
@@ -605,12 +605,12 @@ const InformeRecorridoTurno = {
           ${turnos.map((t) => `
             <tr>
               <td>${fmtFechaHora(t.inicio)}</td>
-              <td>${t.guardia_nombre}</td>
-              <td>${t.garita}</td>
-              <td>${t.minutos} min</td>
-              <td>${t.marcas_ronda}</td>
-              <td>${t.movimientos_acceso}</td>
-              <td><button class="btn-primario" data-turno="${t.id}">PDF</button></td>
+              <td>${escapar(t.guardia_nombre)}</td>
+              <td>${escapar(t.garita)}</td>
+              <td>${escapar(t.minutos)} min</td>
+              <td>${escapar(t.marcas_ronda)}</td>
+              <td>${escapar(t.movimientos_acceso)}</td>
+              <td><button class="btn-primario" data-turno="${escapar(t.id)}">PDF</button></td>
             </tr>`).join('')}
         </tbody>
       </table>`;
