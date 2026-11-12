@@ -94,7 +94,18 @@ jobs:
           KEY_PASS: ${{ secrets.TOMASS_KEY_CLAVE }}
         run: |
           if [ -n "$KEYSTORE_B64" ]; then
-            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/firma-publicacion.jks"
+            # Decodificar tolerando espacios o saltos que el copy-paste pudo
+            # meter en el secreto (-i ignora cualquier caracter fuera del
+            # alfabeto base64; antes quitamos espacios por las dudas).
+            printf '%s' "$KEYSTORE_B64" | tr -d '[:space:]' \
+              | base64 -d -i > "$RUNNER_TEMP/firma-publicacion.jks" || true
+            TAM=$(stat -c%s "$RUNNER_TEMP/firma-publicacion.jks" 2>/dev/null || echo 0)
+            echo "Keystore decodificado: ${TAM} bytes."
+            if [ "${TAM:-0}" -lt 1000 ]; then
+              echo "ERROR: el keystore decodificado quedo demasiado chico (${TAM} bytes)."
+              echo "Revisa el secreto TOMASS_KEYSTORE_BASE64 (que sea el contenido completo de keystore-base64.txt)."
+              exit 1
+            fi
             {
               echo "TOMASS_KEYSTORE_RUTA=$RUNNER_TEMP/firma-publicacion.jks"
               echo "TOMASS_KEYSTORE_CLAVE=$STORE_PASS"
