@@ -94,11 +94,13 @@ jobs:
           KEY_PASS: ${{ secrets.TOMASS_KEY_CLAVE }}
         run: |
           if [ -n "$KEYSTORE_B64" ]; then
-            # Decodificar tolerando espacios o saltos que el copy-paste pudo
-            # meter en el secreto (-i ignora cualquier caracter fuera del
-            # alfabeto base64; antes quitamos espacios por las dudas).
+            # Diagnostico (no es secreto): cuantos caracteres llegaron. El
+            # base64 de la llave de publicacion tiene 3736; si llega menos,
+            # el secreto TOMASS_KEYSTORE_BASE64 se pego incompleto.
+            echo "Largo del secreto base64 recibido: ${#KEYSTORE_B64} (esperado 3736)."
+            # Decodificar tolerando espacios o saltos del copy-paste.
             printf '%s' "$KEYSTORE_B64" | tr -d '[:space:]' \
-              | base64 -d -i > "$RUNNER_TEMP/firma-publicacion.jks" || true
+              | base64 -d > "$RUNNER_TEMP/firma-publicacion.jks" 2>/dev/null || true
             TAM=$(stat -c%s "$RUNNER_TEMP/firma-publicacion.jks" 2>/dev/null || echo 0)
             echo "Keystore decodificado: ${TAM} bytes."
             if [ "${TAM:-0}" -lt 1000 ]; then
