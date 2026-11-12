@@ -59,6 +59,53 @@ class PuntoAcceso {
 }
 
 // ============================================================================
+// PERSONA FRECUENTE
+// ============================================================================
+// Alguien que ya ingresó antes a esta instalación. Sale de los ingresos que
+// los propios guardias fueron anotando: no hay carga aparte. Sirve para que,
+// al escribir el nombre, el guardia la encuentre y se autorrellenen los datos
+// que ya tenemos (RUT, a dónde va, quién autoriza, patente).
+// ============================================================================
+
+class PersonaFrecuente {
+  const PersonaFrecuente({
+    required this.nombre,
+    this.rut,
+    this.patente,
+    this.aDondeVa,
+    this.autorizadoPor,
+    this.tipoAcceso,
+  });
+
+  final String nombre;
+  final String? rut;
+  final String? patente;
+  final String? aDondeVa;
+  final String? autorizadoPor;
+
+  /// 'peatonal' o 'vehicular' en su último ingreso. Si trae patente, lo normal
+  /// es que haya sido vehicular.
+  final String? tipoAcceso;
+
+  bool get viajaEnVehiculo =>
+      tipoAcceso == 'vehicular' || (patente != null && patente!.trim().isNotEmpty);
+
+  factory PersonaFrecuente.desdeMapa(Map<String, dynamic> m) => PersonaFrecuente(
+        nombre: (m['nombre'] ?? '') as String,
+        rut: _limpio(m['rut']),
+        patente: _limpio(m['patente']),
+        aDondeVa: _limpio(m['a_donde_va']),
+        autorizadoPor: _limpio(m['autorizado_por']),
+        tipoAcceso: _limpio(m['tipo_acceso']),
+      );
+
+  static String? _limpio(Object? v) {
+    final s = (v as String?)?.trim();
+    return (s == null || s.isEmpty) ? null : s;
+  }
+}
+
+// ============================================================================
 // TURNO
 // ============================================================================
 // Es lo que hace que los avisos de autos le lleguen al guardia de la caseta

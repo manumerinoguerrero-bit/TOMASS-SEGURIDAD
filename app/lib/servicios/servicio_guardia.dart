@@ -518,6 +518,25 @@ class ServicioGuardia {
     }
   }
 
+  /// Busca personas que ya ingresaron antes a esta instalación, por nombre o
+  /// RUT, para autorrellenar el formulario de "Anotar". La lista se arma sola
+  /// con los ingresos que los guardias fueron registrando; no hay carga aparte.
+  /// Devuelve vacío si no hay coincidencias o si el texto es muy corto.
+  Future<List<PersonaFrecuente>> buscarPersonasFrecuentes(String texto) async {
+    final t = texto.trim();
+    if (t.length < 2) return const [];
+    try {
+      final filas = await _supabase
+          .rpc('buscar_personas_frecuentes', params: {'p_texto': t})
+          .timeout(Entorno.esperaMaxima);
+      return (filas as List)
+          .map((f) => PersonaFrecuente.desdeMapa(Map<String, dynamic>.from(f)))
+          .toList();
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+
   /// Registra una entrada/salida.
   ///
   /// Devuelve `true` si quedó ENCOLADA (sin red); `false` si se envió al

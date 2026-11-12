@@ -71,6 +71,7 @@ class _EstadoAccesoManual extends ConsumerState<PantallaAccesoManual> {
   String? _garitaId;
   File? _foto;
   bool _guardando = false;
+  bool _buscando = false;
   ErrorAmigable? _problema;
 
   /// Hora en la que pasó la persona. null significa "ahora" — es el caso
@@ -145,6 +146,92 @@ class _EstadoAccesoManual extends ConsumerState<PantallaAccesoManual> {
       _horaManual = DateTime(
           fecha.year, fecha.month, fecha.day, hora.hour, hora.minute);
     });
+  }
+
+  /// Busca en los ingresos anteriores de esta instalación alguien que coincida
+  /// con lo escrito en "Nombre". Si encuentra, muestra la lista; al elegir una
+  /// persona, rellena los datos que ya tenemos para que el guardia solo tenga
+  /// que tocar "Registrar". [aceptaVehiculos] evita marcar "vehículo" en una
+  /// garita que es solo peatonal.
+  Future<void> _buscarPersona(bool aceptaVehiculos) async {
+    final texto = _nombre.text.trim();
+    if (texto.length < 2) {
+      setState(() => _problema = const ErrorAmigable(
+            'Escribí al menos 2 letras del nombre (o el RUT) para buscar.',
+            sePuedeReintentar: false,
+          ));
+      return;
+    }
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _buscando = true;
+      _problema = null;
+    });
+
+    List<PersonaFrecuente> encontradas;
+    try {
+      encontradas = await ref
+          .read(servicioGuardiaProvider)
+          .buscarPersonasFrecuentes(texto);
+    } catch (falla) {
+      if (!mounted) return;
+      setState(() {
+        _buscando = false;
+        _problema = Traductor.traducir(falla);
+      });
+      return;
+    }
+    if (!mounted) return;
+    setState(() => _buscando = false);
+
+    if (encontradas.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Nadie con ese nombre pasó antes por acá. Anotalo a mano esta '
+            'vez; la próxima ya va a aparecer.',
+          ),
+          duration: Duration(seconds: 4),
+        ),
+      );
+      return;
+    }
+
+    final elegida = await showModalBottomSheet<PersonaFrecuente>(
+      context: context,
+      backgroundColor: Colores.superficie,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => _ListaPersonas(personas: encontradas),
+    );
+    if (elegida == null || !mounted) return;
+
+    setState(() {
+      _nombre.text = elegida.nombre;
+      if (elegida.rut != null) _rut.text = elegida.rut!;
+      if (elegida.aDondeVa != null) _aDondeVa.text = elegida.aDondeVa!;
+      if (elegida.autorizadoPor != null) _autoriza.text = elegida.autorizadoPor!;
+      // Si la persona suele venir en vehículo y la garita lo permite, dejamos
+      // marcado "vehículo" y traemos su patente. Todo editable: el guardia
+      // cambia lo que no corresponda a esta visita.
+      if (elegida.viajaEnVehiculo && aceptaVehiculos) {
+        _tipoAcceso = 'vehicular';
+        if (elegida.patente != null) _patente.text = elegida.patente!;
+      }
+    });
+
+    unawaited(HapticFeedback.selectionClick());
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Datos de ${elegida.nombre} cargados. Revisá y '
+              'registrá la entrada.'),
+          backgroundColor: Colores.verde,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
   }
 
   Future<void> _sacarFoto() async {
@@ -369,13 +456,31 @@ class _EstadoAccesoManual extends ConsumerState<PantallaAccesoManual> {
           const SizedBox(height: 14),
 
           // ---- Quién es ----
+          // La lupa busca a la persona en los ingresos anteriores de esta
+          // instalación. Si ya pasó antes, se autorrellenan RUT, a dónde va,
+          // quién autoriza y patente, y el guardia solo registra la entrada.
           TextField(
             controller: _nombre,
             textCapitalization: TextCapitalization.words,
-            textInputAction: TextInputAction.next,
-            decoration: const InputDecoration(
+            textInputAction: TextInputAction.search,
+            onSubmitted: (_) => _buscarPersona(aceptaVehiculos),
+            decoration: InputDecoration(
               labelText: 'Nombre completo',
-              prefixIcon: Icon(Icons.person_outline_rounded),
+              prefixIcon: const Icon(Icons.person_outline_rounded),
+              suffixIcon: _buscando
+                  ? const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2.4),
+                      ),
+                    )
+                  : IconButton(
+                      icon: const Icon(Icons.search_rounded),
+                      tooltip: 'Buscar si ya ingresó antes',
+                      onPressed: () => _buscarPersona(aceptaVehiculos),
+                    ),
             ),
           ),
           const SizedBox(height: 12),
@@ -796,6 +901,86 @@ class _CampoHora extends StatelessWidget {
             onPressed: alQuitar,
             color: Colores.rojo,
           ),
+        ],
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// LISTA DE PERSONAS QUE YA INGRESARON
+// ============================================================================
+// Se muestra al tocar la lupa del campo "Nombre". Cada fila es una persona que
+// ya pasó antes por esta instalación; al tocarla se autorrellenan sus datos.
+// ============================================================================
+
+class _ListaPersonas extends StatelessWidget {
+  const _ListaPersonas({required this.personas});
+
+  final List<PersonaFrecuente> personas;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 40,
+            height: 4,
+            margin: const EdgeInsets.symmetric(vertical: 10),
+            decoration: BoxDecoration(
+              color: Colores.linea,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 2, 16, 8),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'YA INGRESARON ANTES',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.8,
+                  color: Colores.textoSuave,
+                ),
+              ),
+            ),
+          ),
+          Flexible(
+            child: ListView.separated(
+              shrinkWrap: true,
+              itemCount: personas.length,
+              separatorBuilder: (_, __) => const Divider(height: 1),
+              itemBuilder: (context, i) {
+                final p = personas[i];
+                final sub = <String>[
+                  if (p.rut != null) 'RUT ${p.rut}',
+                  if (p.viajaEnVehiculo && p.patente != null) '🚗 ${p.patente}',
+                  if (p.aDondeVa != null) p.aDondeVa!,
+                ].join('  ·  ');
+                return ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: Colores.grafito.withValues(alpha: 0.08),
+                    child: Icon(
+                      p.viajaEnVehiculo
+                          ? Icons.directions_car_rounded
+                          : Icons.person_rounded,
+                      color: Colores.grafito,
+                      size: 20,
+                    ),
+                  ),
+                  title: Text(p.nombre,
+                      style: const TextStyle(fontWeight: FontWeight.w700)),
+                  subtitle: sub.isEmpty ? null : Text(sub),
+                  onTap: () => Navigator.pop(context, p),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 8),
         ],
       ),
     );
