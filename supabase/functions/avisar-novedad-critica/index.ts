@@ -12,9 +12,11 @@
 // usuarios para traer el nombre de quien reportó.
 //
 // SEGURIDAD
-//   verify_jwt = true. El trigger manda el service_role_key en el header
-//   Authorization. Un cliente anónimo no puede invocar esta función y
-//   mandar avisos arbitrarios.
+//   verify_jwt = true, pero el trigger pasa esa puerta con la llave pública
+//   del proyecto (la misma que va en la app), así que eso solo no alcanza.
+//   Desde SEG-08 además exige la cabecera x-tomass-secreto con el valor de
+//   TOMASS_SECRETO_INTERNO (ver _compartido/secreto_interno.ts). Sin ese
+//   secreto nadie de afuera puede mandar avisos falsos a los admins.
 //
 // IDEMPOTENCIA
 //   Si el trigger disparara dos veces por la misma fila (reintento de red),
@@ -28,12 +30,16 @@
 import { clienteServidor } from "../_compartido/clientes.ts";
 import { exito, error, registrar, saludoPrevio } from "../_compartido/respuesta.ts";
 import { administradores, avisar } from "../_compartido/avisos.ts";
+import { exigirSecretoInterno } from "../_compartido/secreto_interno.ts";
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return saludoPrevio();
   if (req.method !== "POST") {
     return error("Solo se acepta POST", 405);
   }
+
+  const rechazo = exigirSecretoInterno(req, "avisar-novedad-critica");
+  if (rechazo) return rechazo;
 
   let payload: { record?: { id?: string }; incidenteId?: string };
   try {

@@ -786,7 +786,7 @@ class _EstadoFormulario extends ConsumerState<_FormularioGuardia> {
                 obscureText: !_verPassword,
                 decoration: InputDecoration(
                   labelText: 'Contraseña',
-                  hintText: 'Mínimo 6 caracteres',
+                  hintText: 'Mínimo 10 caracteres',
                   prefixIcon: const Icon(Icons.lock_outline_rounded),
                   suffixIcon: IconButton(
                     icon: Icon(_verPassword
@@ -797,7 +797,7 @@ class _EstadoFormulario extends ConsumerState<_FormularioGuardia> {
                   ),
                 ),
                 validator: (v) =>
-                    (v ?? '').length < 6 ? 'Mínimo 6 caracteres.' : null,
+                    (v ?? '').length < 10 ? 'Mínimo 10 caracteres.' : null,
               ),
               const SizedBox(height: 12),
               TextFormField(
@@ -839,7 +839,7 @@ class _EstadoFormulario extends ConsumerState<_FormularioGuardia> {
 // ============================================================================
 // DIÁLOGO: cambiar la clave de un guardia
 // ============================================================================
-// El admin tipea una clave nueva. Si tiene al menos 6 caracteres, confirma;
+// El admin tipea una clave nueva. Si tiene al menos 10 caracteres, confirma;
 // después el guardia va a tener que entrar con esa clave. Útil cuando un
 // guardia pierde su clave y no puede recuperarla por email.
 // ============================================================================
@@ -864,8 +864,8 @@ class _EstadoDialogoCambiarClave extends State<_DialogoCambiarClave> {
 
   void _confirmar() {
     final valor = _controlador.text.trim();
-    if (valor.length < 6) {
-      setState(() => _error = 'Al menos 6 caracteres.');
+    if (valor.length < 10) {
+      setState(() => _error = 'Al menos 10 caracteres.');
       return;
     }
     Navigator.pop(context, valor);

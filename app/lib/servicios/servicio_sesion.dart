@@ -290,10 +290,10 @@ class ServicioSesion {
       );
     }
 
-    if (nueva.length < 8) {
+    if (nueva.length < 10) {
       throw const ErrorAmigable(
         'La contraseña nueva es muy corta.',
-        detalle: 'Tiene que tener al menos 8 caracteres.',
+        detalle: 'Tiene que tener al menos 10 caracteres.',
         sePuedeReintentar: true,
       );
     }

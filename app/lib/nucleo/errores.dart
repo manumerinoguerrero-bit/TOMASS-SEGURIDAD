@@ -174,7 +174,7 @@ class Traductor {
     if (texto.contains('weak password')) {
       return const ErrorAmigable(
         'Esa contraseña es demasiado fácil de adivinar.',
-        detalle: 'Usá al menos 8 caracteres, con letras y números.',
+        detalle: 'Usá al menos 10 caracteres, con letras y números.',
       );
     }
 

@@ -125,7 +125,7 @@ class _EstadoCambiarClave extends ConsumerState<PantallaCambiarClave> {
                 decoration: InputDecoration(
                   labelText: 'Contraseña nueva',
                   prefixIcon: const Icon(Icons.lock_rounded),
-                  helperText: 'Al menos 8 caracteres.',
+                  helperText: 'Al menos 10 caracteres.',
                   suffixIcon: IconButton(
                     icon: Icon(_verNueva
                         ? Icons.visibility_off_rounded
@@ -139,8 +139,8 @@ class _EstadoCambiarClave extends ConsumerState<PantallaCambiarClave> {
                   if (v == null || v.isEmpty) {
                     return 'Elegí una contraseña nueva.';
                   }
-                  if (v.length < 8) {
-                    return 'Mínimo 8 caracteres.';
+                  if (v.length < 10) {
+                    return 'Mínimo 10 caracteres.';
                   }
                   if (v == _actual.text) {
                     return 'Elegí una distinta a la actual.';

@@ -22,12 +22,13 @@
 //   (pg_cron) llama a esta función una vez por día. Manuel no tiene que hacer
 //   nada, nunca.
 //
-// POR QUÉ NO ES PELIGROSO QUE ALGUIEN LA LLAME
+// QUIÉN LA PUEDE LLAMAR
 //
-//   La función no recibe instrucciones: hace siempre lo mismo, con la regla
-//   fija de los 6 meses. Si alguien ajeno la invocara, lo único que lograría es
-//   adelantar unas horas una limpieza que iba a pasar igual esa madrugada. No
-//   devuelve datos de nadie, solo cuántas fotos borró.
+//   Solo el cron de la base de datos. Desde SEG-08 exige la cabecera
+//   x-tomass-secreto con el valor de TOMASS_SECRETO_INTERNO (ver
+//   _compartido/secreto_interno.ts). Igual la función no recibe
+//   instrucciones y siempre aplica la regla fija de los 6 meses, pero no hay
+//   motivo para que alguien de afuera pueda dispararla.
 //
 // POR QUÉ VA DE A TANDAS DE 200
 //
@@ -38,6 +39,7 @@
 
 import { clienteServidor } from "../_compartido/clientes.ts";
 import { error, exito, registrar, saludoPrevio } from "../_compartido/respuesta.ts";
+import { exigirSecretoInterno } from "../_compartido/secreto_interno.ts";
 
 /// Cuántos meses se guarda la foto de una encomienda ya entregada.
 /// Lo decidió Manuel: pasado ese tiempo, el reclamo ya no llega.
@@ -49,6 +51,9 @@ const TANDA = 200;
 Deno.serve(async (peticion: Request) => {
   if (peticion.method === "OPTIONS") return saludoPrevio();
   if (peticion.method !== "POST") return error("Método no permitido.", 405);
+
+  const rechazo = exigirSecretoInterno(peticion, "limpiar-fotos");
+  if (rechazo) return rechazo;
 
   try {
     const servidor = clienteServidor();
