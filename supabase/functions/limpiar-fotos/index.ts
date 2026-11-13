@@ -25,7 +25,7 @@
 // QUIÉN LA PUEDE LLAMAR
 //
 //   Solo el cron de la base de datos. Desde SEG-08 exige la cabecera
-//   x-tomass-secreto con el valor de TOMASS_SECRETO_INTERNO (ver
+//   x-tomass-secreto con el secreto interno guardado en el vault (ver
 //   _compartido/secreto_interno.ts). Igual la función no recibe
 //   instrucciones y siempre aplica la regla fija de los 6 meses, pero no hay
 //   motivo para que alguien de afuera pueda dispararla.
@@ -52,11 +52,11 @@ Deno.serve(async (peticion: Request) => {
   if (peticion.method === "OPTIONS") return saludoPrevio();
   if (peticion.method !== "POST") return error("Método no permitido.", 405);
 
-  const rechazo = exigirSecretoInterno(peticion, "limpiar-fotos");
-  if (rechazo) return rechazo;
-
   try {
     const servidor = clienteServidor();
+
+    const rechazo = await exigirSecretoInterno(peticion, servidor, "limpiar-fotos");
+    if (rechazo) return rechazo;
 
     const limite = new Date();
     limite.setMonth(limite.getMonth() - MESES_QUE_SE_GUARDA);

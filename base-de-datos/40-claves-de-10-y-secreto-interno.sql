@@ -19,13 +19,14 @@
 --      lee del vault como el trigger.
 --
 --      EL VALOR DEL SECRETO NO VA EN ESTE ARCHIVO (el repo es público). Se
---      crea aparte, una sola vez:
+--      genera al azar dentro de la base, una sola vez, y nunca sale de ahí:
 --        select vault.create_secret(
 --          encode(extensions.gen_random_bytes(32), 'hex'),
 --          'tomass_secreto_interno',
---          'SEG-08: secreto compartido con las Edge Functions');
---      y el MISMO valor se carga en Edge Functions → Secrets como
---      TOMASS_SECRETO_INTERNO.
+--          'SEG-08: secreto de las llamadas internas a Edge Functions');
+--      Las funciones no lo guardan como variable de entorno: le preguntan a
+--      la base con _secreto_interno_valido(), que solo puede usar el
+--      servidor (service_role).
 --
 --      Mientras el secreto no exista en el vault, el trigger y el cron llaman
 --      igual que antes (sin la cabecera). Así este archivo se puede aplicar
@@ -167,6 +168,27 @@ END;
 $function$;
 
 REVOKE ALL ON FUNCTION public._cabeceras_llamada_interna() FROM public, anon, authenticated;
+
+-- La función del servidor pregunta acá si el secreto que le llegó es el
+-- correcto. Solo service_role la puede ejecutar; si el secreto no existe en
+-- el vault, contesta false (falla cerrada).
+CREATE OR REPLACE FUNCTION public._secreto_interno_valido(p_secreto text)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE
+ SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp', 'vault'
+AS $function$
+  select coalesce(
+    (select length(ds.decrypted_secret) >= 32
+            and ds.decrypted_secret = p_secreto
+       from vault.decrypted_secrets ds
+      where ds.name = 'tomass_secreto_interno'),
+    false);
+$function$;
+
+REVOKE ALL ON FUNCTION public._secreto_interno_valido(text) FROM public, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public._secreto_interno_valido(text) TO service_role;
 
 -- El trigger del aviso de novedad crítica, igual que antes pero con las
 -- cabeceras nuevas.

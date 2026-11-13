@@ -15,7 +15,7 @@
 //   verify_jwt = true, pero el trigger pasa esa puerta con la llave pública
 //   del proyecto (la misma que va en la app), así que eso solo no alcanza.
 //   Desde SEG-08 además exige la cabecera x-tomass-secreto con el valor de
-//   TOMASS_SECRETO_INTERNO (ver _compartido/secreto_interno.ts). Sin ese
+//   tomass_secreto_interno del vault (ver _compartido/secreto_interno.ts). Sin ese
 //   secreto nadie de afuera puede mandar avisos falsos a los admins.
 //
 // IDEMPOTENCIA
@@ -38,7 +38,9 @@ Deno.serve(async (req: Request) => {
     return error("Solo se acepta POST", 405);
   }
 
-  const rechazo = exigirSecretoInterno(req, "avisar-novedad-critica");
+  const cliente = clienteServidor();
+
+  const rechazo = await exigirSecretoInterno(req, cliente, "avisar-novedad-critica");
   if (rechazo) return rechazo;
 
   let payload: { record?: { id?: string }; incidenteId?: string };
@@ -56,8 +58,6 @@ Deno.serve(async (req: Request) => {
   if (!incidenteId) {
     return error("Falta incidenteId", 400);
   }
-
-  const cliente = clienteServidor();
 
   // Leemos la fila completa, joineando con usuarios para traer el nombre
   // de quien reportó.

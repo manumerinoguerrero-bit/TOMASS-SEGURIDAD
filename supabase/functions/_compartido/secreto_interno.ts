@@ -8,49 +8,48 @@
 // significa que cualquiera que la saque del APK podría llamar a estas
 // funciones y, por ejemplo, hacer sonar avisos falsos a los administradores.
 //
-// La solución: un secreto que solo conocen la base de datos y el servidor.
+// La solución: un secreto que solo conoce la base de datos.
 //
-//   - En el servidor vive como variable de entorno TOMASS_SECRETO_INTERNO
-//     (Supabase → Edge Functions → Secrets).
-//   - En la base vive en el vault con el nombre tomass_secreto_interno, y el
-//     trigger y el cron lo mandan en la cabecera x-tomass-secreto.
+//   - Vive en el vault con el nombre tomass_secreto_interno (el "secreto
+//     interno" de SEG-08). Se generó al azar dentro de la base y nunca salió
+//     de ahí: nadie lo tuvo que copiar ni pegar.
+//   - El trigger y el cron lo mandan en la cabecera x-tomass-secreto.
+//   - La función le pregunta a la base, con la llave maestra, si lo que llegó
+//     coincide (public._secreto_interno_valido). La comparación se hace allá.
 //
-// Si los dos valores no coinciden, la función contesta 401 y no hace nada.
-// Si la variable de entorno no está cargada, también rechaza (falla cerrada):
-// es preferible perder un aviso a dejar la puerta abierta. Lo deja anotado en
-// el log para que se note enseguida.
+// Si no coincide, o si la consulta falla, la función contesta 401 y no hace
+// nada (falla cerrada): es preferible perder un aviso a dejar la puerta
+// abierta. Lo deja anotado en el log para que se note enseguida.
 // ============================================================================
 
+import type { SupabaseClient } from "npm:@supabase/supabase-js@2";
 import { error, registrar } from "./respuesta.ts";
 
 export const CABECERA_SECRETO = "x-tomass-secreto";
-
-/** Compara dos textos sin filtrar por el tiempo cuántos caracteres coinciden. */
-function igualesSinFiltrar(a: string, b: string): boolean {
-  const codificador = new TextEncoder();
-  const x = codificador.encode(a);
-  const y = codificador.encode(b);
-  let diferencia = x.length ^ y.length;
-  const largo = Math.max(x.length, y.length);
-  for (let i = 0; i < largo; i++) {
-    diferencia |= (x[i] ?? 0) ^ (y[i] ?? 0);
-  }
-  return diferencia === 0;
-}
 
 /**
  * Devuelve null si la llamada trae el secreto correcto. Si no, devuelve la
  * respuesta 401 que la función tiene que contestar tal cual.
  */
-export function exigirSecretoInterno(peticion: Request, funcion: string): Response | null {
-  const esperado = Deno.env.get("TOMASS_SECRETO_INTERNO") ?? "";
-  if (esperado.length < 32) {
-    registrar("secreto_interno_sin_configurar", { funcion });
-    return error("Función interna no disponible.", 401);
-  }
+export async function exigirSecretoInterno(
+  peticion: Request,
+  servidor: SupabaseClient,
+  funcion: string,
+): Promise<Response | null> {
   const recibido = peticion.headers.get(CABECERA_SECRETO) ?? "";
-  if (!igualesSinFiltrar(recibido, esperado)) {
-    registrar("secreto_interno_rechazado", { funcion, trae_cabecera: recibido.length > 0 });
+  if (recibido.length === 0) {
+    registrar("secreto_interno_rechazado", { funcion, trae_cabecera: false });
+    return error("No autorizado.", 401);
+  }
+  const { data, error: falla } = await servidor.rpc("_secreto_interno_valido", {
+    p_secreto: recibido,
+  });
+  if (falla) {
+    registrar("secreto_interno_no_se_pudo_validar", { funcion, detalle: falla.message });
+    return error("No autorizado.", 401);
+  }
+  if (data !== true) {
+    registrar("secreto_interno_rechazado", { funcion, trae_cabecera: true });
     return error("No autorizado.", 401);
   }
   return null;
