@@ -170,18 +170,22 @@ async function capturarMapaComoPng({ puntos, marcas = [], rastro = [], pins = []
   ).addTo(mapa);
 
   const bounds = [];
-  // Puntos de control (circulos grandes grafito con número)
+  // Puntos de control (circulos grandes con número). Si el punto trae el flag
+  // _marcado = true (lo marcó el guardia en esa ronda), va en VERDE; si no, en
+  // grafito. Así se ve de un vistazo qué sectores cubrió y cuáles quedaron sin
+  // marcar, dentro de la garita que le tocaba.
   for (const p of (puntos || [])) {
     if (!p.latitud || !p.longitud) continue;
     const latlng = [p.latitud, p.longitud];
+    const col = p._marcado ? '#1E8449' : '#0D2B5E';
     L.circle(latlng, {
       radius: p.metros_de_tolerancia || 20,
-      color: '#0D2B5E', weight: 1, fillColor: '#0D2B5E', fillOpacity: 0.12,
+      color: col, weight: 1, fillColor: col, fillOpacity: 0.12,
     }).addTo(mapa);
     L.marker(latlng, {
       icon: L.divIcon({
         className: 'pin-sector',
-        html: `<div style="background:#0D2B5E;color:white;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;border:2px solid white;box-shadow:0 1px 3px rgba(0,0,0,.4)">${p.orden ?? ''}</div>`,
+        html: `<div style="background:${col};color:white;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;border:2px solid white;box-shadow:0 1px 3px rgba(0,0,0,.4)">${p.orden ?? ''}</div>`,
         iconSize: [26, 26], iconAnchor: [13, 13],
       }),
     }).addTo(mapa);
@@ -364,10 +368,17 @@ const InformeRondas = {
       doc.text('Mapa general del período', 14, 20);
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(9); doc.setTextColor(...COLOR_GRIS_RGB);
-      doc.text('Cada círculo grafito es un sector con su número de orden. ' +
-               'Cada punto verde es una marca hecha en el lugar; rojo = marca desde lejos.',
+      doc.text('Cada círculo es un sector con su número de orden. ' +
+               'Cada punto verde es una marca hecha en el lugar; rojo = marca desde lejos. ' +
+               'Solo se muestran las garitas que tuvieron rondas en el período.',
         14, 26, { maxWidth: 180 });
-      const pngGeneral = await capturarMapaComoPng({ puntos, marcas });
+      // El mapa general solo muestra las garitas que efectivamente tuvieron
+      // rondas en el período (no todas las de la instalación).
+      const garitasConRonda = new Set(rondas.map((r) => r.garita_id).filter(Boolean));
+      const puntosGeneral = garitasConRonda.size
+        ? puntos.filter((p) => p.garita_id == null || garitasConRonda.has(p.garita_id))
+        : puntos;
+      const pngGeneral = await capturarMapaComoPng({ puntos: puntosGeneral, marcas });
       if (pngGeneral) {
         doc.addImage(pngGeneral, 'JPEG', 14, 34, 180, 120);
       } else {
@@ -411,15 +422,28 @@ const InformeRondas = {
           doc.text(`Notas: ${r.notas}`, 14, yFin + 14, { maxWidth: 180 });
         }
 
-        // Mapa por ronda
-        const png = await capturarMapaComoPng({ puntos, marcas: suyas });
+        // Mapa por ronda: SOLO los puntos de la garita que le tocó a esta
+        // ronda (no las otras garitas). Los puntos que marcó van en verde.
+        const ordenesMarcados = new Set(suyas.map((m) => m.sector_orden));
+        const puntosDeRonda = puntos
+          .filter((p) => (r.garita_id == null
+            ? true
+            : (p.garita_id === r.garita_id || p.garita_id == null)))
+          .map((p) => ({ ...p, _marcado: ordenesMarcados.has(p.orden) }));
+        const png = await capturarMapaComoPng({ puntos: puntosDeRonda, marcas: suyas });
         if (png) {
-          const y = Math.max(yFin + 22, 75);
+          const leyenda = 'Verde = sector marcado por el guardia · Azul = sin marcar · ' +
+            'el punto verde/rojo es la posición GPS de la marca (rojo = marca lejana).';
+          const y = Math.max(yFin + 22, 78);
           const espacio = 290 - y - 12;
+          doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
+          doc.setTextColor(...COLOR_GRIS_RGB);
           if (espacio > 60) {
+            doc.text(leyenda, 14, y - 3, { maxWidth: 180 });
             doc.addImage(png, 'JPEG', 14, y, 180, Math.min(120, espacio));
           } else {
             doc.addPage();
+            doc.text(leyenda, 14, 16, { maxWidth: 180 });
             doc.addImage(png, 'JPEG', 14, 20, 180, 150);
           }
         }
