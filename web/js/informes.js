@@ -257,6 +257,20 @@ async function capturarMapaComoPng({ puntos, marcas = [], rastro = [], pins = []
 // INFORME 1: RONDAS CON MAPA SATELITAL
 // --------------------------------------------------------------------------
 
+// ¿La hora de inicio de la ronda cae dentro del horario pedido?
+// hd y hh son "HH:MM". Soporta ventanas que cruzan medianoche (ej. 22:00 a 06:00).
+function rondaDentroDeHorario(iso, hd, hh) {
+  if (!hd && !hh) return true;
+  const d = new Date(iso);
+  const min = d.getHours() * 60 + d.getMinutes();
+  const [h1, m1] = (hd || '00:00').split(':').map(Number);
+  const [h2, m2] = (hh || '23:59').split(':').map(Number);
+  const desde = h1 * 60 + m1;
+  const hasta = h2 * 60 + m2;
+  if (desde <= hasta) return min >= desde && min <= hasta;
+  return min >= desde || min <= hasta; // cruza medianoche
+}
+
 const InformeRondas = {
   nombre: 'Informe de rondas',
 
@@ -280,6 +294,12 @@ const InformeRondas = {
         </label>
         <label>Hasta
           <input type="date" id="rndHasta" value="${hoyIso()}">
+        </label>
+        <label>Hora desde (opcional)
+          <input type="time" id="rndHoraDesde">
+        </label>
+        <label>Hora hasta (opcional)
+          <input type="time" id="rndHoraHasta">
         </label>
         <label>Guardia (opcional)
           <select id="rndGuardia"><option value="">— Todos —</option></select>
@@ -322,6 +342,8 @@ const InformeRondas = {
       const hastaStr = document.getElementById('rndHasta').value;
       const guardiaId = document.getElementById('rndGuardia').value || null;
       const garitaId = document.getElementById('rndGarita').value || null;
+      const horaDesde = document.getElementById('rndHoraDesde').value || null;
+      const horaHasta = document.getElementById('rndHoraHasta').value || null;
       if (!condoId || !desdeStr || !hastaStr) {
         throw new Error('Completá instalación y fechas.');
       }
@@ -329,14 +351,22 @@ const InformeRondas = {
       const condoNombre = estado.instalaciones.find((i) => i.id === condoId)?.nombre
         || 'Instalación';
 
-      const [rondas, marcas, puntos] = await Promise.all([
+      let [rondas, marcas] = await Promise.all([
         api.informeDeRondas({ condominioId: condoId, desde, hasta, guardiaId, garitaId }),
         api.detalleDeRondas({ condominioId: condoId, desde, hasta, guardiaId, garitaId }),
-        api.puntosDeControl({ condominioId: condoId, garitaId }),
       ]);
+      const puntos = await api.puntosDeControl({ condominioId: condoId, garitaId });
+
+      // Filtro de horario: dejar solo las rondas que empezaron dentro del
+      // rango de hora pedido (y sus marcas).
+      if (horaDesde || horaHasta) {
+        rondas = rondas.filter((r) => rondaDentroDeHorario(r.inicio, horaDesde, horaHasta));
+        const ids = new Set(rondas.map((r) => r.ronda_id));
+        marcas = marcas.filter((m) => ids.has(m.ronda_id));
+      }
 
       if (rondas.length === 0) {
-        throw new Error('No hay rondas en ese período con esos filtros.');
+        throw new Error('No hay rondas en ese período/horario con esos filtros.');
       }
 
       const { jsPDF } = window.jspdf;
@@ -344,6 +374,7 @@ const InformeRondas = {
       dibujarCabeceraPdf(doc,
         `Informe de rondas — ${condoNombre}`,
         `Del ${fmtFecha(desde)} al ${fmtFecha(hasta)}` +
+        ((horaDesde || horaHasta) ? ` · ${horaDesde || '00:00'}–${horaHasta || '23:59'} hrs` : '') +
         (guardiaId ? ` · ${rondas[0].guardia}` : '') +
         (garitaId && puntos[0]?.garita_nombre ? ` · ${puntos[0].garita_nombre}` : ''));
 
