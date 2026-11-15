@@ -788,14 +788,19 @@ class InformeDeTurnosPdf {
           // un mapa real pero muestra el recorrido con puntos numerados y
           // líneas entre ellos, sin depender de nada externo.
           if (mapaBytes != null) ...[
-            pw.ClipRRect(
-              horizontalRadius: 5,
-              verticalRadius: 5,
-              child: pw.Image(
-                pw.MemoryImage(mapaBytes),
-                width: double.infinity,
-                height: 160,
-                fit: pw.BoxFit.cover,
+            // El ancho debe ser FINITO: con `width: double.infinity` el PDF
+            // quedaba con una matriz [Infinity 0 0 Infinity NaN -Infinity] y
+            // el mapa salía EN BLANCO. LayoutBuilder da el ancho real.
+            pw.LayoutBuilder(
+              builder: (context, constraints) => pw.ClipRRect(
+                horizontalRadius: 5,
+                verticalRadius: 5,
+                child: pw.Image(
+                  pw.MemoryImage(mapaBytes),
+                  width: constraints!.maxWidth,
+                  height: 160,
+                  fit: pw.BoxFit.cover,
+                ),
               ),
             ),
             pw.SizedBox(height: 6),

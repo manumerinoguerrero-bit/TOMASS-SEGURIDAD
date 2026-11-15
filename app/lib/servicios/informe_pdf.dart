@@ -176,14 +176,22 @@ class InformeDeRondasPdf {
               ),
               pw.SizedBox(height: 10),
               if (mapaBytes != null) ...[
-                pw.ClipRRect(
-                  horizontalRadius: 4,
-                  verticalRadius: 4,
-                  child: pw.Image(
-                    pw.MemoryImage(mapaBytes),
-                    width: double.infinity,
-                    height: 340,
-                    fit: pw.BoxFit.cover,
+                // IMPORTANTE: el ancho debe ser FINITO. Antes usábamos
+                // `width: double.infinity` y el generador de PDF no lo acotaba
+                // al ancho de la página: la imagen quedaba con una matriz de
+                // transformación [Infinity 0 0 Infinity NaN -Infinity], el PDF
+                // se corrompía y el mapa salía EN BLANCO (el plano de abajo sí
+                // se veía). Con LayoutBuilder tomamos el ancho real disponible.
+                pw.LayoutBuilder(
+                  builder: (context, constraints) => pw.ClipRRect(
+                    horizontalRadius: 4,
+                    verticalRadius: 4,
+                    child: pw.Image(
+                      pw.MemoryImage(mapaBytes!),
+                      width: constraints!.maxWidth,
+                      height: 340,
+                      fit: pw.BoxFit.cover,
+                    ),
                   ),
                 ),
                 pw.SizedBox(height: 6),
