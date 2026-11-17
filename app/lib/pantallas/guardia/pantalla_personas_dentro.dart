@@ -240,9 +240,11 @@ class _EstadoTarjetaPersona extends ConsumerState<_TarjetaPersona> {
 
   Future<void> _marcarSalida() async {
     final persona = widget.persona;
-    final tipo = persona['persona_tipo']?.toString();
-    final id = persona['persona_id']?.toString();
-    if (tipo == null || id == null) return;
+    // El id del movimiento de ENTRADA. Con esto la salida clona la entrada
+    // exacta y sirve para todos — incluidos los ingresos manuales, que no
+    // tienen persona_id.
+    final movimientoId = persona['movimiento_id']?.toString();
+    if (movimientoId == null) return;
 
     final nombre = persona['nombre']?.toString() ?? 'esta persona';
 
@@ -274,9 +276,8 @@ class _EstadoTarjetaPersona extends ConsumerState<_TarjetaPersona> {
     setState(() => _cerrando = true);
     final messenger = ScaffoldMessenger.of(context);
     try {
-      await ref.read(servicioGuardiaProvider).registrarSalidaRapida(
-            personaTipo: tipo,
-            personaId: id,
+      await ref.read(servicioGuardiaProvider).registrarSalidaDeMovimiento(
+            movimientoId: movimientoId,
             idLocal: _nuevoUuidV4(),
           );
       ref.invalidate(personasDentroProvider);
