@@ -6,7 +6,6 @@
 //   Le muestra al guardia la lista COMPLETA de quiénes están adentro ahora
 //   mismo: cada persona que registró entrada y no marcó salida todavía.
 //
-//   El panel principal ya trae un resumen con los primeros 6 y dice "y N más".
 //   Esta pantalla es para cuando el guardia necesita buscar a alguien puntual,
 //   verificar que nadie quedó adentro al fin del turno, o pasarle a Manuel
 //   la lista para el conteo.
@@ -162,8 +161,10 @@ class _EstadoPersonasDentro extends ConsumerState<PantallaPersonasDentro> {
                           itemCount: filtrada.length,
                           separatorBuilder: (_, __) =>
                               const SizedBox(height: 6),
-                          itemBuilder: (_, i) =>
-                              _TarjetaPersona(persona: filtrada[i]),
+                          itemBuilder: (_, i) => _TarjetaPersona(
+                            key: ValueKey(filtrada[i]['movimiento_id']),
+                            persona: filtrada[i],
+                          ),
                         ),
                 ),
               ],
@@ -223,11 +224,128 @@ class _EstadoPersonasDentro extends ConsumerState<PantallaPersonasDentro> {
 }
 
 // ============================================================================
+// Lista para marcar salida, dentro de "Anotar ingreso" → Sale
+// ============================================================================
+// La misma lista de arriba (buscador + tarjetas con el botón de salida), pero
+// sin Scaffold ni scroll propio: va metida en el ListView de "Anotar
+// ingreso", así el guardia elige "Sale" y ve ahí mismo a los que quedan
+// adentro, sin cambiar de pantalla.
+// ============================================================================
+
+class ListaParaSalida extends ConsumerStatefulWidget {
+  const ListaParaSalida({super.key});
+
+  @override
+  ConsumerState<ListaParaSalida> createState() => _EstadoListaParaSalida();
+}
+
+class _EstadoListaParaSalida extends ConsumerState<ListaParaSalida> {
+  final _busqueda = TextEditingController();
+
+  @override
+  void dispose() {
+    _busqueda.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final personas = ref.watch(personasDentroProvider);
+
+    return personas.when(
+      loading: () => const Padding(
+        padding: EdgeInsets.symmetric(vertical: 30),
+        child: Center(
+          child: CircularProgressIndicator(color: Colores.grafito),
+        ),
+      ),
+      error: (falla, _) => AvisoDeError(
+        problema: Traductor.traducir(falla),
+        alReintentar: () => ref.invalidate(personasDentroProvider),
+      ),
+      data: (lista) {
+        final filtrada =
+            _EstadoPersonasDentro._filtrar(lista, _busqueda.text);
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Text(
+                  _busqueda.text.isEmpty
+                      ? 'QUEDAN ${lista.length} ADENTRO · ELEGÍ QUIÉN SALE'
+                      : '${filtrada.length} DE ${lista.length}',
+                  style: Theme.of(context).textTheme.labelSmall,
+                ),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.refresh_rounded, size: 20),
+                  tooltip: 'Actualizar',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () => ref.invalidate(personasDentroProvider),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            if (lista.isNotEmpty) ...[
+              TextField(
+                controller: _busqueda,
+                onChanged: (_) => setState(() {}),
+                decoration: InputDecoration(
+                  hintText: 'Buscar por nombre, unidad o patente',
+                  prefixIcon: const Icon(Icons.search_rounded),
+                  suffixIcon: _busqueda.text.isEmpty
+                      ? null
+                      : IconButton(
+                          icon: const Icon(Icons.close_rounded),
+                          onPressed: () => setState(_busqueda.clear),
+                        ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(Medidas.redondeoChico),
+                  ),
+                  isDense: true,
+                ),
+              ),
+              const SizedBox(height: 10),
+            ],
+            if (filtrada.isEmpty)
+              lista.isEmpty
+                  ? const ListaVacia(
+                      icono: Icons.people_outline_rounded,
+                      titulo: 'No hay nadie registrado adentro',
+                      explicacion:
+                          'Cuando alguien registre entrada, va a aparecer '
+                          'acá para marcarle la salida.',
+                    )
+                  : const ListaVacia(
+                      icono: Icons.search_off_rounded,
+                      titulo: 'Ninguna persona coincide',
+                      explicacion:
+                          'Probá con menos texto. La búsqueda no distingue '
+                          'mayúsculas ni tildes.',
+                    )
+            else
+              for (final p in filtrada) ...[
+                _TarjetaPersona(
+                  key: ValueKey(p['movimiento_id']),
+                  persona: p,
+                ),
+                const SizedBox(height: 6),
+              ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+// ============================================================================
 // Tarjeta de una persona
 // ============================================================================
 
 class _TarjetaPersona extends ConsumerStatefulWidget {
-  const _TarjetaPersona({required this.persona});
+  const _TarjetaPersona({super.key, required this.persona});
 
   final Map<String, dynamic> persona;
 
