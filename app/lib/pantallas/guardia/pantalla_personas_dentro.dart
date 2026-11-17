@@ -250,7 +250,7 @@ class _EstadoTarjetaPersona extends ConsumerState<_TarjetaPersona> {
 
     final ok = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogo) => AlertDialog(
         title: const Text('¿Marcar salida?'),
         content: Text(
           'Se va a registrar la salida de $nombre con la hora de ahora. '
@@ -260,11 +260,11 @@ class _EstadoTarjetaPersona extends ConsumerState<_TarjetaPersona> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () => Navigator.pop(dialogo, false),
             child: const Text('Cancelar'),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => Navigator.pop(dialogo, true),
             style: FilledButton.styleFrom(backgroundColor: Colores.grafito),
             child: const Text('Sí, marcar salida'),
           ),

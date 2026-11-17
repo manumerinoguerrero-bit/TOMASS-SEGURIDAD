@@ -421,7 +421,7 @@ class _TarjetaGuardia extends StatelessWidget {
   Future<void> _cerrarSesion(BuildContext context) async {
     final ok = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogo) => AlertDialog(
         title: const Text('Cerrar sesión del guardia'),
         content: Text(
           '¿Cerrar la sesión de ${guardia['nombre_completo']}?\n\n'
@@ -430,12 +430,12 @@ class _TarjetaGuardia extends StatelessWidget {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () => Navigator.pop(dialogo, false),
             child: const Text('Cancelar'),
           ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Colores.rojo),
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => Navigator.pop(dialogo, true),
             child: const Text('Cerrar sesión'),
           ),
         ],
@@ -481,7 +481,7 @@ class _TarjetaGuardia extends StatelessWidget {
   Future<void> _reactivar(BuildContext context) async {
     final ok = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogo) => AlertDialog(
         title: const Text('Reactivar guardia'),
         content: Text(
           '¿Reactivar a ${guardia['nombre_completo']}?\n\n'
@@ -490,11 +490,11 @@ class _TarjetaGuardia extends StatelessWidget {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () => Navigator.pop(dialogo, false),
             child: const Text('Cancelar'),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => Navigator.pop(dialogo, true),
             child: const Text('Reactivar'),
           ),
         ],
