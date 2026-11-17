@@ -36,7 +36,8 @@ class ContenedorGuardia extends ConsumerStatefulWidget {
   ConsumerState<ContenedorGuardia> createState() => _EstadoContenedorGuardia();
 }
 
-class _EstadoContenedorGuardia extends ConsumerState<ContenedorGuardia> {
+class _EstadoContenedorGuardia extends ConsumerState<ContenedorGuardia>
+    with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
@@ -51,6 +52,48 @@ class _EstadoContenedorGuardia extends ConsumerState<ContenedorGuardia> {
     // la auto-marca de rondas siga funcionando aunque el guardia esté en otra
     // pestaña o con la pantalla apagada.
     ref.read(vigilanteDeRondaProvider);
+    // Escuchamos el ciclo de vida para re-validar el turno al volver del fondo
+    // (ver _revalidarTurno).
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState estado) {
+    if (estado == AppLifecycleState.resumed) _revalidarTurno();
+  }
+
+  // ==========================================================================
+  // EL TURNO NO SE PUEDE QUEDAR "ABIERTO EN FALSO"
+  // ==========================================================================
+  // El turno abierto vive en memoria (miTurnoProvider) y, mientras la app
+  // está en segundo plano, puede cerrarse en el SERVIDOR sin que el teléfono
+  // se entere: fin de turno, la administración lo cierra, u otro aparato.
+  //
+  // Si eso pasa, el panel se sigue viendo como si hubiera turno, pero cada
+  // acción contra el servidor (anotar un ingreso) falla con "abrí tu turno" y
+  // el guardia queda trabado sin saber por qué. Reportado el 17/11/2026:
+  // Nevenka no podía registrar un ingreso aunque el panel le mostraba el turno
+  // abierto — en el servidor estaba cerrado hacía horas.
+  //
+  // Al volver del fondo le volvemos a preguntar al servidor EN SILENCIO. Si el
+  // turno sigue abierto, no tocamos nada (no hay parpadeo). Si se cerró,
+  // refrescamos miTurnoProvider: al quedar en null, el router manda solo al
+  // guardia a abrir turno de nuevo. Sin señal no hacemos nada: se re-valida en
+  // el próximo retorno del fondo.
+  Future<void> _revalidarTurno() async {
+    if (ref.read(miTurnoProvider).valueOrNull == null) return;
+    try {
+      final real = await ref.read(servicioGuardiaProvider).miTurnoAbierto();
+      if (real == null && mounted) ref.invalidate(miTurnoProvider);
+    } catch (_) {
+      // Sin señal o error de red: dejamos el estado como está.
+    }
   }
 
   /// El menú del guardia. Cambió al nuevo modelo de empresa de seguridad:

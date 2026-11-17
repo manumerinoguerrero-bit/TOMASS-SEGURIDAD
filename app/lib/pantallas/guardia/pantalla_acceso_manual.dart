@@ -343,9 +343,29 @@ class _EstadoAccesoManual extends ConsumerState<PantallaAccesoManual> {
       );
     } catch (falla) {
       if (!mounted) return;
+      final problema = Traductor.traducir(falla);
+
+      // AUTO-CORRECCIÓN: el servidor dice que no hay turno abierto, pero la app
+      // creía que sí. El turno se cerró en el servidor (fin de turno, la
+      // administración, otro aparato) y el panel quedó mostrándose abierto. En
+      // vez de dejar al guardia reintentando contra una pantalla que no avanza,
+      // refrescamos el turno: al quedar en null, el router lo manda solo a
+      // abrir turno de nuevo. (Ver contenedor_guardia._revalidarTurno.)
+      if (problema.mensaje.contains('abrir tu turno')) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text(
+            'Tu turno estaba cerrado. Abrilo de nuevo para seguir registrando.',
+          ),
+          backgroundColor: Colores.naranja,
+          duration: Duration(seconds: 4),
+        ));
+        ref.invalidate(miTurnoProvider);
+        return;
+      }
+
       setState(() {
         _guardando = false;
-        _problema = Traductor.traducir(falla);
+        _problema = problema;
       });
     }
   }
