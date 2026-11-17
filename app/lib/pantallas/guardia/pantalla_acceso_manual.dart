@@ -463,13 +463,18 @@ class _EstadoAccesoManual extends ConsumerState<PantallaAccesoManual> {
               // la entrada correcta y la persona desaparece del listado. Antes,
               // una salida tipeada con el RUT distinto al de la entrada dejaba
               // a la persona "adentro" para siempre.
-              Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => const PantallaPersonasDentro(),
-              ));
+              setState(() => _sentido = 'salida');
             },
           ),
 
           const SizedBox(height: 18),
+
+          // ---- Sale: la lista de los que siguen adentro ----
+          // Se elige a la persona y se le marca la salida ahí mismo. El
+          // formulario de entrada no aplica, así que no se muestra.
+          if (_sentido == 'salida')
+            const ListaParaSalida()
+          else ...[
 
           // ---- A pie o en vehículo ----
           Text('¿CÓMO PASA?', style: Theme.of(context).textTheme.labelSmall),
@@ -731,6 +736,7 @@ class _EstadoAccesoManual extends ConsumerState<PantallaAccesoManual> {
               ),
             ),
           ),
+          ],
 
           const SizedBox(height: 24),
         ],

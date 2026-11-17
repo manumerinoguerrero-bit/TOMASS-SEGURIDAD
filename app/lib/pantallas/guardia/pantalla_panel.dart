@@ -7,8 +7,8 @@
 // EL ORDEN NO ES CASUAL
 //   1. Lo urgente primero (autos esperando), en rojo y grande.
 //   2. Los números del día.
-//   3. Quién está adentro del condominio  ← el dato que piden los bomberos.
-//   4. Los últimos movimientos, que se actualizan solos.
+//   3. Los últimos accesos y salidas, que se actualizan solos.
+//   (Quién está adentro se ve en Ingreso → Sale y en "Personas dentro".)
 //
 // SI NO HAY NADA URGENTE, LA PRIMERA TARJETA DESAPARECE.
 //   Un panel que siempre muestra una alerta enseña al guardia a ignorarlas.
@@ -29,7 +29,6 @@ import '../../nucleo/formato.dart';
 import '../../servicios/rastreador_guardia.dart';
 import '../comunes/componentes.dart';
 import 'acciones_de_turno.dart';
-import 'pantalla_personas_dentro.dart';
 
 class PantallaPanel extends ConsumerWidget {
   const PantallaPanel({super.key});
@@ -120,15 +119,13 @@ class PantallaPanel extends ConsumerWidget {
 
             const SizedBox(height: 22),
 
-            // ---- 3. Quién está adentro ----
-            const _QuienEstaAdentro(),
-
-            const SizedBox(height: 22),
-
-            // ---- 4. Los últimos movimientos ----
+            // ---- 3. Los últimos movimientos ----
+            // La lista de quiénes están adentro se sacó del inicio a pedido:
+            // se ve en "Ingreso" → Sale (para marcar salidas) y en el botón
+            // "Personas dentro" de esa pantalla. Acá queda el número.
             Row(
               children: [
-                Text('ÚLTIMOS ACCESOS',
+                Text('ÚLTIMOS ACCESOS Y SALIDAS',
                     style: Theme.of(context).textTheme.labelSmall),
                 const Spacer(),
                 const Etiqueta(texto: 'En vivo', tono: TonoEtiqueta.bueno),
@@ -288,214 +285,6 @@ class _Numero extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-// ============================================================================
-// Quiénes están adentro del condominio
-// ============================================================================
-// PARA QUÉ SIRVE DE VERDAD: si hay un incendio y los bomberos preguntan cuánta
-// gente queda adentro, esta lista es la respuesta.
-//
-// También marca las estadías raras: una visita que entró hace 14 horas y nunca
-// salió es algo que conviene revisar.
-// ============================================================================
-
-class _QuienEstaAdentro extends ConsumerWidget {
-  const _QuienEstaAdentro();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final dentro = ref.watch(personasDentroProvider);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Text('QUIÉNES ESTÁN ADENTRO',
-                style: Theme.of(context).textTheme.labelSmall),
-            const Spacer(),
-            Text(
-              '${dentro.valueOrNull?.length ?? 0} personas',
-              style: const TextStyle(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w700,
-                color: Colores.textoSuave,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 9),
-        dentro.when(
-          loading: () => const Card(
-            child: Padding(
-              padding: EdgeInsets.symmetric(vertical: 28),
-              child: Center(
-                child: CircularProgressIndicator(color: Colores.grafito),
-              ),
-            ),
-          ),
-          error: (falla, _) => AvisoDeError(
-            problema: Traductor.traducir(falla),
-            alReintentar: () => ref.invalidate(personasDentroProvider),
-            compacto: true,
-          ),
-          data: (lista) {
-            if (lista.isEmpty) {
-              return Card(
-                child: Padding(
-                  padding: EdgeInsets.all(Medidas.margen),
-                  child: Text(
-                    'No hay nadie registrado dentro de ${ref.watch(palabrasProvider).laInstalacion} ahora mismo.',
-                    style: TextStyle(fontSize: 13, color: Colores.textoSuave),
-                  ),
-                ),
-              );
-            }
-
-            final raros = lista.where((p) => p['estadia_inusual'] == true).toList();
-
-            return Card(
-              child: Padding(
-                padding: const EdgeInsets.all(13),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (raros.isNotEmpty) ...[
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: Colores.naranja.withValues(alpha: 0.1),
-                          borderRadius:
-                              BorderRadius.circular(Medidas.redondeoChico),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.schedule_rounded,
-                                size: 17, color: Colores.naranjaOscuro),
-                            const SizedBox(width: 9),
-                            Expanded(
-                              child: Text(
-                                raros.length == 1
-                                    ? '1 persona lleva mucho tiempo adentro. Conviene revisar.'
-                                    : '${raros.length} personas llevan mucho tiempo adentro.',
-                                style: const TextStyle(
-                                  fontSize: 12.5,
-                                  height: 1.4,
-                                  color: Colores.naranjaOscuro,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 11),
-                    ],
-
-                    // Se muestran los primeros; el resto se resume
-                    for (final p in lista.take(6))
-                      _FilaPersona(persona: p),
-
-                    // Botón para ver la lista completa con búsqueda.
-                    // Aparece siempre — no solo cuando hay más de 6 — porque
-                    // en la pantalla completa el guardia puede filtrar por
-                    // patente o unidad, que en el resumen no se puede.
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4),
-                      child: SizedBox(
-                        width: double.infinity,
-                        child: TextButton.icon(
-                          onPressed: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const PantallaPersonasDentro(),
-                            ),
-                          ),
-                          icon: const Icon(Icons.list_alt_rounded, size: 18),
-                          label: Text(lista.length > 6
-                              ? 'Ver los ${lista.length} — buscar por nombre, unidad o patente'
-                              : 'Ver todos con búsqueda'),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        ),
-      ],
-    );
-  }
-}
-
-class _FilaPersona extends StatelessWidget {
-  const _FilaPersona({required this.persona});
-
-  final Map<String, dynamic> persona;
-
-  @override
-  Widget build(BuildContext context) {
-    final tipo = persona['persona_tipo']?.toString() ?? 'residente';
-    final raro = persona['estadia_inusual'] == true;
-    final entro = DateTime.tryParse(persona['entro_en']?.toString() ?? '');
-
-    final (icono, nombreTipo) = switch (tipo) {
-      'visita' => (Icons.person_add_alt_rounded, 'Visita'),
-      'personal_servicio' => (Icons.handyman_rounded, 'Personal'),
-      _ => (Icons.home_rounded, 'Residente'),
-    };
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 9),
-      child: Row(
-        children: [
-          Icon(icono, size: 16,
-              color: raro ? Colores.naranjaOscuro : Colores.textoSuave),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  persona['nombre']?.toString() ?? '—',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                Text(
-                  [
-                    nombreTipo,
-                    if (persona['unidad'] != null) 'unidad ${persona['unidad']}',
-                    if (entro != null) 'entró ${Formato.haceCuanto(entro)}',
-                  ].join(' · '),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: raro ? Colores.naranjaOscuro : Colores.textoSuave,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (persona['patente'] != null)
-            Text(
-              persona['patente'].toString(),
-              style: const TextStyle(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w700,
-                color: Colores.textoSuave,
-                fontFeatures: [FontFeature.tabularFigures()],
-              ),
-            ),
-        ],
       ),
     );
   }
