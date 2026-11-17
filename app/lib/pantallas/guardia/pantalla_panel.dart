@@ -667,8 +667,24 @@ class _FilaAcceso extends StatelessWidget {
                 ),
               ),
             ),
+          // Sello claro de ENTRÓ / SALIÓ: para que el guardia distinga de un
+          // vistazo quién entró y quién salió, y pueda confirmar que una salida
+          // quedó bien registrada. El color del ícono ya ayuda, pero el sello
+          // no deja lugar a dudas. Un acceso denegado (raro a mano) manda.
           if (!m.aprobado)
-            const Etiqueta(texto: 'Denegado', tono: TonoEtiqueta.malo),
+            const Etiqueta(texto: 'Denegado', tono: TonoEtiqueta.malo)
+          else if (m.esEntrada)
+            const Etiqueta(
+              texto: 'Entró',
+              tono: TonoEtiqueta.bueno,
+              icono: Icons.login_rounded,
+            )
+          else
+            const Etiqueta(
+              texto: 'Salió',
+              tono: TonoEtiqueta.neutro,
+              icono: Icons.logout_rounded,
+            ),
         ],
       ),
       ),
