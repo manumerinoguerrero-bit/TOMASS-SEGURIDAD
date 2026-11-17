@@ -696,6 +696,7 @@ class ServicioAdmin {
             id, tipo_acceso, sentido, estado, patente_snapshot,
             nombre_snapshot, unidad_snapshot, rut_snapshot, ocurrido_en,
             motivo_denegacion, autorizado_por_texto,
+            calidad_ingreso, calidad_detalle,
             residente:usuarios!movimientos_acceso_residente_id_fkey ( nombre_completo ),
             guardia:usuarios!movimientos_acceso_guardia_id_fkey ( nombre_completo ),
             puntos_acceso ( nombre )

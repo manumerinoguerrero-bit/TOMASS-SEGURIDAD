@@ -379,7 +379,11 @@ class InformeDeIngresosPdf {
         _td(Formato.fechaYHora(m.ocurridoEn)),
         _td(m.esVehicular ? 'Vehículo' : 'Peatón'),
         _td(m.esEntrada ? 'Entrada' : 'Salida'),
-        _td(m.quien ?? '—'),
+        // "Quién" lleva el nombre y, debajo, la calidad del ingreso
+        // (Empresa/Apoderado/Visita + detalle) cuando el guardia la cargó.
+        _td(m.calidadTexto == null
+            ? (m.quien ?? '—')
+            : '${m.quien ?? '—'}\n${m.calidadTexto}'),
         _td(m.rut == null ? '—' : Formato.rut(m.rut)),
         _td(m.espacio ?? '—'),
         _td(m.patente ?? '—'),

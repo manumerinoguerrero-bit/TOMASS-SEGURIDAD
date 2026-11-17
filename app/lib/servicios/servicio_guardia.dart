@@ -560,6 +560,10 @@ class ServicioGuardia {
     String? observacion,
     String? residenteId,
     DateTime? ocurridoEn,
+    // En calidad de qué entra: 'empresa' | 'apoderado' | 'visita' (o null), y
+    // un detalle libre (nombre de la empresa, del alumno, o a quién visita).
+    String? calidad,
+    String? calidadDetalle,
   }) async {
     final params = <String, dynamic>{
       'p_id_local': idLocal,
@@ -574,6 +578,8 @@ class ServicioGuardia {
       'p_foto_url': fotoUrl,
       'p_observacion': observacion,
       'p_residente_id': residenteId,
+      'p_calidad': calidad,
+      'p_calidad_detalle': calidadDetalle,
       if (ocurridoEn != null)
         'p_ocurrido_en': ocurridoEn.toUtc().toIso8601String(),
     };
@@ -685,6 +691,33 @@ class ServicioGuardia {
       await _supabase.rpc('registrar_salida_rapida', params: {
         'p_persona_tipo': personaTipo,
         'p_persona_id': personaId,
+        'p_id_local': idLocal,
+        'p_geo_lat': latitud,
+        'p_geo_lng': longitud,
+      }).timeout(Entorno.esperaMaxima);
+    } catch (falla) {
+      throw Traductor.traducir(falla);
+    }
+  }
+
+  /// Registra la salida clonando el movimiento de ENTRADA indicado. Sirve para
+  /// cualquier persona que esté adentro — incluidos los ingresos manuales (los
+  /// del colegio), que no tienen residente_id/visita_id y por eso
+  /// [registrarSalidaRapida] no podía cerrar. La salida nace con el mismo
+  /// snapshot (nombre, RUT, unidad, patente) que la entrada, así la vista de
+  /// "personas dentro" las agrupa y la persona desaparece del listado.
+  ///
+  /// [movimientoId] es el id del ingreso de entrada (lo trae cada fila de
+  /// `personasDentro()` como `movimiento_id`).
+  Future<void> registrarSalidaDeMovimiento({
+    required String movimientoId,
+    required String idLocal,
+    double? latitud,
+    double? longitud,
+  }) async {
+    try {
+      await _supabase.rpc('registrar_salida_de_movimiento', params: {
+        'p_movimiento_id': movimientoId,
         'p_id_local': idLocal,
         'p_geo_lat': latitud,
         'p_geo_lng': longitud,

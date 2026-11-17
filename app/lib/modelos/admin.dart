@@ -380,6 +380,8 @@ class MovimientoAdmin {
     this.autorizadoPor,
     this.motivoDenegacion,
     this.guardia,
+    this.calidadIngreso,
+    this.calidadDetalle,
   });
 
   final String id;
@@ -420,8 +422,29 @@ class MovimientoAdmin {
   /// informes por guardia.
   final String? guardia;
 
+  /// En calidad de qué entró: 'empresa' | 'apoderado' | 'visita' (o null).
+  final String? calidadIngreso;
+
+  /// Detalle libre de la calidad: nombre de la empresa, de qué alumno es
+  /// apoderado, o a quién visita.
+  final String? calidadDetalle;
+
   bool get esVehicular => tipoAcceso == 'vehicular';
   bool get esEntrada => sentido == 'entrada';
+
+  /// La calidad lista para mostrar: "Empresa · Aguas del Valle",
+  /// "Apoderado · Pedro Soto 3°B", "Visita · depto 302", o null si no se cargó.
+  String? get calidadTexto {
+    if (calidadIngreso == null || calidadIngreso!.isEmpty) return null;
+    final etiqueta = switch (calidadIngreso) {
+      'empresa' => 'Empresa',
+      'apoderado' => 'Apoderado',
+      'visita' => 'Visita',
+      _ => calidadIngreso!,
+    };
+    final det = calidadDetalle?.trim();
+    return (det == null || det.isEmpty) ? etiqueta : '$etiqueta · $det';
+  }
 
   factory MovimientoAdmin.desdeMapa(Map<String, dynamic> m) {
     // El nombre_snapshot es la persona que pasó por la puerta (la visita).
@@ -471,6 +494,8 @@ class MovimientoAdmin {
           : null,
       motivoDenegacion: m['motivo_denegacion'] as String?,
       guardia: g is Map ? g['nombre_completo'] as String? : null,
+      calidadIngreso: m['calidad_ingreso'] as String?,
+      calidadDetalle: m['calidad_detalle'] as String?,
     );
   }
 }

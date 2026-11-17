@@ -65,10 +65,15 @@ class _EstadoAccesoManual extends ConsumerState<PantallaAccesoManual> {
   final _aDondeVa = TextEditingController();
   final _autoriza = TextEditingController();
   final _observacion = TextEditingController();
+  final _calidadDetalle = TextEditingController();
 
   String _sentido = 'entrada';
   String _tipoAcceso = 'peatonal';
   String? _garitaId;
+
+  /// En calidad de qué entra la persona: 'empresa', 'apoderado' o 'visita'.
+  /// null = no se eligió (es opcional).
+  String? _calidad;
   File? _foto;
   bool _guardando = false;
   bool _buscando = false;
@@ -112,6 +117,7 @@ class _EstadoAccesoManual extends ConsumerState<PantallaAccesoManual> {
     _aDondeVa.dispose();
     _autoriza.dispose();
     _observacion.dispose();
+    _calidadDetalle.dispose();
     super.dispose();
   }
 
@@ -289,6 +295,8 @@ class _EstadoAccesoManual extends ConsumerState<PantallaAccesoManual> {
                 fotoUrl: rutaFoto,
                 observacion: _observacion.text,
                 ocurridoEn: _horaManual,
+                calidad: _calidad,
+                calidadDetalle: _calidadDetalle.text,
               );
 
       if (!mounted) return;
@@ -318,6 +326,8 @@ class _EstadoAccesoManual extends ConsumerState<PantallaAccesoManual> {
         _patente.clear();
         _aDondeVa.clear();
         _observacion.clear();
+        _calidad = null;
+        _calidadDetalle.clear();
         _foto = null;
         _tipoAcceso = 'peatonal';
         _guardando = false;
@@ -443,8 +453,20 @@ class _EstadoAccesoManual extends ConsumerState<PantallaAccesoManual> {
             iconoIzq: Icons.login_rounded,
             iconoDer: Icons.logout_rounded,
             elegidaIzquierda: _sentido == 'entrada',
-            alElegir: (esIzq) =>
-                setState(() => _sentido = esIzq ? 'entrada' : 'salida'),
+            alElegir: (esIzq) {
+              if (esIzq) {
+                setState(() => _sentido = 'entrada');
+                return;
+              }
+              // Las salidas se registran ELIGIENDO a la persona de las que
+              // están adentro, no escribiéndolas a mano. Así la salida cierra
+              // la entrada correcta y la persona desaparece del listado. Antes,
+              // una salida tipeada con el RUT distinto al de la entrada dejaba
+              // a la persona "adentro" para siempre.
+              Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => const PantallaPersonasDentro(),
+              ));
+            },
           ),
 
           const SizedBox(height: 18),
@@ -515,6 +537,63 @@ class _EstadoAccesoManual extends ConsumerState<PantallaAccesoManual> {
               prefixIcon: Icon(Icons.badge_outlined),
             ),
           ),
+
+          // ---- En calidad de qué entra (opcional) ----
+          // Clasifica el ingreso: un contratista de una empresa, un apoderado
+          // de un colegio, o una visita de un residente. Es opcional para no
+          // frenar la fila; el detalle (qué empresa, de qué alumno, a quién
+          // visita) queda para poder reconstruir después quién entró y por qué.
+          const SizedBox(height: 14),
+          Text('¿EN CALIDAD DE QUÉ ENTRA? (OPCIONAL)',
+              style: Theme.of(context).textTheme.labelSmall),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            children: [
+              ChoiceChip(
+                label: const Text('Empresa'),
+                avatar: const Icon(Icons.business_rounded, size: 17),
+                selected: _calidad == 'empresa',
+                onSelected: (sel) =>
+                    setState(() => _calidad = sel ? 'empresa' : null),
+              ),
+              ChoiceChip(
+                label: const Text('Apoderado'),
+                avatar: const Icon(Icons.family_restroom_rounded, size: 17),
+                selected: _calidad == 'apoderado',
+                onSelected: (sel) =>
+                    setState(() => _calidad = sel ? 'apoderado' : null),
+              ),
+              ChoiceChip(
+                label: const Text('Visita'),
+                avatar: const Icon(Icons.person_pin_circle_outlined, size: 17),
+                selected: _calidad == 'visita',
+                onSelected: (sel) =>
+                    setState(() => _calidad = sel ? 'visita' : null),
+              ),
+            ],
+          ),
+          if (_calidad != null) ...[
+            const SizedBox(height: 10),
+            TextField(
+              controller: _calidadDetalle,
+              textCapitalization: TextCapitalization.words,
+              textInputAction: TextInputAction.next,
+              decoration: InputDecoration(
+                labelText: switch (_calidad) {
+                  'empresa' => 'Nombre de la empresa',
+                  'apoderado' => '¿De qué alumno es apoderado?',
+                  _ => '¿A quién visita?',
+                },
+                hintText: switch (_calidad) {
+                  'empresa' => 'Ej: Aguas del Valle',
+                  'apoderado' => 'Ej: Pedro Soto, 3°B',
+                  _ => 'Ej: depto 302',
+                },
+                prefixIcon: const Icon(Icons.info_outline_rounded),
+              ),
+            ),
+          ],
 
           // ---- La patente, solo si viene en vehículo ----
           if (_tipoAcceso == 'vehicular') ...[
