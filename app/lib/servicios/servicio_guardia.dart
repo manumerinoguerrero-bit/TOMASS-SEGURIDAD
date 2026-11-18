@@ -982,17 +982,43 @@ class ServicioGuardia {
   // PAQUETES
   // ==========================================================================
 
-  /// Sugerencias de destinatarios escritos a mano en paquetes anteriores.
+  /// La lupa de encomiendas: busca en la base de destinatarios de la
+  /// instalación activa (las personas a las que ya les llegó algo).
   ///
-  /// Cuando el guardia escribe el nombre a mano, se le van sugiriendo los
-  /// nombres que ya usó antes en otros paquetes. Así, la próxima vez que
-  /// venga un paquete para "María de la Casa 12" no tiene que reescribirlo:
-  /// alcanza con tocar la sugerencia.
+  /// La base se llena sola en el servidor cada vez que se registra una
+  /// encomienda escrita a mano (migración 42). Busca por nombre, apellido o
+  /// número de unidad, sin importar tildes: "vargas", "275", "maria fer".
+  /// Con el texto vacío devuelve los que más encomiendas reciben.
   ///
-  /// Devuelve una lista de {nombre, unidad, usos} ordenada por más usados.
+  /// Devuelve una lista de {nombre, unidad, usos}, primero los más usados.
   Future<List<Map<String, dynamic>>> sugerenciasDestinatariosAMano({
     String? empezandoCon,
   }) async {
+    final texto = empezandoCon?.trim() ?? '';
+    try {
+      final filas = await _supabase.rpc(
+        'buscar_destinatarios_encomienda',
+        params: {'p_texto': texto},
+      ).timeout(Entorno.esperaMaxima);
+      return (filas as List)
+          .map((f) => {
+                'nombre': (f['nombre'] as String?)?.trim() ?? '',
+                'unidad': (f['unidad'] as String?)?.trim() ?? '',
+                'usos': (f['usos'] as num?)?.toInt() ?? 1,
+              })
+          .where((f) => (f['nombre'] as String).isNotEmpty)
+          .toList();
+    } catch (_) {
+      // Si la base todavía no existe en el servidor (migración 42 sin
+      // aplicar), se busca directo en los paquetes anteriores.
+      return _sugerenciasDesdePaquetes(texto);
+    }
+  }
+
+  /// Respaldo de la lupa: arma las sugerencias leyendo los últimos paquetes
+  /// escritos a mano de la instalación activa.
+  Future<List<Map<String, dynamic>>> _sugerenciasDesdePaquetes(
+      String texto) async {
     try {
       // Filtro por condominio activo: antes las sugerencias mezclaban
       // destinatarios escritos a mano de todos los condominios donde el
@@ -1007,21 +1033,26 @@ class ServicioGuardia {
           .eq('condominio_id', condominioId)
           .not('destinatario_texto', 'is', null);
 
-      if (empezandoCon != null && empezandoCon.trim().isNotEmpty) {
-        consulta = consulta.ilike('destinatario_texto',
-            '${empezandoCon.trim()}%');
+      if (texto.isNotEmpty) {
+        // Por nombre o por unidad, en cualquier parte ("vargas", "275").
+        final limpio = texto.replaceAll(RegExp(r'[,()%*]'), ' ').trim();
+        consulta = consulta.or('destinatario_texto.ilike.%$limpio%,'
+            'unidad_texto.ilike.%$limpio%');
       }
 
-      final filas = await consulta.limit(80).timeout(Entorno.esperaMaxima);
+      final filas = await consulta
+          .order('recibido_en', ascending: false)
+          .limit(300)
+          .timeout(Entorno.esperaMaxima);
 
       // Agrupar por nombre+unidad para contar los usos y quedarnos con los
-      // más frecuentes. Se hace en el cliente porque son pocas filas.
+      // más frecuentes.
       final agrupado = <String, Map<String, dynamic>>{};
       for (final f in (filas as List)) {
         final nombre = (f['destinatario_texto'] as String?)?.trim() ?? '';
         final unidad = (f['unidad_texto'] as String?)?.trim() ?? '';
         if (nombre.isEmpty) continue;
-        final clave = '$nombre|$unidad';
+        final clave = '${nombre.toLowerCase()}|${unidad.toLowerCase()}';
         agrupado.update(
           clave,
           (v) => {...v, 'usos': (v['usos'] as int) + 1},
@@ -1031,7 +1062,7 @@ class ServicioGuardia {
 
       final ordenado = agrupado.values.toList()
         ..sort((a, b) => (b['usos'] as int).compareTo(a['usos'] as int));
-      return ordenado.take(10).toList();
+      return ordenado.take(12).toList();
     } catch (_) {
       // Una sugerencia que falla no vale un cartel de error: el guardia
       // igual puede escribir el nombre completo a mano.
