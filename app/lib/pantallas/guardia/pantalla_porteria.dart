@@ -484,6 +484,9 @@ class _EstadoRecibir extends ConsumerState<_PestanaRecibir> {
                           onPressed: _guardando
                               ? null
                               : () {
+                                  // Que una búsqueda pendiente del texto
+                                  // borrado no vuelva a aparecer.
+                                  _esperaBusqueda?.cancel();
                                   _nombreAMano.clear();
                                   _unidadAMano.clear();
                                   _buscar('');
