@@ -28,6 +28,10 @@ Future<void> vibrarPuntoMarcado() async {
     }
     await Vibration.vibrate(pattern: [0, 350, 150, 350]);
   } catch (_) {
-    // Si la vibración falla, queda el aviso en pantalla. No es crítico.
+    // Si el motor falla, probamos con el golpecito del sistema; y si eso
+    // también falla, queda el aviso en pantalla. No es crítico.
+    try {
+      await HapticFeedback.heavyImpact();
+    } catch (_) {}
   }
 }
