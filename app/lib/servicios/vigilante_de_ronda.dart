@@ -23,6 +23,7 @@ import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../modelos/guardia.dart';
+import '../nucleo/vibrar.dart';
 import 'rastreador_guardia.dart';
 import 'servicio_guardia.dart';
 
@@ -170,6 +171,9 @@ class VigilanteDeRonda {
       // Si mientras tanto cambió la ronda, este resultado ya no aplica.
       if (_rondaId != rondaId) return;
       anotarResuelto(pc.id);
+      // Vibra acá (y no en la pantalla) para que también avise con la
+      // pantalla apagada o si el guardia está en otra pestaña.
+      if (!r.yaEstaba) unawaited(vibrarPuntoMarcado());
       if (!r.yaEstaba && !_marcasCtrl.isClosed) {
         _marcasCtrl.add(MarcaAutomatica(pc, r));
       }
