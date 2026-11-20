@@ -34,7 +34,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
@@ -46,6 +45,7 @@ import '../../nucleo/capas_mapa.dart';
 import '../../modelos/guardia.dart';
 import '../../nucleo/errores.dart';
 import '../../nucleo/formato.dart';
+import '../../nucleo/vibrar.dart';
 import '../../servicios/vigilante_de_ronda.dart';
 import '../comunes/componentes.dart';
 import 'acciones_de_turno.dart';
@@ -149,10 +149,11 @@ class _EstadoRondas extends ConsumerState<PantallaRondas> {
     );
   }
 
-  /// El vigilante marcó un punto solo: avisamos con vibración + toast.
+  /// El vigilante marcó un punto solo: avisamos con toast. La vibración la
+  /// hace el vigilante (nucleo/vibrar.dart), así suena aunque esta pantalla
+  /// no esté abierta.
   void _avisarMarca(MarcaAutomatica m) {
     if (!mounted) return;
-    unawaited(HapticFeedback.heavyImpact());
     refrescarRonda(ref);
     final r = m.resultado;
     if (r.yaEstaba) return;
@@ -354,7 +355,7 @@ class _EstadoRondas extends ConsumerState<PantallaRondas> {
           );
       if (!mounted) return;
       vigilante.anotarResuelto(pc.id);
-      unawaited(HapticFeedback.mediumImpact());
+      unawaited(vibrarPuntoMarcado());
       refrescarRonda(ref);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
