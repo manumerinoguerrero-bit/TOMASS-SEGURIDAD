@@ -23,6 +23,10 @@ const estado = {
   },
   // Estado seleccionado en la pestaña Paquetes (afecta render + CSV).
   paquetesEstadoActual: 'en_porteria',
+  // Encomiendas cuya foto quedó en el ÚLTIMO PDF descargado. Es la lista
+  // exacta que ofrece borrar el botón "Ya guardé el PDF — borrar esas fotos":
+  // ni una más ni una menos. Se vacía si se vuelve a filtrar.
+  fotosParaBorrar: null,
 };
 
 // ============================================================================
@@ -98,6 +102,8 @@ const estado = {
     descargarPdfNovedades);
   document.getElementById('btnPdfPaquetes').addEventListener('click',
     descargarPdfPaquetes);
+  document.getElementById('btnBorrarFotosPaquetes').addEventListener('click',
+    pedirConfirmacionBorrarFotos);
 
   // Informes: catalogo de PDFs. Lo cablea una sola vez al cargar — cada
   // card abre su propio panel de filtros al clickearse, y el boton Volver
@@ -343,6 +349,8 @@ async function renderPaquetes() {
   const cont = document.getElementById('paquetesLista');
   cont.innerHTML = '<div class="cargando">Cargando…</div>';
   const estadoSel = document.getElementById('paquetesEstado').value;
+  // Lo que se filtre ahora ya no es lo que quedó en el último PDF.
+  ocultarAvisoBorrarFotos();
   // "" = todos; 'en_porteria' | 'entregado' = filtro específico
   estado.paquetesEstadoActual = estadoSel || null;
   try {
@@ -394,7 +402,9 @@ function renderCardPaquete(f) {
     </div>
     <div class="mini-pruebas">
       ${f.firma_url ? `<button class="mini-firma" data-bucket="firmas" data-path="${escapar(f.firma_url)}" data-titulo="Firma del residente">✍ Ver firma</button>` : '<span class="sin-prueba">Sin firma</span>'}
-      ${(f.foto_entrega_url || f.foto_url) ? `<button class="mini-foto-paquete" data-bucket="paquetes" data-path="${escapar(f.foto_entrega_url || f.foto_url)}" data-titulo="Foto del paquete">📷 Ver foto del paquete</button>` : ''}
+      ${f.fotos_borradas_en
+        ? `<span class="sin-prueba">Foto borrada (ya informada) · ${formatearFecha(f.fotos_borradas_en)}</span>`
+        : (f.foto_entrega_url || f.foto_url) ? `<button class="mini-foto-paquete" data-bucket="paquetes" data-path="${escapar(f.foto_entrega_url || f.foto_url)}" data-titulo="Foto del paquete">📷 Ver foto del paquete</button>` : ''}
     </div>
   ` : '';
 
@@ -827,8 +837,9 @@ async function descargarPdfPaquetes() {
   if (!confirmar) return;
 
   mostrarProgresoPdf('Bajando fotos y firmas…', 0, filas.length);
+  let idsConFotoEnPdf = [];
   try {
-    await descargarPdfPaquetesConPruebas({
+    idsConFotoEnPdf = await descargarPdfPaquetesConPruebas({
       filas,
       nombreArchivo: nombreBaseArchivoPdf('paquetes'),
       titulo: tituloConInstalacion('Informe de Paquetes'),
@@ -839,6 +850,116 @@ async function descargarPdfPaquetes() {
     });
   } finally {
     cerrarProgresoPdf();
+  }
+
+  // Recién con el PDF ya descargado aparece la opción de borrar sus fotos.
+  ofrecerBorrarFotos(filas, idsConFotoEnPdf || []);
+}
+
+// ============================================================================
+// Borrar las fotos que ya quedaron en el PDF
+// ============================================================================
+// Solo el administrador, solo encomiendas ENTREGADAS (las que siguen en
+// portería conservan su foto como prueba), y solo las que de verdad salieron
+// con foto en el PDF. La firma y el registro escrito no se tocan nunca.
+// El servidor (borrar-fotos-informadas) vuelve a comprobar todo esto.
+// ============================================================================
+
+function ofrecerBorrarFotos(filas, idsConFotoEnPdf) {
+  if (estado.perfil?.rol !== 'administrador') return;
+  const enPdf = new Set(idsConFotoEnPdf);
+  const candidatas = filas.filter((f) =>
+    f.estado === 'entregado' && !f.fotos_borradas_en && enPdf.has(f.id));
+  if (candidatas.length === 0) return;
+
+  const instalaciones = [...new Set(candidatas.map((f) => f.condominio_nombre))];
+  estado.fotosParaBorrar = {
+    ids: candidatas.map((f) => f.id),
+    instalaciones,
+  };
+
+  const n = candidatas.length;
+  document.getElementById('avisoBorrarFotosTexto').textContent =
+    `El PDF incluye las fotos de ${n} ${n === 1 ? 'encomienda entregada' : 'encomiendas entregadas'} ` +
+    `(${instalaciones.join(', ')}). Cuando lo tengas guardado, podés borrar ` +
+    'esas fotos para liberar espacio. Las firmas y el registro quedan.';
+  document.getElementById('btnBorrarFotosPaquetes').disabled = false;
+  document.getElementById('avisoBorrarFotos').classList.remove('oculto');
+}
+
+function ocultarAvisoBorrarFotos() {
+  estado.fotosParaBorrar = null;
+  document.getElementById('avisoBorrarFotos')?.classList.add('oculto');
+}
+
+/** Ventana de confirmación: hay que escribir BORRAR, porque no tiene vuelta. */
+function pedirConfirmacionBorrarFotos() {
+  const pendiente = estado.fotosParaBorrar;
+  if (!pendiente || pendiente.ids.length === 0) return;
+  const n = pendiente.ids.length;
+
+  const mod = document.getElementById('modalContenido');
+  mod.innerHTML = `
+    <h3 class="titulo-modal">¿Borrar las fotos de este informe?</h3>
+    <p style="font-size:14px;line-height:1.5;margin:0 0 10px">
+      Se van a borrar <strong>PARA SIEMPRE</strong> las fotos de
+      <strong>${n} ${n === 1 ? 'encomienda' : 'encomiendas'}</strong>
+      de ${escapar(pendiente.instalaciones.join(', '))}: las mismas que
+      quedaron en el PDF que acabás de descargar.
+    </p>
+    <p style="font-size:14px;line-height:1.5;margin:0 0 10px">
+      La <strong>firma</strong> del residente y el registro escrito (quién
+      recibió, quién retiró, cuándo) <strong>no se tocan</strong>.
+    </p>
+    <p style="font-size:14px;line-height:1.5;margin:0 0 14px">
+      Asegurate de tener el PDF guardado antes de seguir. Para confirmar,
+      escribí <strong>BORRAR</strong>:
+    </p>
+    <input id="confirmarBorrarTexto" type="text" autocomplete="off"
+      style="width:100%;padding:9px 10px;border:1px solid #ccc;border-radius:6px;font-size:14px;margin-bottom:14px">
+    <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap">
+      <button class="btn-primario" id="cancelarBorrarFotos">Cancelar</button>
+      <button class="btn-borrar-fotos" id="confirmarBorrarFotos" disabled
+        style="margin-left:0">Borrar ${n} ${n === 1 ? 'foto' : 'fotos'}</button>
+    </div>
+    <div id="resultadoBorrarFotos" style="margin-top:12px;font-size:13px"></div>
+  `;
+  abrirModal();
+
+  const entrada = document.getElementById('confirmarBorrarTexto');
+  const confirmar = document.getElementById('confirmarBorrarFotos');
+  entrada.addEventListener('input', () => {
+    confirmar.disabled = entrada.value.trim().toUpperCase() !== 'BORRAR';
+  });
+  entrada.focus();
+  document.getElementById('cancelarBorrarFotos')
+    .addEventListener('click', cerrarModal);
+  confirmar.addEventListener('click', () => borrarFotosConfirmado(pendiente));
+}
+
+async function borrarFotosConfirmado(pendiente) {
+  const confirmar = document.getElementById('confirmarBorrarFotos');
+  const cancelar = document.getElementById('cancelarBorrarFotos');
+  const resultado = document.getElementById('resultadoBorrarFotos');
+  confirmar.disabled = true;
+  cancelar.disabled = true;
+  confirmar.textContent = 'Borrando fotos…';
+  try {
+    const r = await api.borrarFotosInformadas(pendiente.ids);
+    ocultarAvisoBorrarFotos();
+    resultado.style.color = '#065F46';
+    resultado.textContent = r?.mensaje || 'Fotos borradas.';
+    confirmar.style.display = 'none';
+    cancelar.disabled = false;
+    cancelar.textContent = 'Cerrar';
+    // Volver a cargar la lista para que muestre "Foto borrada".
+    renderPaquetes();
+  } catch (e) {
+    resultado.style.color = '#991B1B';
+    resultado.textContent = e.message || 'No se pudieron borrar las fotos.';
+    confirmar.disabled = false;
+    cancelar.disabled = false;
+    confirmar.textContent = 'Reintentar';
   }
 }
 

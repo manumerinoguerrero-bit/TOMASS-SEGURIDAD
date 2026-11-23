@@ -105,13 +105,17 @@ function dibujarCabeceraPdf(doc, titulo, subtitulo) {
   const ancho = doc.internal.pageSize.getWidth();
   doc.setFillColor(...COLOR_GRAFITO_RGB);
   doc.rect(0, 0, ancho, 22, 'F');
+  // El escudo de la empresa (ver dibujarEscudo en pdf.js). Si no cargó, el
+  // texto vuelve a su lugar de siempre.
+  const anchoEscudo = dibujarEscudo(doc, 14, 2.5, 17);
+  const xTexto = anchoEscudo ? 14 + anchoEscudo + 4 : 14;
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
-  doc.text('TOMASS SEGURIDAD', 14, 10);
+  doc.text('TOMASS SEGURIDAD', xTexto, 10);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
-  doc.text('Informe generado desde el panel web', 14, 15);
+  doc.text('Informe generado desde el panel web', xTexto, 15);
 
   doc.setTextColor(26, 26, 46);
   doc.setFontSize(15);
@@ -370,6 +374,7 @@ const InformeRondas = {
       }
 
       const { jsPDF } = window.jspdf;
+      await asegurarEscudo();
       const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
       dibujarCabeceraPdf(doc,
         `Informe de rondas — ${condoNombre}`,
@@ -556,6 +561,7 @@ const InformeResumenMensual = {
       });
 
       const { jsPDF } = window.jspdf;
+      await asegurarEscudo();
       const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
       dibujarCabeceraPdf(doc, 'Resumen consolidado del período',
         `Del ${fmtFecha(desde)} al ${fmtFecha(hasta)} · ${filas.length} instalaciones`);
@@ -697,6 +703,7 @@ const InformeRecorridoTurno = {
       const png = await capturarMapaComoPng({ puntos: [], rastro, pins });
 
       const { jsPDF } = window.jspdf;
+      await asegurarEscudo();
       const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
       const t0 = puntos[0];
       dibujarCabeceraPdf(doc, 'Recorrido GPS del turno',
@@ -773,6 +780,7 @@ const InformeNovedades = {
       if (novedades.length === 0) throw new Error('No hay novedades con esos filtros.');
 
       const { jsPDF } = window.jspdf;
+      await asegurarEscudo();
       const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
       dibujarCabeceraPdf(doc, 'Novedades',
         `${nombreCondominioActual()} · ${novedades.length} ${novedades.length === 1 ? 'novedad' : 'novedades'}` +
@@ -889,6 +897,7 @@ const InformeMovimientos = {
       if (filas.length === 0) throw new Error('No hay movimientos en ese período.');
 
       const { jsPDF } = window.jspdf;
+      await asegurarEscudo();
       const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
       dibujarCabeceraPdf(doc, 'Movimientos de acceso',
         `${nombreCondominioActual()} · Del ${fmtFecha(desde)} al ${fmtFecha(hasta)} · ${filas.length} registros`);
@@ -955,6 +964,7 @@ const InformePaquetesAtrasados = {
         throw new Error(`No hay paquetes atrasados más de ${dias} días.`);
       }
       const { jsPDF } = window.jspdf;
+      await asegurarEscudo();
       const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
       dibujarCabeceraPdf(doc, 'Paquetes atrasados',
         `${nombreCondominioActual()} · Sin retirar hace más de ${dias} días · ${filas.length} paquetes`);
@@ -1032,6 +1042,7 @@ const InformeComparativa = {
       })).sort((a, b) => b.score - a.score);
 
       const { jsPDF } = window.jspdf;
+      await asegurarEscudo();
       const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
       dibujarCabeceraPdf(doc, 'Comparativa entre instalaciones',
         `Del ${fmtFecha(desde)} al ${fmtFecha(hasta)} · ordenadas por índice de actividad`);

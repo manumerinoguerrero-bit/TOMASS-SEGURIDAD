@@ -34,6 +34,7 @@ async function descargarPDF({
   columnas,
   filas,
 }) {
+  await asegurarEscudo();
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({
     orientation: orientacion,
@@ -102,27 +103,61 @@ async function descargarPDF({
   doc.save(nombreArchivo);
 }
 
+// ----------------------------------------------------------------------------
+// El escudo de la empresa para los encabezados de los PDF
+// ----------------------------------------------------------------------------
+// Es el mismo escudo rojo con la T de la app, achicado (img/escudo-pdf.png,
+// 180×210, fondo transparente) para que el PDF no pese de más. Se baja UNA
+// vez al abrir el panel y queda guardado. Si por algún motivo no carga, el
+// encabezado sale igual, solo con el nombre.
+// ----------------------------------------------------------------------------
+
+let ESCUDO_PDF = null;
+const cargaDelEscudo = fetch('img/escudo-pdf.png')
+  .then((r) => (r.ok ? r.blob() : null))
+  .then((blob) => blob && new Promise((ok) => {
+    const lector = new FileReader();
+    lector.onload = () => ok(lector.result);
+    lector.onerror = () => ok(null);
+    lector.readAsDataURL(blob);
+  }))
+  .then((dataUrl) => { ESCUDO_PDF = dataUrl || null; })
+  .catch(() => { ESCUDO_PDF = null; });
+
+/** Esperar a que el escudo esté listo antes de armar un PDF. */
+async function asegurarEscudo() {
+  try { await cargaDelEscudo; } catch (_) { /* sale sin escudo */ }
+}
+
+/** Dibuja el escudo con su alto en mm. Devuelve el ancho usado (0 si no hay). */
+function dibujarEscudo(doc, x, y, alto) {
+  if (!ESCUDO_PDF) return 0;
+  const ancho = alto * (180 / 210);
+  try {
+    doc.addImage(ESCUDO_PDF, 'PNG', x, y, ancho, alto, 'escudo', 'FAST');
+    return ancho;
+  } catch (_) {
+    return 0;
+  }
+}
+
 function dibujarEncabezado(doc, anchoHoja, titulo, subtitulo) {
   // Barra superior en grafito
   doc.setFillColor(...COLOR_GRAFITO);
   doc.rect(0, 0, anchoHoja, 22, 'F');
 
-  // Cuadrado rojo con "T" (simulación del logo sin cargar PNG)
-  doc.setFillColor(...COLOR_ROJO);
-  doc.rect(10, 5, 12, 12, 'F');
+  // El escudo de la empresa
+  dibujarEscudo(doc, 10, 2.5, 17);
   doc.setTextColor(255);
-  doc.setFontSize(13);
-  doc.setFont('helvetica', 'bold');
-  doc.text('T', 13.5, 13);
 
   // Marca y títulos
   doc.setFontSize(13);
   doc.setFont('helvetica', 'bold');
-  doc.text('TOMASS SEGURIDAD', 26, 10);
+  doc.text('TOMASS SEGURIDAD', 28, 10);
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(220, 220, 230);
-  doc.text('Panel de administración', 26, 15);
+  doc.text('Panel de administración', 28, 15);
 
   // Título del informe (debajo de la barra)
   doc.setTextColor(13, 43, 94);
@@ -225,7 +260,9 @@ async function descargarPdfPaquetesConPruebas({
     await Promise.all(grupo.map(async (f) => {
       // Prefiere foto_entrega_url si algún día existe; fallback a foto_url
       // (la del paquete al recibirlo).
-      const rutaFoto = f.foto_entrega_url || f.foto_url;
+      // Si las fotos ya se borraron (porque salieron en un PDF anterior),
+      // no se intenta bajarlas: el archivo ya no existe.
+      const rutaFoto = f.fotos_borradas_en ? null : (f.foto_entrega_url || f.foto_url);
       const [foto, firma] = await Promise.all([
         rutaFoto
           ? api.urlFoto('paquetes', rutaFoto).then(fetchComoDataUrl)
@@ -241,6 +278,7 @@ async function descargarPdfPaquetesConPruebas({
   }
 
   // 2) Armar el PDF.
+  await asegurarEscudo();
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const anchoHoja = doc.internal.pageSize.getWidth();
@@ -274,6 +312,13 @@ async function descargarPdfPaquetesConPruebas({
   });
 
   doc.save(nombreArchivo);
+
+  // Devuelve los ids cuya foto QUEDÓ DE VERDAD dentro del PDF. El botón de
+  // "borrar esas fotos" del panel solo ofrece esas: si una foto no se pudo
+  // bajar, no está en el papel y no se debe borrar.
+  return filas
+    .filter((f) => imagenesPorFila.get(f.id)?.foto)
+    .map((f) => f.id);
 }
 
 /** Dibuja una tarjeta con los datos del paquete + foto + firma. */
@@ -410,6 +455,7 @@ function formatearValorPdf(v) {
 // ============================================================================
 
 async function descargarPdfResumen({ filas, instalacionNombre }) {
+  await asegurarEscudo();
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 

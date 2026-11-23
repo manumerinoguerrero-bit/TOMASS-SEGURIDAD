@@ -467,6 +467,35 @@ h1, h2, h3 { margin: 0; }
 }
 .btn-descargar.btn-pdf:hover { background: var(--rojo-oscuro); }
 
+/* Franja que ofrece borrar las fotos que ya quedaron en el PDF. */
+.aviso-borrar-fotos {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  background: #FEF3C7;
+  border: 1px solid #F59E0B;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #78350F;
+}
+.aviso-borrar-fotos.oculto { display: none; }
+.btn-borrar-fotos {
+  padding: 9px 14px;
+  background: var(--rojo);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  margin-left: auto;
+}
+.btn-borrar-fotos:hover { background: var(--rojo-oscuro); }
+.btn-borrar-fotos:disabled { background: var(--texto-tenue); cursor: not-allowed; }
+
 .tabla-wrap {
   background: var(--superficie);
   border: 1px solid var(--linea);
