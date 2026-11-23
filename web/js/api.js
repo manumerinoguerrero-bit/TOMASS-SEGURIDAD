@@ -79,6 +79,25 @@ const api = {
     return data.signedUrl;
   },
 
+  /// Borra las fotos (no la firma, no el registro) de encomiendas ENTREGADAS
+  /// que ya quedaron en un PDF. Lo hace la función del servidor
+  /// borrar-fotos-informadas, que vuelve a comprobar todo por su cuenta.
+  async borrarFotosInformadas(ids) {
+    const { data, error } = await supabaseClient.functions.invoke(
+      'borrar-fotos-informadas', { body: { ids } });
+    if (error) {
+      // El servidor manda un mensaje para personas en el cuerpo; se intenta
+      // leerlo antes de caer al mensaje genérico.
+      let mensaje = 'No se pudieron borrar las fotos.';
+      try {
+        const cuerpo = await error.context?.json?.();
+        if (cuerpo?.mensaje) mensaje = cuerpo.mensaje;
+      } catch (_) { /* sin cuerpo legible */ }
+      throw new Error(mensaje);
+    }
+    return data;
+  },
+
   async salir() {
     await supabaseClient.auth.signOut();
     window.location.replace('index.html');

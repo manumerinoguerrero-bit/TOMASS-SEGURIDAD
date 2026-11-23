@@ -103,7 +103,9 @@ Deno.serve(async (peticion: Request) => {
     const { error: fallaMarca } = await servidor
       .from("paquetes")
       .update({
-        foto_url: null,
+        // foto_url NO se vacía: la columna es obligatoria (NOT NULL) y el
+        // update entero fallaría. La marca fotos_borradas_en es la que avisa
+        // que el archivo ya no existe.
         foto_entrega_url: null,
         fotos_borradas_en: new Date().toISOString(),
       })
