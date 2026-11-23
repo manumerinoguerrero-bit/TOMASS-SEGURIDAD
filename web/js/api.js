@@ -52,11 +52,17 @@ const api = {
   },
 
   async paquetes({ condominioId, estado = 'en_porteria' }) {
-    const { data, error } = await supabaseClient.rpc('web_mis_paquetes', {
+    const parametros = {
       p_condominio_id: condominioId || null,
       // estado puede ser 'en_porteria', 'entregado' o null (todos)
       p_estado: estado,
-    });
+    };
+    // La v2 (migración 43) trae además fotos_borradas_en. Si no existiera,
+    // se usa la original: el panel funciona igual, sin el aviso de borrada.
+    let { data, error } = await supabaseClient.rpc('web_mis_paquetes_v2', parametros);
+    if (error) {
+      ({ data, error } = await supabaseClient.rpc('web_mis_paquetes', parametros));
+    }
     if (error) throw error;
     return data || [];
   },
