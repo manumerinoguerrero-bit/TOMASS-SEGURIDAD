@@ -13,18 +13,15 @@
 --   resto de la función es idéntico al que está hoy en el servidor.
 --
 --   Postgres no deja agregar columnas a lo que devuelve una función con
---   "create or replace": hay que borrarla y crearla de nuevo, y devolverle el
---   mismo permiso que tenía (solo usuarios con sesión).
+--   "create or replace". En vez de borrar la original (web_mis_paquetes), se
+--   crea una nueva, web_mis_paquetes_v2, idéntica más la columna. El panel
+--   usa la v2 y, si no existiera, vuelve a la original. La original queda
+--   intacta por si algo más la usa.
 --
---   Si este archivo NO se aplica, el botón igual funciona: solo que el panel
---   seguiría mostrando "Ver foto" en las encomiendas ya limpiadas.
+--   ✅ APLICADO EN EL SERVIDOR el 2026-11-23.
 -- ============================================================================
 
-begin;
-
-drop function if exists public.web_mis_paquetes(uuid, text);
-
-create function public.web_mis_paquetes(
+create or replace function public.web_mis_paquetes_v2(
   p_condominio_id uuid default null,
   p_estado text default 'en_porteria'
 )
@@ -65,13 +62,12 @@ as $function$
   LIMIT 1000;
 $function$;
 
-revoke all on function public.web_mis_paquetes(uuid, text) from public, anon;
-grant execute on function public.web_mis_paquetes(uuid, text) to authenticated, service_role;
+revoke all on function public.web_mis_paquetes_v2(uuid, text) from public, anon;
+grant execute on function public.web_mis_paquetes_v2(uuid, text) to authenticated, service_role;
 
-commit;
 
 -- Revisión: debe aparecer fotos_borradas_en al final.
--- select * from public.web_mis_paquetes(null, 'entregado') limit 1;
+-- select * from public.web_mis_paquetes_v2(null, 'entregado') limit 1;
 
 -- ============================================================================
 -- FIN DEL ARCHIVO 43
